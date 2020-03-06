@@ -1,0 +1,25 @@
+beacon-item:
+  name: Portable Beacon # Item name for portable beacon
+  lore: [] # Item lore for portable beacon
+  custom-model-data: -1 # Custom model data for portable beacon
+  creation-reminder:
+    enabled: true
+    message: '§aYou feel that something is resonating with the beacon...' # Message to send to player when such reminder is active
+    radius: 8 # Scan radius
+    disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
+  effects: # Custom names for potion effects
+    REGENERATION: '§cRegeneration'
+    SPEED: '§fSpeed'
+    DAMAGE_RESISTANCE: '§9Resistance'
+    FAST_DIGGING: '§eHaste'
+    JUMP: '§aJump Boost'
+    INCREASE_DAMAGE: '§4Strength'
+    # You can add more, the keys must be the same as https://hub.spigotmc.org/javadocs/spigot/org/bukkit/potion/PotionEffectType.html
+
+anvil-combination:
+  enabled: true # Enable combining portable beacons in anvil
+  max-effects: 6 # Max no. of effects the resultant item can have
+  max-effect-amplifier: 3 # Max amplifier of effects the resultant item can have
+  combine-effects-additively: true # true for simple combination (e.g. Speed II + Speed I = Speed III); false for anvil-like combination (e.g. Speed II + Speed II = Speed III)
+
+# Item used is generated on startup

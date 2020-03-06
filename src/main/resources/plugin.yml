@@ -1,0 +1,15 @@
+name: PortableBeacons
+version: @version@
+main: com.jacky8399.main.PortableBeacons
+api-version: '1.14'
+prefix: PortableBeacons
+commands:
+  portablebeacons:
+    permission: portablebeacons.admin
+    aliases:
+      - pb
+      - beacons
+
+permissions:
+  portablebeacons.admin:
+    default: op
