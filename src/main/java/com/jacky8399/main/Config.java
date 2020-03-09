@@ -24,6 +24,9 @@ public class Config {
         itemCreationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
         itemCreationReminderDisableIfAlreadyOwnBeaconItem = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
+        itemNerfsExpPercentagePerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
+        itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
+
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
         anvilCombinationMaxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
@@ -41,6 +44,9 @@ public class Config {
     public static String itemCreationReminderMessage;
     public static double itemCreationReminderRadius;
     public static boolean itemCreationReminderDisableIfAlreadyOwnBeaconItem;
+
+    public static double itemNerfsExpPercentagePerCycle;
+    public static boolean itemNerfsOnlyApplyInHotbar;
 
     public static boolean anvilCombinationEnabled;
     public static int anvilCombinationMaxEffects;

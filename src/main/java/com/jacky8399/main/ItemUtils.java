@@ -1,9 +1,6 @@
 package com.jacky8399.main;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Streams;
-import org.apache.commons.lang.ArrayUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -11,12 +8,11 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 
 public class ItemUtils {
     public static boolean isPortableBeacon(ItemStack stack) {
@@ -71,7 +67,7 @@ public class ItemUtils {
     }
 
     private static int getCost(BeaconEffects effects) {
-        return effects.consolidateEffects().entrySet().stream().mapToInt(entry -> (int)Math.pow(2, entry.getValue())).sum();
+        return effects.consolidateEffects().values().stream().mapToInt(aShort -> 1 << aShort).sum();
     }
 
     public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {

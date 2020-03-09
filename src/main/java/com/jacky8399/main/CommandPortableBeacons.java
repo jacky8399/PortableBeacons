@@ -23,7 +23,7 @@ public class CommandPortableBeacons implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (command.getLabel().equals("portablebeacons")) {
             if (args.length <= 1) {
-                return Stream.of("setitem", "givebeacon", "reload", "updateitems").filter(name -> name.startsWith(args[0])).collect(Collectors.toList());
+                return Stream.of("setitem", "givebeacon", "reload", "updateitems", "inspect").filter(name -> name.startsWith(args[0])).collect(Collectors.toList());
             } else if (args[0].equals("givebeacon")) {
                 if (args.length <= 2) {
                     // show all players
@@ -123,6 +123,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     effects.consolidateEffects().forEach((pot, amplifier)->sender.sendMessage(ChatColor.YELLOW.toString() + pot.toString() + " level " + amplifier));
                     sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
                     sender.sendMessage(ChatColor.GREEN + "Is obsolete: " + ChatColor.YELLOW + effects.shouldUpdate());
+                    sender.sendMessage(ChatColor.GREEN + "Exp % per cycle: " + ChatColor.YELLOW + String.format("%.5f", effects.calcExpPerCycle()));
                 }
                 break;
             }

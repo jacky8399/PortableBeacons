@@ -7,6 +7,9 @@ beacon-item:
     message: '§aYou feel that something is resonating with the beacon...' # Message to send to player when such reminder is active
     radius: 8 # Scan radius
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
+  nerfs: # One cycle is every 7.5s
+    exp-percentage-per-cycle: 0.05555555555
+    only-apply-in-hotbar: false # True if the effects should only be applied when the item is in the hotbar
   effects: # Custom names for potion effects
     REGENERATION: '§cRegeneration'
     SPEED: '§fSpeed'

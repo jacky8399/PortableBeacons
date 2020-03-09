@@ -7,14 +7,20 @@ import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.FallingBlock;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
-import org.bukkit.event.inventory.*;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.AnvilInventory;
@@ -39,9 +45,28 @@ public class Events implements Listener {
         Bukkit.getOnlinePlayers().forEach(p -> {
             ListIterator<ItemStack> iterator = p.getInventory().iterator();
             while (iterator.hasNext()) {
+                int nextIdx = iterator.nextIndex();
+                if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
+                    return; // out of hotbar
+                }
                 ItemStack is = iterator.next();
                 if (ItemUtils.isPortableBeacon(is)) {
                     BeaconEffects beaconEffects = ItemUtils.getEffects(is);
+                    // deduct exp first
+                    double xp = beaconEffects.calcExpPerCycle();
+                    if (xp != 0) {
+                        double playerXpPercentage = p.getExp();
+                        int levels = p.getLevel();
+                        while (playerXpPercentage < xp) {
+                            if (--levels < 0)
+                                return; // do not apply
+                            playerXpPercentage += 1;
+                        }
+                        playerXpPercentage -= xp;
+                        p.setLevel(levels);
+                        p.setExp((float) playerXpPercentage);
+                    }
+
                     PotionEffect[] effects = beaconEffects.toEffects();
                     for (PotionEffect effect : effects) {
                         PotionEffect current = p.getPotionEffect(effect.getType());
@@ -177,7 +202,7 @@ public class Events implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (Config.itemCreationReminderDisableIfAlreadyOwnBeaconItem) {
                 // check if already own beacon item
-                if (Arrays.stream(player.getInventory().getContents()).anyMatch(ItemUtils::isPortableBeacon)) {
+                if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
                     continue;
                 }
             }

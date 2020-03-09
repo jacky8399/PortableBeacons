@@ -19,7 +19,6 @@ public final class PortableBeacons extends JavaPlugin {
 
         CommandPortableBeacons cmd = new CommandPortableBeacons();
         getCommand("portablebeacons").setExecutor(cmd);
-        getCommand("portablebeacons").setTabCompleter(cmd);
 
         saveDefaultConfig();
         reloadConfig();

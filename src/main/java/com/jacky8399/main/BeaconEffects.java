@@ -42,13 +42,22 @@ public class BeaconEffects {
 
     private static final int DURATION_CONST = 280; // 14s
     public PotionEffect[] toEffects() {
-        return effects.entrySet().stream().map(entry -> entry.getKey().createEffect(DURATION_CONST, entry.getValue().intValue() - 1)).toArray(PotionEffect[]::new);
+        return effects.entrySet().stream()
+                .map(entry -> entry.getKey().createEffect(DURATION_CONST, entry.getValue().intValue() - 1))
+                .toArray(PotionEffect[]::new);
     }
 
     public List<String> toLore() {
         return effects.entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getName()))
-                .map(entry -> stringifyEffect(entry.getKey(), entry.getValue().intValue())).collect(Collectors.toList());
+                .map(entry -> stringifyEffect(entry.getKey(), entry.getValue().intValue()))
+                .collect(Collectors.toList());
+    }
+
+    public double calcExpPerCycle() {
+        if (Config.itemNerfsExpPercentagePerCycle <= 0)
+            return 0;
+        return effects.values().stream().mapToInt(s -> s).sum() * Config.itemNerfsExpPercentagePerCycle;
     }
 
     public Map<PotionEffectType, Short> consolidateEffects() {
