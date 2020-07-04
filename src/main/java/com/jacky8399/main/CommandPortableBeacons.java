@@ -52,7 +52,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (sender instanceof Player) {
                         ItemStack stack = ((Player) sender).getInventory().getItemInMainHand();
                         if (stack.getType() == Material.AIR) {
-                            sender.sendMessage(ChatColor.RED + "You must be holding an item!");
+                            Config.ritualItem = new ItemStack(Material.AIR);
+                            PortableBeacons.INSTANCE.saveConfig();
+                            sender.sendMessage(ChatColor.RED + "Disabled portable beacon creation");
                         } else {
                             Config.ritualItem = stack.clone();
                             PortableBeacons.INSTANCE.saveConfig();
@@ -123,7 +125,10 @@ public class CommandPortableBeacons implements TabExecutor {
                     effects.consolidateEffects().forEach((pot, amplifier)->sender.sendMessage(ChatColor.YELLOW.toString() + pot.toString() + " level " + amplifier));
                     sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
                     sender.sendMessage(ChatColor.GREEN + "Is obsolete: " + ChatColor.YELLOW + effects.shouldUpdate());
-                    sender.sendMessage(ChatColor.GREEN + "Exp % per cycle: " + ChatColor.YELLOW + String.format("%.5f", effects.calcExpPerCycle()));
+                    if (Config.itemNerfsExpPercentagePerCycle > 0) {
+                        double xpPerCycle = effects.calcExpPerCycle();
+                        sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW + String.format("%.5f/7.5s, %.2f/min, %.2f/hour", xpPerCycle, xpPerCycle * 8, xpPerCycle * 480));
+                    }
                 }
                 break;
             }

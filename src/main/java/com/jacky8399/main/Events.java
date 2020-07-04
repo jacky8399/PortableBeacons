@@ -43,6 +43,10 @@ public class Events implements Listener {
 
     public void applyEffects() {
         Bukkit.getOnlinePlayers().forEach(p -> {
+            // world check
+            if (Config.itemNerfsDisabledWorlds.contains(p.getWorld().getName()))
+                return;
+
             ListIterator<ItemStack> iterator = p.getInventory().iterator();
             while (iterator.hasNext()) {
                 int nextIdx = iterator.nextIndex();
@@ -202,34 +206,33 @@ public class Events implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (Config.itemCreationReminderDisableIfAlreadyOwnBeaconItem) {
                 // check if already own beacon item
-                if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
+                if (Arrays.stream(player.getInventory().getStorageContents()).parallel().anyMatch(ItemUtils::isPortableBeacon)) {
                     continue;
                 }
             }
 
             if (player.getInventory().containsAtLeast(Config.ritualItem, Config.ritualItem.getAmount())) {
                 Set<Block> nearbyBeacons = findBeaconInRadius(player, Config.itemCreationReminderRadius);
-                HashMap<Vector, FallingBlock> ents = reminderOutline.computeIfAbsent(player, ignored->Maps.newHashMap());
+                HashMap<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored->Maps.newHashMap());
                 if (nearbyBeacons.size() > 0) {
                     nearbyBeacons.forEach(nearbyBeacon -> {
                         Vector vector = nearbyBeacon.getLocation().toVector();
                         Location location = nearbyBeacon.getLocation().add(0.5, -0.01, 0.5);
                         // spawn or ensure there is a falling block
-                        FallingBlock oldEnt = ents.get(vector);
+                        FallingBlock oldEnt = entities.get(vector);
                         if (oldEnt == null) {
                             Location initialLoc = location.clone();
                             initialLoc.setY(255);
-                            if (ents.size() == 0) // if first falling sand for player
+                            if (entities.size() == 0) // if first falling sand for player
                                 player.sendMessage(Config.itemCreationReminderMessage);
                             FallingBlock ent = player.getWorld().spawnFallingBlock(initialLoc, nearbyBeacon.getBlockData());
                             ent.setInvulnerable(true);
-                            //ent.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 1000000, 0, false, false));
                             ent.setGlowing(true);
                             ent.setDropItem(false);
                             ent.setGravity(false);
                             ent.setTicksLived(1);
                             ent.teleport(location);
-                            ents.put(vector, ent);
+                            entities.put(vector, ent);
                         } else {
                             oldEnt.teleport(location);
                         }
@@ -238,13 +241,13 @@ public class Events implements Listener {
                     });
                     player.setCooldown(Config.ritualItem.getType(), 20);
                 } else {
-                    if (ents.size() > 0)
-                        ents.values().forEach(Entity::remove);
+                    if (entities.size() > 0)
+                        entities.values().forEach(Entity::remove);
                 }
             } else {
-                HashMap<Vector, FallingBlock> shulker = reminderOutline.remove(player);
-                if (shulker != null)
-                    shulker.values().forEach(Entity::remove);
+                HashMap<Vector, FallingBlock> entities = reminderOutline.remove(player);
+                if (entities != null)
+                    entities.values().forEach(Entity::remove);
             }
         }
         // remove old entries

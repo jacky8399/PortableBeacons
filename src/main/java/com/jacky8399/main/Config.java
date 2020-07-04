@@ -1,10 +1,12 @@
 package com.jacky8399.main;
 
+import com.google.common.collect.Sets;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Set;
 
 public class Config {
 
@@ -26,6 +28,7 @@ public class Config {
 
         itemNerfsExpPercentagePerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
         itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
+        itemNerfsDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
 
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
@@ -47,6 +50,7 @@ public class Config {
 
     public static double itemNerfsExpPercentagePerCycle;
     public static boolean itemNerfsOnlyApplyInHotbar;
+    public static Set<String> itemNerfsDisabledWorlds;
 
     public static boolean anvilCombinationEnabled;
     public static int anvilCombinationMaxEffects;

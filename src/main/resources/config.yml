@@ -7,6 +7,19 @@ beacon-item:
     message: '§aYou feel that something is resonating with the beacon...' # Message to send to player when such reminder is active
     radius: 8 # Scan radius
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
+  # Custom enchantments on beacon item
+  custom-enchantments:
+    exp-reduction:
+      name: '§dExperience Efficiency'
+      # to disable set to empty string
+      # enchantment: ''
+      enchantment: MENDING
+      max-level: 5
+    soulbound:
+      name: '§4Soulbound'
+      enchantment: BINDING_CURSE
+      max-level: 5
+
   nerfs: # One cycle is every 7.5s
     exp-percentage-per-cycle: 0.05555555555
     only-apply-in-hotbar: false # True if the effects should only be applied when the item is in the hotbar
@@ -23,6 +36,9 @@ anvil-combination:
   enabled: true # Enable combining portable beacons in anvil
   max-effects: 6 # Max no. of effects the resultant item can have
   max-effect-amplifier: 3 # Max amplifier of effects the resultant item can have
-  combine-effects-additively: true # true for simple combination (e.g. Speed II + Speed I = Speed III); false for anvil-like combination (e.g. Speed II + Speed II = Speed III)
-
+  # true for simple combination (e.g. Speed II + Speed I = Speed III)
+  # false for anvil-like combination (e.g. Speed II + Speed II = Speed III)
+  combine-effects-additively: true
+  # enforce the vanilla repair cost limit (max. 39 levels)
+  enforce-vanilla-exp-limit: true
 # Item used is generated on startup
