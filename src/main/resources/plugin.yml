@@ -1,7 +1,7 @@
 name: PortableBeacons
 version: @version@
 main: com.jacky8399.main.PortableBeacons
-api-version: '1.14'
+api-version: '1.16'
 prefix: PortableBeacons
 commands:
   portablebeacons:
