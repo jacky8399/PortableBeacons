@@ -39,7 +39,7 @@ public final class PortableBeacons extends JavaPlugin {
         config.set("item-used", Config.ritualItem);
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
-        config.options().copyDefaults(true);
+        config.options().copyDefaults(true).header("Template: https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml").copyHeader(true);
         super.saveConfig();
     }
 

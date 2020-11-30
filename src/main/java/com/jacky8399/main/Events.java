@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
@@ -314,9 +315,18 @@ public class Events implements Listener {
         AnvilInventory inv = e.getInventory();
         ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
         ItemStack newIs = ItemUtils.combineStack(is1, is2);
+        int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
-            e.setResult(newIs);
-            Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, ()->e.getInventory().setRepairCost(ItemUtils.calculateCombinationCost(is1, is2)));
+            if (cost <= 39) {
+                e.setResult(newIs);
+                Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> e.getInventory().setRepairCost(cost));
+            } else if (!Config.anvilCombinationEnforceVanillaExpLimit) {
+                ItemMeta meta = newIs.getItemMeta();
+                List<String> lore = meta.hasLore() ? Lists.newArrayList(meta.getLore()) : Lists.newArrayList();
+                lore.add(""+ChatColor.GREEN + ChatColor.BOLD + "Enchantment cost: " + cost);
+                meta.setLore(lore);
+                newIs.setItemMeta(meta);
+            }
         }
     }
 
@@ -333,7 +343,7 @@ public class Events implements Listener {
             AnvilInventory inv = (AnvilInventory) e.getClickedInventory();
             ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
             int levelRequired = ItemUtils.calculateCombinationCost(is1, is2);
-            if (player.getLevel() < levelRequired || levelRequired >= inv.getMaximumRepairCost()) {
+            if (player.getLevel() < levelRequired || (levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit)) {
                 e.setResult(Event.Result.DENY);
                 e.setCancelled(true);
                 return;

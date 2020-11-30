@@ -7,7 +7,7 @@ beacon-item:
     message: '§aYou feel that something is resonating with the beacon...' # Message to send to player when such reminder is active
     radius: 8 # Scan radius
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
-  # Custom enchantments on beacon item
+  # WIP
   custom-enchantments:
     exp-reduction:
       name: '§dExperience Efficiency'
