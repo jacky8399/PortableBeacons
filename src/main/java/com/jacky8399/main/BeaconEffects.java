@@ -43,7 +43,7 @@ public class BeaconEffects {
     private static final int DURATION_CONST = 280; // 14s
     public PotionEffect[] toEffects() {
         return effects.entrySet().stream()
-                .map(entry -> entry.getKey().createEffect(DURATION_CONST, entry.getValue().intValue() - 1))
+                .map(entry -> entry.getKey().createEffect(DURATION_CONST, entry.getValue() - 1))
                 .toArray(PotionEffect[]::new);
     }
 
@@ -57,17 +57,17 @@ public class BeaconEffects {
     public double calcExpPerCycle() {
         if (Config.itemNerfsExpPercentagePerCycle <= 0)
             return 0;
-        return effects.values().stream().mapToInt(s -> s).sum() * Config.itemNerfsExpPercentagePerCycle;
+        return effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle;
     }
 
-    public Map<PotionEffectType, Short> consolidateEffects() {
+    public Map<PotionEffectType, Short> getEffects() {
         return effects;
     }
 
     public static void loadConfig(FileConfiguration config) {
         EFFECT_TO_NAME.clear();
         config.getConfigurationSection("beacon-item.effects").getValues(false).forEach((effect, name)->{
-            PotionEffectType type = PotionEffectType.getByName(effect);
+            PotionEffectType type = CommandPortableBeacons.getType(effect); // for vanilla names
             if (type != null)
                 EFFECT_TO_NAME.put(type, name.toString());
             else

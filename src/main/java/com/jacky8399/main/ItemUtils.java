@@ -67,7 +67,7 @@ public class ItemUtils {
     }
 
     private static int getCost(BeaconEffects effects) {
-        return effects.consolidateEffects().values().stream().mapToInt(aShort -> 1 << aShort).sum();
+        return effects.getEffects().values().stream().mapToInt(aShort -> 1 << aShort).sum();
     }
 
     public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {
@@ -81,8 +81,8 @@ public class ItemUtils {
     public static ItemStack combineStack(ItemStack is1, ItemStack is2) {
         if (isPortableBeacon(is1) && isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
-            HashMap<PotionEffectType, Short> effects = Maps.newHashMap(e1.consolidateEffects());
-            e2.consolidateEffects().forEach((pot, count) -> effects.merge(pot, count, Config.anvilCombinationCombineEffectsAdditively ? ItemUtils::sum : ItemUtils::anvilAlgorithm));
+            HashMap<PotionEffectType, Short> effects = Maps.newHashMap(e1.getEffects());
+            e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, Config.anvilCombinationCombineEffectsAdditively ? ItemUtils::sum : ItemUtils::anvilAlgorithm));
             // boundary checks
             if (effects.size() > Config.anvilCombinationMaxEffects ||
                     effects.entrySet().stream().anyMatch(

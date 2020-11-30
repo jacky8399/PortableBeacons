@@ -1,6 +1,8 @@
 package com.jacky8399.main;
 
-import com.google.common.collect.Lists;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Maps;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -10,17 +12,31 @@ import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class CommandPortableBeacons implements TabExecutor {
+    /**
+     * A bi-map of Bukkit effect names to vanilla names
+     */
+    private static final ImmutableBiMap<String, String> VANILlA_EFFECT_NAMES = ImmutableBiMap.<String, String>builder()
+            .put("slow", "slowness")
+            .put("fast_digging", "haste")
+            .put("slow_digging", "mining_fatigue")
+            .put("increase_damage", "strength")
+            .put("heal", "instant_health")
+            .put("harm", "instant_damage")
+            .put("jump", "jump_boost")
+            .put("confusion", "nausea")
+            .put("damage_resistance", "resistance")
+            .build();
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete(@NotNull CommandSender sender, Command command, @NotNull String alias, String[] args) {
         if (command.getLabel().equals("portablebeacons")) {
             if (args.length <= 1) {
                 return Stream.of("setitem", "givebeacon", "reload", "updateitems", "inspect").filter(name -> name.startsWith(args[0])).collect(Collectors.toList());
@@ -30,17 +46,51 @@ public class CommandPortableBeacons implements TabExecutor {
                     return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                             .filter(name -> name.startsWith(args[1])).collect(Collectors.toList());
                 } else {
+                    String input = args[args.length - 1];
+                    if (getType(input) != null) {
+                        // valid input, show amplifiers
+                        return IntStream.rangeClosed(1, 10).mapToObj(i -> input + "*" + i).collect(Collectors.toList());
+                    }
                     // show potion effects
                     return Arrays.stream(PotionEffectType.values()).map(PotionEffectType::getName).map(String::toLowerCase)
-                            .filter(name -> name.startsWith(args[args.length - 1])).collect(Collectors.toList());
+                            .map(name -> VANILlA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
+                            .filter(name -> name.startsWith(input)).collect(Collectors.toList());
                 }
             }
         }
         return Collections.emptyList();
     }
 
+    @Nullable
+    public static PotionEffectType getType(String input) {
+        PotionEffectType type = PotionEffectType.getByName(input);
+        if (type == null) {
+            input = input.toLowerCase();
+            String bukkitName = VANILlA_EFFECT_NAMES.inverse().get(input);
+            if (bukkitName != null)
+                type = PotionEffectType.getByName(bukkitName);
+        }
+        return type;
+    }
+
+    @NotNull
+    public static Map.Entry<PotionEffectType, Short> getEffect(String input) throws IllegalArgumentException {
+        PotionEffectType type;
+        short amplifier = 1;
+        if (input.contains("*")) {
+            String[] split = input.split("\\*");
+            type = getType(split[0]);
+            amplifier = Short.parseShort(split[1]);
+        } else {
+            type = getType(input);
+        }
+        Preconditions.checkArgument(type != null, "Invalid type: " + input);
+        Preconditions.checkArgument(amplifier >= 1, "Invalid amplifier: " + amplifier);
+        return Maps.immutableEntry(type, amplifier);
+    }
+
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length > 0) {
             switch (args[0]) {
                 case "reload": {
@@ -76,29 +126,17 @@ public class CommandPortableBeacons implements TabExecutor {
                         sender.sendMessage(ChatColor.RED + "No player called " + args[1]);
                         return true;
                     }
-                    List<PotionEffectType> effects = Lists.newArrayList();
-                    for (int i = 2; i < args.length; i++) {
-                        String typeName = args[i];
-                        int amplifier = 1;
-                        if (args[i].contains("*")) {
-                            String[] split = args[i].split("\\*");
-                            typeName = split[0];
-                            try {
-                                amplifier = Integer.parseInt(split[1]);
-                            } catch (NumberFormatException ex) {
-                                sender.sendMessage(ChatColor.RED + split[1] + " is not a valid number");
-                            }
-                        }
-                        PotionEffectType type = PotionEffectType.getByName(typeName);
-                        if (type == null) {
-                            sender.sendMessage(ChatColor.RED + "No potion effect called " + typeName);
-                            return true;
-                        }
-                        for (int z = 0; z < amplifier; z++) {
-                            effects.add(type);
+                    HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
+                    String[] effectsString = Arrays.copyOfRange(args, 2, args.length);
+                    for (String s : effectsString) {
+                        try {
+                            Map.Entry<PotionEffectType, Short> effect = getEffect(s);
+                            effects.put(effect.getKey(), effect.getValue());
+                        } catch (IllegalArgumentException e) {
+                            sender.sendMessage(ChatColor.RED + s + " is not a valid potion effect: " + e.getMessage());
                         }
                     }
-                    BeaconEffects beaconEffects = new BeaconEffects(effects.toArray(new PotionEffectType[0]));
+                    BeaconEffects beaconEffects = new BeaconEffects(effects);
                     player.getInventory().addItem(ItemUtils.createStack(beaconEffects));
                     sender.sendMessage(ChatColor.GREEN + "Given " + args[1] + " a portable beacon with " +
                             String.join(ChatColor.WHITE + ", ", beaconEffects.toLore()));
@@ -122,12 +160,14 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     BeaconEffects effects = ItemUtils.getEffects(stack);
                     sender.sendMessage(ChatColor.GREEN + "Potion effects:");
-                    effects.consolidateEffects().forEach((pot, amplifier)->sender.sendMessage(ChatColor.YELLOW.toString() + pot.toString() + " level " + amplifier));
+                    effects.getEffects().forEach((pot, amplifier)->
+                            sender.sendMessage("" + ChatColor.YELLOW + VANILlA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
                     sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
                     sender.sendMessage(ChatColor.GREEN + "Is obsolete: " + ChatColor.YELLOW + effects.shouldUpdate());
                     if (Config.itemNerfsExpPercentagePerCycle > 0) {
                         double xpPerCycle = effects.calcExpPerCycle();
-                        sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW + String.format("%.5f/7.5s, %.2f/min, %.2f/hour", xpPerCycle, xpPerCycle * 8, xpPerCycle * 480));
+                        sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
+                                String.format("%.5f/7.5s, %.2f/min, %.2f/hour", xpPerCycle, xpPerCycle * 8, xpPerCycle * 480));
                     }
                 }
                 break;
