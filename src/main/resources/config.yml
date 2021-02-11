@@ -1,3 +1,5 @@
+# To see descriptions of different options:
+# https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml
 beacon-item:
   name: Portable Beacon # Item name for portable beacon
   lore: [] # Item lore for portable beacon
@@ -9,6 +11,7 @@ beacon-item:
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
   # WIP
   custom-enchantments:
+    _desc: WORK IN PROGRESS. DOESN'T WORK YET.
     exp-reduction:
       name: '§dExperience Efficiency'
       # to disable set to empty string
@@ -22,7 +25,10 @@ beacon-item:
 
   nerfs: # One cycle is every 7.5s
     exp-percentage-per-cycle: 0.05555555555
-    only-apply-in-hotbar: false # True if the effects should only be applied when the item is in the hotbar
+    # True if the effects should only be applied when the item is in the hotbar
+    only-apply-in-hotbar: false
+    # Force downgrade all effects stronger than anvil-combination.max-effect-amplifier
+    force-downgrade: false
   effects: # Custom names for potion effects
     REGENERATION: '§cRegeneration'
     SPEED: '§fSpeed'

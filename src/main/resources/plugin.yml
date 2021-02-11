@@ -19,6 +19,6 @@ permissions:
       portablebeacons.bypass.*: true
   portablebeacons.bypass.*:
     children:
-      portablebeacons.bypass.level-limit: true
-      portablebeacons.bypass.anvil-limit: true
+#      portablebeacons.bypass.level-limit: true
+#      portablebeacons.bypass.anvil-limit: true
       portablebeacons.bypass.world-guard-limit: true

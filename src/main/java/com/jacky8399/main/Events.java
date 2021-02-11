@@ -89,7 +89,13 @@ public class Events implements Listener {
                     }
                     boolean needsUpdate = beaconEffects.shouldUpdate();
                     if (needsUpdate) {
-                        iterator.set(ItemUtils.createStackCopyItemData(new BeaconEffects(beaconEffects.effects), is));
+                        BeaconEffects newEffects;
+                        // force downgrade
+                        if (Config.itemNerfsForceDowngrade)
+                            newEffects = beaconEffects.fixOpEffects();
+                        else
+                            newEffects = new BeaconEffects(beaconEffects.effects);
+                        iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
                         PortableBeacons.INSTANCE.logger.info("Updated outdated beacon item in " + p.getName() + "'s inventory.");
                     }
                 }

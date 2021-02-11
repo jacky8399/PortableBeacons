@@ -29,6 +29,7 @@ public class Config {
         itemNerfsExpPercentagePerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
         itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
         itemNerfsDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
+        itemNerfsForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
@@ -54,6 +55,7 @@ public class Config {
     public static double itemNerfsExpPercentagePerCycle;
     public static boolean itemNerfsOnlyApplyInHotbar;
     public static Set<String> itemNerfsDisabledWorlds;
+    public static boolean itemNerfsForceDowngrade;
 
     public static boolean anvilCombinationEnabled;
     public static int anvilCombinationMaxEffects;

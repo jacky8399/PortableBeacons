@@ -114,6 +114,16 @@ public class BeaconEffects {
         //(Config.itemCustomVersion != null && !Config.itemCustomVersion.equals(customDataVersion));
     }
 
+    public BeaconEffects fixOpEffects() {
+        HashMap<PotionEffectType, Short> newEffects = new HashMap<>(effects);
+        for (Map.Entry<PotionEffectType, Short> entry : newEffects.entrySet()) {
+            if (entry.getValue() > Config.anvilCombinationMaxAmplifier) {
+                entry.setValue((short) (Config.anvilCombinationMaxAmplifier));
+            }
+        }
+        return new BeaconEffects(newEffects);
+    }
+
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final NamespacedKey
                 EFFECTS = new NamespacedKey(PortableBeacons.INSTANCE, "effects_v2"),
