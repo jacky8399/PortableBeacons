@@ -35,7 +35,6 @@ import java.util.*;
 import java.util.function.Predicate;
 
 public class Events implements Listener {
-
     public Events(PortableBeacons plugin) {
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
         Bukkit.getScheduler().runTaskTimer(plugin, this::applyEffects, 0, 150);
@@ -46,6 +45,9 @@ public class Events implements Listener {
         Bukkit.getOnlinePlayers().forEach(p -> {
             // world check
             if (Config.itemNerfsDisabledWorlds.contains(p.getWorld().getName()))
+                return;
+
+            if (Config.worldGuard && PortableBeacons.INSTANCE.worldGuard && !WorldGuardHelper.canUseBeacons(p) && !p.hasPermission("portablebeacons.bypass.world-guard-limit"))
                 return;
 
             ListIterator<ItemStack> iterator = p.getInventory().iterator();

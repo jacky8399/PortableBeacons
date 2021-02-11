@@ -35,6 +35,8 @@ public class Config {
         anvilCombinationMaxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
         anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
         anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
+
+        worldGuard = config.getBoolean("world-guard");
     }
 
     public static ItemStack ritualItem;
@@ -58,4 +60,6 @@ public class Config {
     public static int anvilCombinationMaxAmplifier;
     public static boolean anvilCombinationCombineEffectsAdditively;
     public static boolean anvilCombinationEnforceVanillaExpLimit;
+
+    public static boolean worldGuard;
 }

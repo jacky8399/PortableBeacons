@@ -12,6 +12,18 @@ public final class PortableBeacons extends JavaPlugin {
 
     public Logger logger = getLogger();
 
+    public boolean worldGuard = false;
+
+    @Override
+    public void onLoad() {
+        try {
+            Config.worldGuard = WorldGuardHelper.tryAddFlag(this);
+            reloadConfig();
+            if (worldGuard && Config.worldGuard)
+                logger.info("Registered WorldGuard flag");
+        } catch (Exception | NoClassDefFoundError ignored) {}
+    }
+
     @Override
     public void onEnable() {
         logger.info("PortableBeacons is starting up!");

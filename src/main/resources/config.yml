@@ -41,4 +41,7 @@ anvil-combination:
   combine-effects-additively: true
   # enforce the vanilla repair cost limit (max. 39 levels)
   enforce-vanilla-exp-limit: true
+
+# Enable WorldGuard integration
+world-guard: true
 # Item used is generated on startup

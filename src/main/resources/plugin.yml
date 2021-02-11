@@ -3,6 +3,8 @@ version: @version@
 main: com.jacky8399.main.PortableBeacons
 api-version: '1.16'
 prefix: PortableBeacons
+softdepend:
+  - WorldGuard
 commands:
   portablebeacons:
     permission: portablebeacons.admin
@@ -13,3 +15,10 @@ commands:
 permissions:
   portablebeacons.admin:
     default: op
+    children:
+      portablebeacons.bypass.*: true
+  portablebeacons.bypass.*:
+    children:
+      portablebeacons.bypass.level-limit: true
+      portablebeacons.bypass.anvil-limit: true
+      portablebeacons.bypass.world-guard-limit: true
