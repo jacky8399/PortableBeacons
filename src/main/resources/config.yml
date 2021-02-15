@@ -27,21 +27,41 @@ beacon-item:
     exp-percentage-per-cycle: 0.05555555555
     # True if the effects should only be applied when the item is in the hotbar
     only-apply-in-hotbar: false
-    # Force downgrade all effects stronger than anvil-combination.max-effect-amplifier
+    # Force downgrade all effects stronger than its max-amplifier
     force-downgrade: false
-  effects: # Custom names for potion effects
-    REGENERATION: '§cRegeneration'
-    SPEED: '§fSpeed'
-    DAMAGE_RESISTANCE: '§9Resistance'
-    FAST_DIGGING: '§eHaste'
-    JUMP: '§aJump Boost'
-    INCREASE_DAMAGE: '§4Strength'
-    # You can add more, the keys must be the same as https://hub.spigotmc.org/javadocs/spigot/org/bukkit/potion/PotionEffectType.html
+
+# Specify the name and custom behavior of different potion effects
+effects:
+  default:
+    # How long the effects will last when applied, in ticks
+    duration: 280
+    # The maximum amplifier allowed. Set to 0 to disallow the effect, even in commands.
+    max-amplifier: 3
+  REGENERATION:
+    # Display name of the effect
+    # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
+    name: '&cRegeneration'
+  SPEED:
+    name: '&fSpeed'
+  RESISTANCE:
+    name: '&9Resistance'
+  HASTE:
+    name: '&eHaste'
+  JUMP_BOOST:
+    name: '&aJump Boost'
+  STRENGTH:
+    name: '&4Strength'
+  # You can add more potion effects, the key must match vanilla/Bukkit names
+  # Specifying duration & max-amplifier overrides default section
+  # For example,
+# NIGHT_VISION:
+#   name: '&1Night Vision'
+#   duration: 400
+
 
 anvil-combination:
   enabled: true # Enable combining portable beacons in anvil
   max-effects: 6 # Max no. of effects the resultant item can have
-  max-effect-amplifier: 3 # Max amplifier of effects the resultant item can have
   # true for simple combination (e.g. Speed II + Speed I = Speed III)
   # false for anvil-like combination (e.g. Speed II + Speed II = Speed III)
   combine-effects-additively: true

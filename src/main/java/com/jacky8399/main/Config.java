@@ -1,11 +1,18 @@
 package com.jacky8399.main;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Config {
@@ -31,13 +38,82 @@ public class Config {
         itemNerfsDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
         itemNerfsForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
+        readEffects(config);
+
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
-        anvilCombinationMaxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
+        if (config.contains("anvil-combination.max-effect-amplifier", true)) {
+            int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
+            Config.effectsDefault = new PotionEffectInfo(null, Config.effectsDefault.durationInTicks, maxAmplifier);
+            config.set("effects.default.max-amplifier", maxAmplifier);
+            config.set("anvil-combination.max-effect-amplifier", null);
+        }
         anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
         anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
 
         worldGuard = config.getBoolean("world-guard");
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void readEffects(FileConfiguration config) {
+        effects = new HashMap<>();
+        Map<String, Map<String, Object>> effectsYaml = (Map<String, Map<String, Object>>) config.getValues(false).get("effects");
+        effectsYaml.forEach((key, yaml) -> {
+            String displayName = translateColor((String) yaml.get("name"));
+            Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
+            Integer duration = (Integer) yaml.get("duration");
+            if (key.equals("default")) {
+                Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
+                Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
+
+                effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier);
+            } else {
+                PotionEffectType type = CommandPortableBeacons.getType(key);
+                if (type == null)
+                    throw new IllegalArgumentException(key + " is not a valid potion effect type");
+
+                effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier));
+            }
+        });
+
+        Preconditions.checkNotNull(effectsDefault, "default must be provided");
+    }
+
+    private static final boolean canUseRGB;
+
+    static {
+        boolean canUseRGB1;
+        try {
+            ChatColor.class.getMethod("of", String.class);
+            canUseRGB1 = true;
+        } catch (NoSuchMethodException e) {
+            canUseRGB1 = false;
+        }
+        canUseRGB = canUseRGB1;
+    }
+
+    @Nullable
+    public static String translateColor(@Nullable String raw) {
+        if (raw == null) return null;
+        // replace RGB codes first
+        // use EssentialsX &#RRGGBB format
+        if (canUseRGB) {
+            StringBuilder builder = new StringBuilder(raw);
+            int idx;
+            while ((idx = raw.indexOf("&#")) != -1) {
+                try {
+                    String colorStr = builder.substring(idx + 1, idx + 7);
+                    ChatColor color = ChatColor.of(colorStr);
+                    builder.replace(idx, idx + 7, color.toString());
+                } catch (StringIndexOutOfBoundsException e) {
+                    throw new IllegalArgumentException("Malformed RGB color around index=" + idx, e);
+                }
+            }
+            raw = builder.toString();
+        }
+
+        raw = ChatColor.translateAlternateColorCodes('&', raw);
+        return raw;
     }
 
     public static ItemStack ritualItem;
@@ -64,4 +140,34 @@ public class Config {
     public static boolean anvilCombinationEnforceVanillaExpLimit;
 
     public static boolean worldGuard;
+
+    @SuppressWarnings("NotNullFieldNotInitialized")
+    @NotNull
+    public static PotionEffectInfo effectsDefault;
+    public static HashMap<PotionEffectType, PotionEffectInfo> effects;
+
+    public static class PotionEffectInfo {
+        @Nullable
+        public final String displayName;
+        @Nullable
+        public final Integer durationInTicks;
+        @Nullable
+        public final Integer maxAmplifier;
+
+        public PotionEffectInfo(@Nullable String displayName, @Nullable Integer duration, @Nullable Integer maxAmplifier) {
+            this.displayName = displayName;
+            this.durationInTicks = duration;
+            this.maxAmplifier = maxAmplifier;
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        public int getDuration() {
+            return durationInTicks != null ? durationInTicks : effectsDefault.durationInTicks;
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        public int getMaxAmplifier() {
+            return maxAmplifier != null ? maxAmplifier : effectsDefault.maxAmplifier;
+        }
+    }
 }

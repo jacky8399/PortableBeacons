@@ -86,7 +86,10 @@ public class ItemUtils {
             // boundary checks
             if (effects.size() > Config.anvilCombinationMaxEffects ||
                     effects.entrySet().stream().anyMatch(
-                            entry -> entry.getValue() > Config.anvilCombinationMaxAmplifier
+                            entry -> {
+                                Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
+                                return entry.getValue() > (info != null ? info.getMaxAmplifier() : Config.effectsDefault.maxAmplifier);
+                            }
                     )) {
                 return null; // disallow combination
             }

@@ -2,6 +2,7 @@ package com.jacky8399.main;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import net.md_5.bungee.api.ChatColor;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -10,12 +11,11 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.bukkit.ChatColor.GREEN;
 
 public class BeaconEffects {
 
@@ -40,10 +40,18 @@ public class BeaconEffects {
     public final Map<PotionEffectType, Short> effects;
     public boolean needsUpdate = false;
 
-    private static final int DURATION_CONST = 280; // 14s
     public PotionEffect[] toEffects() {
+        @SuppressWarnings("ConstantConditions")
+        int defaultDuration = Config.effectsDefault.durationInTicks;
         return effects.entrySet().stream()
-                .map(entry -> entry.getKey().createEffect(DURATION_CONST, entry.getValue() - 1))
+                .map(entry -> {
+                    Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
+                    int duration = defaultDuration;
+                    if (info != null && info.durationInTicks != null) {
+                        duration = info.durationInTicks;
+                    }
+                    return entry.getKey().createEffect(duration, entry.getValue() - 1);
+                })
                 .toArray(PotionEffect[]::new);
     }
 
@@ -65,17 +73,20 @@ public class BeaconEffects {
     }
 
     public static void loadConfig(FileConfiguration config) {
-        EFFECT_TO_NAME.clear();
         config.getConfigurationSection("beacon-item.effects").getValues(false).forEach((effect, name)->{
             PotionEffectType type = CommandPortableBeacons.getType(effect); // for vanilla names
-            if (type != null)
-                EFFECT_TO_NAME.put(type, name.toString());
-            else
-                PortableBeacons.INSTANCE.getLogger().warning("Unknown potion effect type " + effect + " in configuration, skipping");
+            if (type != null) {
+                String newName = Config.translateColor((String) name);
+                // override PotionEffectInfo
+                Config.PotionEffectInfo info = Config.effects.get(type);
+                Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
+                Config.effects.put(type, newInfo);
+                // delete section
+                config.set("beacon-item.effects." + effect, null);
+                config.set("effects." + effect + ".name", name);
+            }
         });
     }
-
-    private static HashMap<PotionEffectType, String> EFFECT_TO_NAME = Maps.newHashMap();
 
     private static String toRomanNumeral(int i) {
         switch (i) {
@@ -105,8 +116,11 @@ public class BeaconEffects {
     }
 
     private static String stringifyEffect(PotionEffectType effect, int amplifier) {
-        return EFFECT_TO_NAME.getOrDefault(effect, GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase()))
-                + toRomanNumeral(amplifier);
+        Config.PotionEffectInfo info = Config.effects.get(effect);
+        if (info != null)
+            return info.displayName + toRomanNumeral(amplifier);
+        else
+            return ChatColor.GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase()) + toRomanNumeral(amplifier);
     }
 
     public boolean shouldUpdate() {
@@ -115,10 +129,14 @@ public class BeaconEffects {
     }
 
     public BeaconEffects fixOpEffects() {
+        int defaultMax = Config.effectsDefault.maxAmplifier;
         HashMap<PotionEffectType, Short> newEffects = new HashMap<>(effects);
         for (Map.Entry<PotionEffectType, Short> entry : newEffects.entrySet()) {
-            if (entry.getValue() > Config.anvilCombinationMaxAmplifier) {
-                entry.setValue((short) (Config.anvilCombinationMaxAmplifier));
+            PotionEffectType effect = entry.getKey();
+            Config.PotionEffectInfo info = Config.effects.get(effect);
+            int maxAmplifier = info != null ? info.getMaxAmplifier() : defaultMax;
+            if (entry.getValue() > maxAmplifier) {
+                entry.setValue((short) maxAmplifier);
             }
         }
         return new BeaconEffects(newEffects);
@@ -131,17 +149,17 @@ public class BeaconEffects {
                 CUSTOM_DATA_VERSION_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "custom_data_version");
 
         @Override
-        public Class<PersistentDataContainer> getPrimitiveType() {
+        public @NotNull Class<PersistentDataContainer> getPrimitiveType() {
             return PersistentDataContainer.class;
         }
 
         @Override
-        public Class<BeaconEffects> getComplexType() {
+        public @NotNull Class<BeaconEffects> getComplexType() {
             return BeaconEffects.class;
         }
 
         @Override
-        public PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
+        public @NotNull PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
             container.set(EFFECTS, PersistentDataType.STRING,
                     complex.effects.entrySet().stream().map(entry ->
@@ -155,19 +173,19 @@ public class BeaconEffects {
         }
 
         @Override
-        public BeaconEffects fromPrimitive(PersistentDataContainer primitive, PersistentDataAdapterContext context) {
+        public @NotNull BeaconEffects fromPrimitive(PersistentDataContainer primitive, @NotNull PersistentDataAdapterContext context) {
             if (primitive.has(EFFECTS, PersistentDataType.STRING)) {
                 String[] kvps = primitive.get(EFFECTS, PersistentDataType.STRING).split(",");
                 HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
                 for (String kvp : kvps) {
                     String[] split = kvp.split(":");
                     PotionEffectType type;
-                    Short amplifier = (short)1;
+                    short amplifier = (short)1;
                     if (split.length == 1) {
                         type = PotionEffectType.getByName(kvp);
                     } else {
                         type = PotionEffectType.getByName(split[0]);
-                        amplifier = Short.valueOf(split[1]);
+                        amplifier = Short.parseShort(split[1]);
                     }
                     effects.put(type, amplifier);
                 }

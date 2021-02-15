@@ -49,7 +49,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     String input = args[args.length - 1];
                     if (getType(input) != null) {
                         // valid input, show amplifiers
-                        return IntStream.rangeClosed(1, 10).mapToObj(i -> input + "*" + i).collect(Collectors.toList());
+                        return IntStream.range(1, 10).mapToObj(i -> input + "*" + i).collect(Collectors.toList());
                     }
                     // show potion effects
                     return Arrays.stream(PotionEffectType.values()).map(PotionEffectType::getName).map(String::toLowerCase)
@@ -63,14 +63,9 @@ public class CommandPortableBeacons implements TabExecutor {
 
     @Nullable
     public static PotionEffectType getType(String input) {
-        PotionEffectType type = PotionEffectType.getByName(input);
-        if (type == null) {
-            input = input.toLowerCase();
-            String bukkitName = VANILlA_EFFECT_NAMES.inverse().get(input);
-            if (bukkitName != null)
-                type = PotionEffectType.getByName(bukkitName);
-        }
-        return type;
+        input = input.toLowerCase(Locale.US);
+        String bukkitName = VANILlA_EFFECT_NAMES.inverse().get(input);
+        return PotionEffectType.getByName(bukkitName != null ? bukkitName : input);
     }
 
     @NotNull
