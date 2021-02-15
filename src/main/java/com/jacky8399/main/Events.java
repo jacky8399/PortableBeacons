@@ -189,7 +189,7 @@ public class Events implements Listener {
         return true;
     }
 
-    private static HashMap<Player, HashMap<Vector, FallingBlock>> reminderOutline = Maps.newHashMap();
+    private static Map<Player, HashMap<Vector, FallingBlock>> reminderOutline = new WeakHashMap<>();
 
     private Set<Block> findBeaconInRadius(Player player, double radius) {
         int r = (int) Math.ceil(radius);
@@ -285,6 +285,7 @@ public class Events implements Listener {
 
     public static void onDisable() {
         reminderOutline.values().forEach(ents -> ents.values().forEach(Entity::remove));
+        reminderOutline.clear();
     }
 
     private WeakHashMap<Item, Player> netherStarItems = new WeakHashMap<>();
