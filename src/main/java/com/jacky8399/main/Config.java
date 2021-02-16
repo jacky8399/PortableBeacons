@@ -108,13 +108,13 @@ public class Config {
         if (canUseRGB) {
             StringBuilder builder = new StringBuilder(raw);
             int idx;
-            while ((idx = raw.indexOf("&#")) != -1) {
+            while ((idx = builder.indexOf("&#")) != -1) {
                 try {
-                    String colorStr = builder.substring(idx + 1, idx + 7);
+                    String colorStr = builder.substring(idx + 1, idx + 8);
                     ChatColor color = ChatColor.of(colorStr);
-                    builder.replace(idx, idx + 7, color.toString());
-                } catch (StringIndexOutOfBoundsException e) {
-                    throw new IllegalArgumentException("Malformed RGB color around index=" + idx, e);
+                    builder.replace(idx, idx + 8, color.toString());
+                } catch (StringIndexOutOfBoundsException | IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Malformed RGB color around index=" + idx + ", string=" + raw, e);
                 }
             }
             raw = builder.toString();

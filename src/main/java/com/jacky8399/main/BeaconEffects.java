@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import net.md_5.bungee.api.ChatColor;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -73,19 +74,22 @@ public class BeaconEffects {
     }
 
     public static void loadConfig(FileConfiguration config) {
-        config.getConfigurationSection("beacon-item.effects").getValues(false).forEach((effect, name)->{
-            PotionEffectType type = CommandPortableBeacons.getType(effect); // for vanilla names
-            if (type != null) {
-                String newName = Config.translateColor((String) name);
-                // override PotionEffectInfo
-                Config.PotionEffectInfo info = Config.effects.get(type);
-                Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
-                Config.effects.put(type, newInfo);
-                config.set("effects." + effect + ".name", name);
-            }
-        });
-        // delete section
-        config.set("beacon-item.effects", null);
+        ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
+        if (section != null) {
+            section.getValues(false).forEach((effect, name) -> {
+                PotionEffectType type = CommandPortableBeacons.getType(effect); // for vanilla names
+                if (type != null) {
+                    String newName = Config.translateColor((String) name);
+                    // override PotionEffectInfo
+                    Config.PotionEffectInfo info = Config.effects.get(type);
+                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
+                    Config.effects.put(type, newInfo);
+                    config.set("effects." + effect + ".name", name);
+                }
+            });
+            // delete section
+            config.set("beacon-item.effects", null);
+        }
     }
 
     private static String toRomanNumeral(int i) {
@@ -131,12 +135,17 @@ public class BeaconEffects {
     public BeaconEffects fixOpEffects() {
         int defaultMax = Config.effectsDefault.maxAmplifier;
         HashMap<PotionEffectType, Short> newEffects = new HashMap<>(effects);
-        for (Map.Entry<PotionEffectType, Short> entry : newEffects.entrySet()) {
+        Iterator<Map.Entry<PotionEffectType, Short>> iterator = newEffects.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<PotionEffectType, Short> entry = iterator.next();
             PotionEffectType effect = entry.getKey();
             Config.PotionEffectInfo info = Config.effects.get(effect);
             int maxAmplifier = info != null ? info.getMaxAmplifier() : defaultMax;
             if (entry.getValue() > maxAmplifier) {
-                entry.setValue((short) maxAmplifier);
+                if (maxAmplifier == 0) // disallowed effect
+                    iterator.remove();
+                else
+                    entry.setValue((short) maxAmplifier);
             }
         }
         return new BeaconEffects(newEffects);
@@ -175,7 +184,10 @@ public class BeaconEffects {
         @Override
         public @NotNull BeaconEffects fromPrimitive(PersistentDataContainer primitive, @NotNull PersistentDataAdapterContext context) {
             if (primitive.has(EFFECTS, PersistentDataType.STRING)) {
-                String[] kvps = primitive.get(EFFECTS, PersistentDataType.STRING).split(",");
+                String effectsCombined = primitive.get(EFFECTS, PersistentDataType.STRING);
+                if (effectsCombined.isEmpty()) // empty string fix
+                    return new BeaconEffects();
+                String[] kvps = effectsCombined.split(",");
                 HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
                 for (String kvp : kvps) {
                     String[] split = kvp.split(":");

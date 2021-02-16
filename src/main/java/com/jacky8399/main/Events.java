@@ -76,15 +76,6 @@ public class Events implements Listener {
 
                     PotionEffect[] effects = beaconEffects.toEffects();
                     for (PotionEffect effect : effects) {
-                        PotionEffect current = p.getPotionEffect(effect.getType());
-                        if (current != null) {
-                            if (current.getAmplifier() > effect.getAmplifier())
-                                continue;
-                            else if (current.getAmplifier() == effect.getAmplifier() && current.getDuration() >= effect.getDuration())
-                                continue;
-                            else
-                                p.removePotionEffect(effect.getType());
-                        }
                         p.addPotionEffect(effect);
                     }
                     boolean needsUpdate = beaconEffects.shouldUpdate();
@@ -209,7 +200,7 @@ public class Events implements Listener {
     }
 
     public void checkPlayerItem() {
-        if (!Config.itemCreationReminderEnabled) {
+        if (!Config.itemCreationReminderEnabled || Config.ritualItem.getType() == Material.AIR) {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
