@@ -10,18 +10,18 @@ beacon-item:
     radius: 8 # Scan radius
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
   # WIP
-  custom-enchantments:
-    _desc: WORK IN PROGRESS. DOESN'T WORK YET.
-    exp-reduction:
-      name: '§dExperience Efficiency'
-      # to disable set to empty string
-      # enchantment: ''
-      enchantment: MENDING
-      max-level: 5
-    soulbound:
-      name: '§4Soulbound'
-      enchantment: BINDING_CURSE
-      max-level: 5
+#  custom-enchantments:
+#    _desc: WORK IN PROGRESS. DOESN'T WORK YET.
+#    exp-reduction:
+#      name: '§dExperience Efficiency'
+#      # to disable set to empty string
+#      # enchantment: ''
+#      enchantment: MENDING
+#      max-level: 5
+#    soulbound:
+#      name: '§4Soulbound'
+#      enchantment: BINDING_CURSE
+#      max-level: 5
 
   nerfs: # One cycle is every 7.5s
     exp-percentage-per-cycle: 0.05555555555

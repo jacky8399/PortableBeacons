@@ -81,11 +81,11 @@ public class BeaconEffects {
                 Config.PotionEffectInfo info = Config.effects.get(type);
                 Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
                 Config.effects.put(type, newInfo);
-                // delete section
-                config.set("beacon-item.effects." + effect, null);
                 config.set("effects." + effect + ".name", name);
             }
         });
+        // delete section
+        config.set("beacon-item.effects", null);
     }
 
     private static String toRomanNumeral(int i) {
@@ -117,7 +117,7 @@ public class BeaconEffects {
 
     private static String stringifyEffect(PotionEffectType effect, int amplifier) {
         Config.PotionEffectInfo info = Config.effects.get(effect);
-        if (info != null)
+        if (info != null && info.displayName != null)
             return info.displayName + toRomanNumeral(amplifier);
         else
             return ChatColor.GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase()) + toRomanNumeral(amplifier);

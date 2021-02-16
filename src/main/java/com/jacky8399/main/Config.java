@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
@@ -11,8 +12,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class Config {
@@ -54,12 +55,19 @@ public class Config {
         worldGuard = config.getBoolean("world-guard");
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("ConstantConditions")
     public static void readEffects(FileConfiguration config) {
         effects = new HashMap<>();
-        Map<String, Map<String, Object>> effectsYaml = (Map<String, Map<String, Object>>) config.getValues(false).get("effects");
-        effectsYaml.forEach((key, yaml) -> {
-            String displayName = translateColor((String) yaml.get("name"));
+        // of course getValues doesn't work
+        ConfigurationSection effectsSection = config.getConfigurationSection("effects");
+        Set<String> keys = new HashSet<>(effectsSection.getKeys(false));
+        // add keys from defaults
+        keys.addAll(config.getDefaults().getConfigurationSection("effects").getKeys(false));
+        for (String key : keys) {
+            ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
+
+            PortableBeacons.INSTANCE.logger.info("Reading " + key);
+            String displayName = translateColor(yaml.getString("name"));
             Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
             Integer duration = (Integer) yaml.get("duration");
             if (key.equals("default")) {
@@ -74,7 +82,7 @@ public class Config {
 
                 effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier));
             }
-        });
+        }
 
         Preconditions.checkNotNull(effectsDefault, "default must be provided");
     }

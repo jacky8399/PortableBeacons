@@ -22,7 +22,9 @@ dependencies {
     compileOnly 'net.md-5:bungeecord-chat:1.16-R0.4'
     compileOnly 'org.jetbrains:annotations:20.1.0'
     compileOnly('com.sk89q.worldguard:worldguard-bukkit:7.0.4') {
-        transitive = false
+        // shut up
+        exclude group: 'net.java.truecommons'
+        exclude group: 'net.java.truevfs'
     }
 }
 
