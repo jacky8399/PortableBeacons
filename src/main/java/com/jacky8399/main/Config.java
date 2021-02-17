@@ -12,9 +12,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Config {
 
@@ -25,12 +26,12 @@ public class Config {
 
         itemCustomVersion = config.getString("item-custom-version-do-not-edit");
 
-        itemName = config.getString("beacon-item.name", "");
-        itemLore = config.getStringList("beacon-item.lore");
+        itemName = translateColor(config.getString("beacon-item.name", ""));
+        itemLore = config.getStringList("beacon-item.lore").stream().map(Config::translateColor).collect(Collectors.toList());
         itemCustomModelData = config.getInt("beacon-item.custom-model-data");
 
         itemCreationReminderEnabled = config.getBoolean("beacon-item.creation-reminder.enabled");
-        itemCreationReminderMessage = config.getString("beacon-item.creation-reminder.message");
+        itemCreationReminderMessage = translateColor(config.getString("beacon-item.creation-reminder.message"));
         itemCreationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
         itemCreationReminderDisableIfAlreadyOwnBeaconItem = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
@@ -60,9 +61,10 @@ public class Config {
         effects = new HashMap<>();
         // of course getValues doesn't work
         ConfigurationSection effectsSection = config.getConfigurationSection("effects");
-        Set<String> keys = new HashSet<>(effectsSection.getKeys(false));
-        // add keys from defaults
-        keys.addAll(config.getDefaults().getConfigurationSection("effects").getKeys(false));
+        Set<String> keys = new LinkedHashSet<>(config.getDefaults().getConfigurationSection("effects").getKeys(false));
+        // add keys from actual config later
+        // so that user-defined values override defaults
+        keys.addAll(effectsSection.getKeys(false));
         for (String key : keys) {
             ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
 

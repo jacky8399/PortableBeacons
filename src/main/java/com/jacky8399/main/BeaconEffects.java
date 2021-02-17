@@ -38,7 +38,7 @@ public class BeaconEffects {
         this.effects = ImmutableMap.copyOf(effects);
     }
 
-    public final Map<PotionEffectType, Short> effects;
+    private final Map<PotionEffectType, Short> effects;
     public boolean needsUpdate = false;
 
     public PotionEffect[] toEffects() {

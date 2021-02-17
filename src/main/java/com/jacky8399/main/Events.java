@@ -7,6 +7,7 @@ import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Item;
@@ -85,7 +86,7 @@ public class Events implements Listener {
                         if (Config.itemNerfsForceDowngrade)
                             newEffects = beaconEffects.fixOpEffects();
                         else
-                            newEffects = new BeaconEffects(beaconEffects.effects);
+                            newEffects = new BeaconEffects(beaconEffects.getEffects());
                         iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
                         PortableBeacons.INSTANCE.logger.info("Updated outdated beacon item in " + p.getName() + "'s inventory.");
                     }
@@ -182,7 +183,7 @@ public class Events implements Listener {
 
     private static Map<Player, HashMap<Vector, FallingBlock>> reminderOutline = new WeakHashMap<>();
 
-    private Set<Block> findBeaconInRadius(Player player, double radius) {
+    private static Set<Block> findBeaconInRadius(Player player, double radius) {
         int r = (int) Math.ceil(radius);
         Block block = player.getLocation().getBlock();
         Set<Block> blocks = Sets.newHashSet();
@@ -199,8 +200,25 @@ public class Events implements Listener {
         return blocks;
     }
 
+    private static FallingBlock spawnFallingBlock(BlockData data, Location location) {
+        World world = location.getWorld();
+        Location initialLoc = location.clone();
+        initialLoc.setY(world.getMaxHeight() - 1);
+        FallingBlock ent = location.getWorld().spawnFallingBlock(initialLoc, data);
+        ent.setInvulnerable(true);
+        ent.setGlowing(true);
+        ent.setDropItem(false);
+        ent.setGravity(false);
+        ent.setTicksLived(1);
+        ent.teleport(location);
+        return ent;
+    }
+
     public void checkPlayerItem() {
         if (!Config.itemCreationReminderEnabled || Config.ritualItem.getType() == Material.AIR) {
+            // clean up
+            reminderOutline.values().forEach(map -> map.values().forEach(Entity::remove));
+            reminderOutline.clear();
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -221,18 +239,9 @@ public class Events implements Listener {
                         // spawn or ensure there is a falling block
                         FallingBlock oldEnt = entities.get(vector);
                         if (oldEnt == null) {
-                            Location initialLoc = location.clone();
-                            initialLoc.setY(255);
                             if (entities.size() == 0) // if first falling sand for player
                                 player.sendMessage(Config.itemCreationReminderMessage);
-                            FallingBlock ent = player.getWorld().spawnFallingBlock(initialLoc, nearbyBeacon.getBlockData());
-                            ent.setInvulnerable(true);
-                            ent.setGlowing(true);
-                            ent.setDropItem(false);
-                            ent.setGravity(false);
-                            ent.setTicksLived(1);
-                            ent.teleport(location);
-                            entities.put(vector, ent);
+                            entities.put(vector, spawnFallingBlock(nearbyBeacon.getBlockData(), location));
                         } else {
                             oldEnt.teleport(location);
                         }
@@ -270,6 +279,8 @@ public class Events implements Listener {
                        return false;
                    }
                 });
+                if (ents.size() == 0)
+                    iterator.remove();
             }
         }
     }
@@ -323,6 +334,7 @@ public class Events implements Listener {
             } else if (!Config.anvilCombinationEnforceVanillaExpLimit) {
                 ItemMeta meta = newIs.getItemMeta();
                 List<String> lore = meta.hasLore() ? Lists.newArrayList(meta.getLore()) : Lists.newArrayList();
+                lore.add("");
                 lore.add(""+ChatColor.GREEN + ChatColor.BOLD + "Enchantment cost: " + cost);
                 meta.setLore(lore);
                 newIs.setItemMeta(meta);
