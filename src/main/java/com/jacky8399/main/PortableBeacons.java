@@ -1,5 +1,6 @@
 package com.jacky8399.main;
 
+import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -11,6 +12,8 @@ public final class PortableBeacons extends JavaPlugin {
     public static PortableBeacons INSTANCE;
 
     public Logger logger = getLogger();
+
+    public Metrics metrics;
 
     public boolean worldGuard = false;
 
@@ -28,6 +31,8 @@ public final class PortableBeacons extends JavaPlugin {
     public void onEnable() {
         logger.info("PortableBeacons is starting up!");
         INSTANCE = this;
+
+        Metrics metrics = new Metrics(this, 10409);
 
         CommandPortableBeacons cmd = new CommandPortableBeacons();
         getCommand("portablebeacons").setExecutor(cmd);

@@ -68,7 +68,7 @@ public class Config {
         for (String key : keys) {
             ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
 
-            PortableBeacons.INSTANCE.logger.info("Reading " + key);
+            //PortableBeacons.INSTANCE.logger.info("Reading " + key);
             String displayName = translateColor(yaml.getString("name"));
             Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
             Integer duration = (Integer) yaml.get("duration");

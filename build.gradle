@@ -1,5 +1,8 @@
-apply plugin: 'java'
-apply plugin: 'idea'
+plugins {
+    id 'java'
+    id 'idea'
+    id 'com.github.johnrengelman.shadow' version '4.0.4'
+}
 
 group = pluginGroup
 version = pluginVersion
@@ -26,6 +29,8 @@ dependencies {
         exclude group: 'net.java.truecommons'
         exclude group: 'net.java.truevfs'
     }
+
+    compile 'org.bstats:bstats-bukkit:2.2.1'
 }
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -35,3 +40,9 @@ processResources {
         filter ReplaceTokens, tokens: [version: version]
     }
 }
+
+shadowJar {
+    relocate 'org.bstats', 'com.jacky8399.bstats'
+}
+
+build.dependsOn shadowJar
