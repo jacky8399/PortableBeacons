@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 public class BeaconEffects {
 
-    private static final int DATA_VERSION = 2;
+    private static final int DATA_VERSION = 3;
 
     public String customDataVersion = Config.itemCustomVersion;
 
@@ -175,10 +175,14 @@ public class BeaconEffects {
     }
 
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
+        private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
         private static final NamespacedKey
-                EFFECTS = new NamespacedKey(PortableBeacons.INSTANCE, "effects_v2"),
-                DATA_VERSION_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "data_version"),
-                CUSTOM_DATA_VERSION_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "custom_data_version");
+                DATA_VERSION_KEY = new NamespacedKey(plugin, "data_version"),
+                CUSTOM_DATA_VERSION_KEY = new NamespacedKey(plugin, "custom_data_version"),
+                EFFECTS = new NamespacedKey(plugin, "effects_v3"),
+                ENCHANT_EXP_REDUCTION = new NamespacedKey(plugin, "enchant_exp_reduction_level"),
+                ENCHANT_SOULBOUND = new NamespacedKey(plugin, "enchant_soulbound_level"),
+                ENCHANT_SOULBOUND_OWNER = new NamespacedKey(plugin, "enchant_soulbound_owner");
 
         @Override
         public @NotNull Class<PersistentDataContainer> getPrimitiveType() {
@@ -193,53 +197,77 @@ public class BeaconEffects {
         @Override
         public @NotNull PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
-            container.set(EFFECTS, PersistentDataType.STRING,
-                    complex.effects.entrySet().stream().map(entry ->
-                            entry.getKey().getName() + (entry.getValue() > 1 ? ":" + entry.getValue() : ""))
-                            .collect(Collectors.joining(","))
-            );
-            container.set(DATA_VERSION_KEY, PersistentDataType.INTEGER, DATA_VERSION);
+//            container.set(EFFECTS_LEGACY_V2, PersistentDataType.STRING,
+//                    complex.effects.entrySet().stream().map(entry ->
+//                            entry.getKey().getName() + (entry.getValue() > 1 ? ":" + entry.getValue() : ""))
+//                            .collect(Collectors.joining(","))
+//            );
+            PersistentDataContainer effects = context.newPersistentDataContainer();
+            complex.effects.forEach((type, level) -> {
+                @SuppressWarnings("deprecation")
+                NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName());
+                effects.set(key, SHORT, level);
+            });
+            container.set(EFFECTS, TAG_CONTAINER, effects);
+            // enchants
+            if (complex.expReductionLevel != 0)
+                container.set(ENCHANT_EXP_REDUCTION, INTEGER, complex.expReductionLevel);
+            if (complex.soulboundLevel != 0)
+                container.set(ENCHANT_SOULBOUND, INTEGER, complex.soulboundLevel);
+            if (complex.soulboundOwner != null)
+                container.set(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY,
+                        new long[]{complex.soulboundOwner.getMostSignificantBits(), complex.soulboundOwner.getLeastSignificantBits()});
+
+            container.set(DATA_VERSION_KEY, INTEGER, DATA_VERSION);
             if (complex.customDataVersion != null)
-                container.set(CUSTOM_DATA_VERSION_KEY, PersistentDataType.STRING, complex.customDataVersion);
+                container.set(CUSTOM_DATA_VERSION_KEY, STRING, complex.customDataVersion);
             return container;
         }
 
+        @SuppressWarnings("ConstantConditions")
         @Override
         public @NotNull BeaconEffects fromPrimitive(PersistentDataContainer primitive, @NotNull PersistentDataAdapterContext context) {
-            if (primitive.has(EFFECTS, PersistentDataType.STRING)) {
-                String effectsCombined = primitive.get(EFFECTS, PersistentDataType.STRING);
-                if (effectsCombined.isEmpty()) // empty string fix
-                    return new BeaconEffects();
-                String[] kvps = effectsCombined.split(",");
-                HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
-                for (String kvp : kvps) {
-                    String[] split = kvp.split(":");
-                    PotionEffectType type;
-                    short amplifier = (short)1;
-                    if (split.length == 1) {
-                        type = PotionEffectType.getByName(kvp);
-                    } else {
-                        type = PotionEffectType.getByName(split[0]);
-                        amplifier = Short.parseShort(split[1]);
+            if (primitive.has(EFFECTS, TAG_CONTAINER)) {
+                PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
+                HashMap<PotionEffectType, Short> effectsMap = new HashMap<>();
+                for (NamespacedKey key : effects.getKeys()) {
+                    PotionEffectType type = PotionEffectType.getByName(key.getKey());
+                    if (type == null) {
+                        PortableBeacons.INSTANCE.logger.warning("Found invalid potion effect type " + key.getKey() + ", skipping");
+                        continue;
                     }
-                    effects.put(type, amplifier);
+                    short level = primitive.get(key, SHORT);
+                    effectsMap.put(type, level);
                 }
-                BeaconEffects ret = new BeaconEffects(effects);
-                ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, PersistentDataType.STRING);
+                BeaconEffects ret = new BeaconEffects(effectsMap);
+                if (primitive.has(ENCHANT_EXP_REDUCTION, INTEGER)) {
+                    ret.expReductionLevel = primitive.get(ENCHANT_EXP_REDUCTION, INTEGER);
+                }
+                if (primitive.has(ENCHANT_SOULBOUND, INTEGER)) {
+                    ret.soulboundLevel = primitive.get(ENCHANT_SOULBOUND, INTEGER);
+                    if (primitive.has(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY)) {
+                        long[] bits = primitive.get(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY);
+                        // bypass UUID.fromString
+                        ret.soulboundOwner = new UUID(bits[0], bits[1]);
+                    }
+                }
                 return ret;
+            } else if (primitive.has(EFFECTS_LEGACY_V2, STRING) && primitive.get(DATA_VERSION_KEY, INTEGER) == 2) {
+                return parseLegacyV2(primitive);
             }
-            return parseLegacy(primitive);
+            return parseLegacyV1(primitive);
         }
 
-        private static final NamespacedKey // LEGACY
+        private static final NamespacedKey // LEGACY V1
                 PRIMARY = new NamespacedKey(PortableBeacons.INSTANCE, "primary_effect"),
                 SECONDARY = new NamespacedKey(PortableBeacons.INSTANCE, "secondary_effect"),
-                EFFECTS_LEGACY = new NamespacedKey(PortableBeacons.INSTANCE, "effects");
+                EFFECTS_LEGACY_V1 = new NamespacedKey(PortableBeacons.INSTANCE, "effects"),
+                EFFECTS_LEGACY_V2 = new NamespacedKey(PortableBeacons.INSTANCE, "effects_v2");
 
-        BeaconEffects parseLegacy(PersistentDataContainer primitive) {
-            if (primitive.has(EFFECTS_LEGACY, PersistentDataType.STRING)) {
+        BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
+            if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) {
                 // newer
-                BeaconEffects ret = new BeaconEffects(Arrays.stream(primitive.get(EFFECTS_LEGACY, PersistentDataType.STRING).split(",")).map(PotionEffectType::getByName).toArray(PotionEffectType[]::new));
+                BeaconEffects ret = new BeaconEffects(Arrays.stream(primitive.get(EFFECTS_LEGACY_V1, PersistentDataType.STRING).split(",")).map(PotionEffectType::getByName).toArray(PotionEffectType[]::new));
                 ret.needsUpdate = true;
                 ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, PersistentDataType.STRING);
                 return ret;
@@ -257,6 +285,31 @@ public class BeaconEffects {
                 return ret;
             }
             return null;
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        BeaconEffects parseLegacyV2(PersistentDataContainer primitive) {
+            String effectsCombined = primitive.get(EFFECTS_LEGACY_V2, PersistentDataType.STRING);
+            if (effectsCombined.isEmpty()) // empty string fix
+                return new BeaconEffects();
+            String[] kvps = effectsCombined.split(",");
+            HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
+            for (String kvp : kvps) {
+                String[] split = kvp.split(":");
+                PotionEffectType type;
+                short amplifier = (short)1;
+                if (split.length == 1) {
+                    type = PotionEffectType.getByName(kvp);
+                } else {
+                    type = PotionEffectType.getByName(split[0]);
+                    amplifier = Short.parseShort(split[1]);
+                }
+                effects.put(type, amplifier);
+            }
+            BeaconEffects ret = new BeaconEffects(effects);
+            ret.needsUpdate = true;
+            ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, PersistentDataType.STRING);
+            return ret;
         }
     }
 
