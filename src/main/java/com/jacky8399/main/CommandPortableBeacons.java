@@ -25,7 +25,7 @@ public class CommandPortableBeacons implements TabExecutor {
     /**
      * A bi-map of Bukkit effect names to vanilla names
      */
-    private static final ImmutableBiMap<String, String> VANILlA_EFFECT_NAMES = ImmutableBiMap.<String, String>builder()
+    private static final ImmutableBiMap<String, String> VANILLA_EFFECT_NAMES = ImmutableBiMap.<String, String>builder()
             .put("slow", "slowness")
             .put("fast_digging", "haste")
             .put("slow_digging", "mining_fatigue")
@@ -54,19 +54,38 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     // show potion effects
                     return Arrays.stream(PotionEffectType.values()).map(PotionEffectType::getName).map(String::toLowerCase)
-                            .map(name -> VANILlA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
+                            .map(name -> VANILLA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
                             .filter(name -> name.startsWith(input)).collect(Collectors.toList());
                 }
             } else if (args[0].equals("item")) {
                 switch (args.length) {
                     case 2:
-                        return Stream.of("give", "add", "remove").filter(name -> name.startsWith(args[1])).collect(Collectors.toList());
+                        return Stream.of("give", "add", "remove", "setenchantment")
+                                .filter(name -> name.startsWith(args[1]))
+                                .collect(Collectors.toList());
                     case 3:
                         return Stream.concat(
                                 Stream.of("@a", "@s", "@p"),
                                 Bukkit.getOnlinePlayers().stream().map(Player::getName)
                         ).filter(name -> name.startsWith(args[2])).collect(Collectors.toList());
                     default: {
+                        // Enchantment autocomplete
+                        if (args[1].equals("setenchantment")) {
+                            if (args.length == 4)
+                                return Stream.of("exp-reduction", "soulbound")
+                                        .filter(name -> name.startsWith(args[3]))
+                                        .collect(Collectors.toList());
+                            else {
+                                // levels
+                                int maxLevel = args[3].equals("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
+                                return IntStream.rangeClosed(1, maxLevel)
+                                        .mapToObj(Integer::toString)
+                                        .filter(level -> level.startsWith(args[4]))
+                                        .collect(Collectors.toList());
+                            }
+                        }
+
+                        // Potion effect type autocomplete
                         String input = args[args.length - 1];
                         if (getType(input) != null) {
                             // valid input, show amplifiers
@@ -74,7 +93,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         }
                         // show potion effects
                         return Arrays.stream(PotionEffectType.values()).map(PotionEffectType::getName).map(String::toLowerCase)
-                                .map(name -> VANILlA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
+                                .map(name -> VANILLA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
                                 .filter(name -> name.startsWith(input)).collect(Collectors.toList());
                     }
                 }
@@ -86,7 +105,7 @@ public class CommandPortableBeacons implements TabExecutor {
     @Nullable
     public static PotionEffectType getType(String input) {
         input = input.toLowerCase(Locale.US);
-        String bukkitName = VANILlA_EFFECT_NAMES.inverse().get(input);
+        String bukkitName = VANILLA_EFFECT_NAMES.inverse().get(input);
         return PotionEffectType.getByName(bukkitName != null ? bukkitName : input);
     }
 
@@ -187,10 +206,17 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 sender.sendMessage(ChatColor.GREEN + "Potion effects:");
-                effects.getEffects().forEach((pot, amplifier)->
-                        sender.sendMessage("" + ChatColor.YELLOW + VANILlA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
+                effects.getEffects().forEach((pot, amplifier) -> sender.sendMessage("  " + ChatColor.YELLOW + VANILLA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
                 sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
                 sender.sendMessage(ChatColor.GREEN + "Is obsolete: " + ChatColor.YELLOW + effects.shouldUpdate());
+                if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
+                    sender.sendMessage(ChatColor.GREEN + "Enchantments:");
+                    if (effects.expReductionLevel != 0)
+                        sender.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel);
+                    if (effects.soulboundLevel != 0)
+                        sender.sendMessage("  " + ChatColor.YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
+                                (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
+                }
                 if (Config.itemNerfsExpPercentagePerCycle > 0) {
                     double xpPerCycle = effects.calcExpPerCycle();
                     sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
@@ -200,16 +226,16 @@ public class CommandPortableBeacons implements TabExecutor {
             break;
             case "item": {
                 if (args.length < 4) {
-                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove> <players> <effects...>");
+                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove/setenchantment> <players> <effects...>");
                 }
                 String operation = args[1];
                 List<Player> players = Bukkit.selectEntities(sender, args[2]).stream()
                         .filter(entity -> entity instanceof Player)
-                        .map(Player.class::cast).collect(Collectors.toList());
+                        .map(player -> (Player) player).collect(Collectors.toList());
                 String[] effectsString = Arrays.copyOfRange(args, 3, args.length);
-                BeaconEffects beaconEffects = getEffects(sender, effectsString);
+                BeaconEffects beaconEffects = !operation.equals("setenchantment") ? getEffects(sender, effectsString) : null;
 
-                List<Player> failedPlayers = new ArrayList<>();
+                Set<Player> failedPlayers = new HashSet<>();
 
                 switch (operation) {
                     case "give": {
@@ -271,8 +297,46 @@ public class CommandPortableBeacons implements TabExecutor {
                             );
                     }
                     break;
+                    case "setenchantment": {
+                        if (args.length != 4) {
+                            sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level>");
+                        }
+
+                        String enchantment = args[3];
+                        int newLevel = Integer.parseInt(args[4]);
+
+                        players.forEach(player -> {
+                            PlayerInventory inventory = player.getInventory();
+                            ItemStack hand = inventory.getItemInMainHand();
+                            if (!ItemUtils.isPortableBeacon(hand)) {
+                                failedPlayers.add(player);
+                                return;
+                            }
+
+                            BeaconEffects effects = ItemUtils.getEffects(hand);
+                            if (enchantment.equals("exp-reduction")) {
+                                effects.expReductionLevel = newLevel;
+                            } else {
+                                effects.soulboundLevel = newLevel;
+                            }
+
+                            inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
+                            player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
+                        });
+
+                        sender.sendMessage(ChatColor.GREEN + "Modified the held portable beacon of " +
+                                players.stream()
+                                        .filter(player -> !failedPlayers.contains(player))
+                                        .map(Player::getName)
+                                        .collect(Collectors.joining(", ")));
+                        if (failedPlayers.size() != 0)
+                            sender.sendMessage(ChatColor.RED + "Failed to apply the operation on " +
+                                    failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
+                                    " because they were not holding a portable beacon."
+                            );
+                    }
                     default: {
-                        sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove> <players> <effects...>");
+                        sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove/setenchantment> <players> <effects...>");
                     }
                     break;
                 }
