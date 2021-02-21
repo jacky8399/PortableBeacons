@@ -4,8 +4,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
@@ -34,6 +36,18 @@ public class Config {
         itemCreationReminderMessage = translateColor(config.getString("beacon-item.creation-reminder.message"));
         itemCreationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
         itemCreationReminderDisableIfAlreadyOwnBeaconItem = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
+
+        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.fromString(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment")));
+        customEnchantExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
+        customEnchantExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
+        customEnchantExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
+        customEnchantExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
+
+        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.fromString(config.getString("beacon-item.custom-enchantments.soulbound.enchantment")));
+        customEnchantSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
+        customEnchantSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
+        customEnchantSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
+        customEnchantSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
 
         itemNerfsExpPercentagePerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
         itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
@@ -133,19 +147,34 @@ public class Config {
     public static int itemCustomModelData;
     public static String itemCustomVersion = null;
 
+    // Reminder
     public static boolean itemCreationReminderEnabled;
     public static String itemCreationReminderMessage;
     public static double itemCreationReminderRadius;
     public static boolean itemCreationReminderDisableIfAlreadyOwnBeaconItem;
 
+    // Custom Enchantments
+    public static boolean customEnchantExpReductionEnabled;
+    public static double customEnchantExpReductionReductionPerLevel;
+    public static int customEnchantExpReductionMaxLevel;
+    public static String customEnchantExpReductionName;
+    public static Enchantment customEnchantExpReductionEnchantment;
+
+    public static boolean customEnchantSoulboundEnabled;
+    public static boolean customEnchantSoulboundOwnerUsageOnly;
+    public static int customEnchantSoulboundMaxLevel;
+    public static String customEnchantSoulboundName;
+    public static Enchantment customEnchantSoulboundEnchantment;
+
+    // Nerfs
     public static double itemNerfsExpPercentagePerCycle;
     public static boolean itemNerfsOnlyApplyInHotbar;
     public static Set<String> itemNerfsDisabledWorlds;
     public static boolean itemNerfsForceDowngrade;
 
+    // Anvil crafting
     public static boolean anvilCombinationEnabled;
     public static int anvilCombinationMaxEffects;
-    public static int anvilCombinationMaxAmplifier;
     public static boolean anvilCombinationCombineEffectsAdditively;
     public static boolean anvilCombinationEnforceVanillaExpLimit;
 

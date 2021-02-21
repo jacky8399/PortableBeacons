@@ -27,11 +27,18 @@ public class BeaconEffects {
     public static final NamespacedKey STORAGE_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "beacon_effect");
     public static final BeaconEffectsDataType STORAGE_TYPE = new BeaconEffectsDataType();
 
+    public BeaconEffects() {
+        this.effects = ImmutableMap.of();
+    }
+
     public BeaconEffects(PotionEffectType... effects) {
-        this.effects = ImmutableMap.copyOf(Arrays.stream(effects).filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.reducing(
-                        (short)0, e -> (short)1, (s1, s2)->(short)(s1 + s2)
-                ))));
+        this.effects = ImmutableMap.copyOf(
+                Arrays.stream(effects)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.groupingBy(Function.identity(), Collectors.reducing(
+                                (short)0, e -> (short)1, (s1, s2)->(short)(s1 + s2)
+                        )))
+        );
     }
 
     public BeaconEffects(Map<PotionEffectType, Short> effects) {
@@ -39,6 +46,9 @@ public class BeaconEffects {
     }
 
     private final Map<PotionEffectType, Short> effects;
+    public int expReductionLevel = 0;
+    public UUID soulboundOwner = null;
+    public int soulboundLevel = 0;
     public boolean needsUpdate = false;
 
     public PotionEffect[] toEffects() {
@@ -57,16 +67,29 @@ public class BeaconEffects {
     }
 
     public List<String> toLore() {
-        return effects.entrySet().stream()
+        List<String> lore = effects.entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getName()))
                 .map(entry -> stringifyEffect(entry.getKey(), entry.getValue().intValue()))
                 .collect(Collectors.toList());
+
+        if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
+            lore.add(Config.customEnchantExpReductionName + toRomanNumeral(expReductionLevel));
+        }
+
+        if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
+            lore.add(Config.customEnchantSoulboundName + toRomanNumeral(soulboundLevel));
+        }
+
+        return lore;
     }
 
     public double calcExpPerCycle() {
         if (Config.itemNerfsExpPercentagePerCycle <= 0)
             return 0;
-        return effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle;
+        double expMultiplier = Config.customEnchantExpReductionEnabled ?
+                expReductionLevel * Config.customEnchantExpReductionReductionPerLevel :
+                1;
+        return effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier;
     }
 
     public Map<PotionEffectType, Short> getEffects() {

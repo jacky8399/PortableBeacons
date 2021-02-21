@@ -52,14 +52,21 @@ public class Events implements Listener {
                 return;
 
             ListIterator<ItemStack> iterator = p.getInventory().iterator();
+            inventoryLoop:
             while (iterator.hasNext()) {
                 int nextIdx = iterator.nextIndex();
                 if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
-                    return; // out of hotbar
+                    continue; // out of hotbar
                 }
                 ItemStack is = iterator.next();
                 if (ItemUtils.isPortableBeacon(is)) {
                     BeaconEffects beaconEffects = ItemUtils.getEffects(is);
+                    // owner check
+                    if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundOwnerUsageOnly &&
+                            beaconEffects.soulboundOwner != null && !p.getUniqueId().equals(beaconEffects.soulboundOwner)) {
+                        continue;
+                    }
+
                     // deduct exp first
                     double xp = beaconEffects.calcExpPerCycle();
                     if (xp != 0) {
@@ -67,7 +74,7 @@ public class Events implements Listener {
                         int levels = p.getLevel();
                         while (playerXpPercentage < xp) {
                             if (--levels < 0)
-                                return; // do not apply
+                                continue inventoryLoop; // do not apply
                             playerXpPercentage += 1;
                         }
                         playerXpPercentage -= xp;
@@ -88,7 +95,7 @@ public class Events implements Listener {
                         else
                             newEffects = new BeaconEffects(beaconEffects.getEffects());
                         iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
-                        PortableBeacons.INSTANCE.logger.info("Updated outdated beacon item in " + p.getName() + "'s inventory.");
+                        PortableBeacons.INSTANCE.logger.fine("Updated outdated beacon item in " + p.getName() + "'s inventory.");
                     }
                 }
             }
