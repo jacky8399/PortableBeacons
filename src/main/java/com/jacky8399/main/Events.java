@@ -93,7 +93,7 @@ public class Events implements Listener {
                         if (Config.itemNerfsForceDowngrade)
                             newEffects = beaconEffects.fixOpEffects();
                         else
-                            newEffects = new BeaconEffects(beaconEffects.getEffects());
+                            newEffects = beaconEffects.clone();
                         iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
                         PortableBeacons.INSTANCE.logger.fine("Updated outdated beacon item in " + p.getName() + "'s inventory.");
                     }

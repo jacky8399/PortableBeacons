@@ -212,7 +212,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
                     sender.sendMessage(ChatColor.GREEN + "Enchantments:");
                     if (effects.expReductionLevel != 0)
-                        sender.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel);
+                        sender.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
+                                String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) * 100));
                     if (effects.soulboundLevel != 0)
                         sender.sendMessage("  " + ChatColor.YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
                                 (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
@@ -271,7 +272,7 @@ public class CommandPortableBeacons implements TabExecutor {
                                 return;
                             }
 
-                            BeaconEffects oldEffects = ItemUtils.getEffects(hand);
+                            BeaconEffects oldEffects = ItemUtils.getEffects(hand), newEffects = oldEffects.clone();
                             HashMap<PotionEffectType, Short> map = new HashMap<>(oldEffects.getEffects());
                             if ("add".equals(operation)) {
                                 map.putAll(beaconEffects.getEffects());
@@ -279,7 +280,7 @@ public class CommandPortableBeacons implements TabExecutor {
                                 // remove
                                 map.keySet().removeAll(oldEffects.getEffects().keySet());
                             }
-                            BeaconEffects newEffects = new BeaconEffects(map);
+                            newEffects.setEffects(map);
 
                             inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(newEffects, hand));
                             player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
@@ -298,8 +299,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     break;
                     case "setenchantment": {
-                        if (args.length != 4) {
+                        if (args.length != 5) {
                             sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level>");
+                            return true;
                         }
 
                         String enchantment = args[3];
@@ -335,6 +337,7 @@ public class CommandPortableBeacons implements TabExecutor {
                                     " because they were not holding a portable beacon."
                             );
                     }
+                    break;
                     default: {
                         sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove/setenchantment> <players> <effects...>");
                     }

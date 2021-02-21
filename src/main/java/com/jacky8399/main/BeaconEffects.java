@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class BeaconEffects {
+public class BeaconEffects implements Cloneable {
 
     private static final int DATA_VERSION = 3;
 
@@ -45,11 +45,24 @@ public class BeaconEffects {
         this.effects = ImmutableMap.copyOf(effects);
     }
 
-    private final Map<PotionEffectType, Short> effects;
+    private Map<PotionEffectType, Short> effects;
     public int expReductionLevel = 0;
     public UUID soulboundOwner = null;
     public int soulboundLevel = 0;
     public boolean needsUpdate = false;
+
+    @Override
+    public BeaconEffects clone() {
+        try {
+            return (BeaconEffects) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new Error(e);
+        }
+    }
+
+    public void setEffects(Map<PotionEffectType, Short> effects) {
+        this.effects = ImmutableMap.copyOf(effects);
+    }
 
     public PotionEffect[] toEffects() {
         @SuppressWarnings("ConstantConditions")
@@ -75,7 +88,6 @@ public class BeaconEffects {
         if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
             lore.add(Config.customEnchantExpReductionName + toRomanNumeral(expReductionLevel));
         }
-
         if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
             lore.add(Config.customEnchantSoulboundName + toRomanNumeral(soulboundLevel));
         }
@@ -87,9 +99,9 @@ public class BeaconEffects {
         if (Config.itemNerfsExpPercentagePerCycle <= 0)
             return 0;
         double expMultiplier = Config.customEnchantExpReductionEnabled ?
-                expReductionLevel * Config.customEnchantExpReductionReductionPerLevel :
+                Math.max(0, 1 - expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) :
                 1;
-        return effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier;
+        return Math.max(0, effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
     }
 
     public Map<PotionEffectType, Short> getEffects() {
@@ -156,6 +168,7 @@ public class BeaconEffects {
     }
 
     public BeaconEffects fixOpEffects() {
+        BeaconEffects ret = clone();
         int defaultMax = Config.effectsDefault.maxAmplifier;
         HashMap<PotionEffectType, Short> newEffects = new HashMap<>(effects);
         Iterator<Map.Entry<PotionEffectType, Short>> iterator = newEffects.entrySet().iterator();
@@ -171,7 +184,8 @@ public class BeaconEffects {
                     entry.setValue((short) maxAmplifier);
             }
         }
-        return new BeaconEffects(newEffects);
+        ret.setEffects(newEffects);
+        return ret;
     }
 
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
@@ -205,7 +219,7 @@ public class BeaconEffects {
             PersistentDataContainer effects = context.newPersistentDataContainer();
             complex.effects.forEach((type, level) -> {
                 @SuppressWarnings("deprecation")
-                NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName());
+                NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName().toLowerCase(Locale.US));
                 effects.set(key, SHORT, level);
             });
             container.set(EFFECTS, TAG_CONTAINER, effects);
@@ -236,7 +250,7 @@ public class BeaconEffects {
                         PortableBeacons.INSTANCE.logger.warning("Found invalid potion effect type " + key.getKey() + ", skipping");
                         continue;
                     }
-                    short level = primitive.get(key, SHORT);
+                    short level = effects.get(key, SHORT);
                     effectsMap.put(type, level);
                 }
                 BeaconEffects ret = new BeaconEffects(effectsMap);

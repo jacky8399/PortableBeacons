@@ -15,13 +15,13 @@ beacon-item:
       name: '&dExperience Efficiency'
       # to disable set to empty string
       # enchantment: ''
-      enchantment: MENDING
+      enchantment: mending
       reduction-per-level: 0.2
       max-level: 5
     soulbound:
       enabled: true
       name: '&4Soulbound'
-      enchantment: BINDING_CURSE
+      enchantment: binding_curse
       max-level: 5
       owner-usage-only: false
 
