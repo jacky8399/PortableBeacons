@@ -16,6 +16,7 @@ beacon-item:
       # to disable set to empty string
       # enchantment: ''
       enchantment: mending
+      # Reduction in experience consumption per enchantment level
       reduction-per-level: 0.2
       max-level: 5
     soulbound:
@@ -23,11 +24,14 @@ beacon-item:
       name: '&4Soulbound'
       enchantment: binding_curse
       max-level: 5
+      # whether a level will be deducted on death
+      consume-level-on-death: true
+      # whether item will stop working for other players if it was soulbound to any player
       owner-usage-only: false
 
   nerfs: # One cycle is every 7.5s
     exp-percentage-per-cycle: 0.05555555555
-    # True if the effects should only be applied when the item is in the hotbar
+    # Whether the effects should only be applied when the item is in hotbar
     only-apply-in-hotbar: false
     # Force downgrade all effects stronger than its max-amplifier
     force-downgrade: false

@@ -45,6 +45,7 @@ public class Config {
         customEnchantSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
         customEnchantSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
         customEnchantSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
+        customEnchantSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
 
         itemNerfsExpPercentagePerCycle = Math.max(0, config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle"));
         itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
@@ -159,6 +160,7 @@ public class Config {
 
     public static boolean customEnchantSoulboundEnabled;
     public static boolean customEnchantSoulboundOwnerUsageOnly;
+    public static boolean customEnchantSoulboundConsumeLevelOnDeath;
     public static int customEnchantSoulboundMaxLevel;
     public static String customEnchantSoulboundName;
     public static Enchantment customEnchantSoulboundEnchantment;

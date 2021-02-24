@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -299,13 +300,36 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     break;
                     case "setenchantment": {
-                        if (args.length != 5) {
-                            sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level>");
+                        if (args.length < 5) {
+                            sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level> [soulboundOwner]");
                             return true;
                         }
 
                         String enchantment = args[3];
                         int newLevel = Integer.parseInt(args[4]);
+                        Consumer<BeaconEffects> modifier;
+
+                        if (enchantment.equals("soulbound")) {
+                            if (args.length >= 6) { // has soulboundOnwer arg
+                                Player newOwner = Bukkit.getPlayer(args[5]);
+                                if (newOwner != null) {
+                                    modifier = effects -> {
+                                        effects.soulboundLevel = newLevel;
+                                        effects.soulboundOwner = newOwner.getUniqueId();
+                                    };
+                                } else {
+                                    sender.sendMessage(ChatColor.RED + "Couldn't find player '" + args[5] + "'!");
+                                    return true;
+                                }
+                            } else {
+                                modifier = effects -> effects.soulboundLevel = newLevel;
+                            }
+                        } else if (enchantment.equals("exp-reduction")) {
+                            modifier = effects -> effects.expReductionLevel = newLevel;
+                        } else {
+                            sender.sendMessage(ChatColor.RED + "Invalid enchantment " + enchantment + "!");
+                            return true;
+                        }
 
                         players.forEach(player -> {
                             PlayerInventory inventory = player.getInventory();
@@ -316,11 +340,7 @@ public class CommandPortableBeacons implements TabExecutor {
                             }
 
                             BeaconEffects effects = ItemUtils.getEffects(hand);
-                            if (enchantment.equals("exp-reduction")) {
-                                effects.expReductionLevel = newLevel;
-                            } else {
-                                effects.soulboundLevel = newLevel;
-                            }
+                            modifier.accept(effects);
 
                             inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
                             player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");

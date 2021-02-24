@@ -14,16 +14,19 @@ import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
@@ -390,6 +393,42 @@ public class Events implements Listener {
             if (ItemUtils.isPortableBeacon(e.getCurrentItem()) || ItemUtils.isPortableBeacon(e.getCursor())) {
                 e.setResult(Event.Result.DENY);
             }
+        }
+    }
+
+    // for soulbound enchantment
+
+    // add these items later
+    Map<Player, List<ItemStack>> soulboundItems = new WeakHashMap<>();
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH) // you can cancel PlayerDeathEvent on Paper
+    public void onDeath(PlayerDeathEvent e) {
+        if (!e.getKeepInventory()) {
+            for (Iterator<ItemStack> iterator = e.getDrops().iterator(); iterator.hasNext();) {
+                ItemStack dropped = iterator.next();
+                if (ItemUtils.isPortableBeacon(dropped)) {
+                    Player player = e.getEntity();
+                    BeaconEffects effects = ItemUtils.getEffects(dropped);
+                    if (effects.soulboundLevel != 0 && effects.soulboundOwner.equals(player.getUniqueId())) {
+                        iterator.remove();
+                        List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
+                        if (Config.customEnchantSoulboundConsumeLevelOnDeath) {
+                            effects.soulboundLevel--;
+                            items.add(ItemUtils.createStackCopyItemData(effects, dropped));
+                        } else {
+                            items.add(dropped);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent e) {
+        Player player = e.getPlayer();
+        List<ItemStack> toGive = soulboundItems.remove(player);
+        if (toGive != null) {
+            player.getInventory().addItem(toGive.toArray(new ItemStack[0]));
         }
     }
 }

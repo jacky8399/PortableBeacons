@@ -31,6 +31,7 @@ public class BeaconEffects implements Cloneable {
         this.effects = ImmutableMap.of();
     }
 
+    @Deprecated
     public BeaconEffects(PotionEffectType... effects) {
         this.effects = ImmutableMap.copyOf(
                 Arrays.stream(effects)
@@ -278,6 +279,7 @@ public class BeaconEffects implements Cloneable {
                 EFFECTS_LEGACY_V1 = new NamespacedKey(PortableBeacons.INSTANCE, "effects"),
                 EFFECTS_LEGACY_V2 = new NamespacedKey(PortableBeacons.INSTANCE, "effects_v2");
 
+        @SuppressWarnings("derepcation")
         BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
             if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) {
                 // newer
