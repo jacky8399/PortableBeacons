@@ -22,7 +22,6 @@ import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -58,7 +57,8 @@ public class Events implements Listener {
             inventoryLoop:
             while (iterator.hasNext()) {
                 int nextIdx = iterator.nextIndex();
-                if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
+                if ((nextIdx > 8 && nextIdx != 40) && Config.itemNerfsOnlyApplyInHotbar) {
+                    // 40 is the Bukkit converted slot ID for offhand
                     continue; // out of hotbar
                 }
                 ItemStack is = iterator.next();
@@ -301,7 +301,7 @@ public class Events implements Listener {
     }
 
     private WeakHashMap<Item, Player> netherStarItems = new WeakHashMap<>();
-    @EventHandler
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         ItemStack is = e.getItemDrop().getItemStack();
         if (is.isSimilar(Config.ritualItem) && is.getAmount() >= Config.ritualItem.getAmount()) {
@@ -321,7 +321,7 @@ public class Events implements Listener {
         netherStarItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onPlaceBlock(BlockPlaceEvent e) {
         if (ItemUtils.isPortableBeacon(e.getItemInHand())) {
             e.setCancelled(true); // don't place the beacon (yet)
@@ -352,18 +352,20 @@ public class Events implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void onAnvilClick(InventoryClickEvent e) {
         if (!Config.anvilCombinationEnabled)
             return;
-        if (e.getWhoClicked() instanceof Player && e.getClickedInventory() != null &&
-                e.getClickedInventory().getType() == InventoryType.ANVIL) {
+        if (e.getClickedInventory() instanceof AnvilInventory) {
             Player player = (Player) e.getWhoClicked();
             if (e.getRawSlot() != 2 || (e.getClick() != ClickType.LEFT && e.getClick() != ClickType.SHIFT_LEFT))
                 return;
 
             AnvilInventory inv = (AnvilInventory) e.getClickedInventory();
             ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
+            if (!ItemUtils.isPortableBeacon(is1) || !ItemUtils.isPortableBeacon(is2))
+                return;
+
             int levelRequired = ItemUtils.calculateCombinationCost(is1, is2);
             if (player.getLevel() < levelRequired || (levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit)) {
                 e.setResult(Event.Result.DENY);
@@ -372,12 +374,17 @@ public class Events implements Listener {
             }
             ItemStack newIs = ItemUtils.combineStack(is1, is2);
             if (newIs != null) {
-                inv.setItem(0, null);
-                inv.setItem(1, null);
                 if (e.getClick() == ClickType.SHIFT_LEFT) {
+                    inv.setItem(0, null);
+                    inv.setItem(1, null);
                     player.getInventory().addItem(newIs);
-                } else {
+                } else if (e.getCursor() != null) {
+                    inv.setItem(0, null);
+                    inv.setItem(1, null);
                     player.setItemOnCursor(newIs);
+                } else {
+                    e.setCancelled(true);
+                    return;
                 }
                 player.updateInventory();
                 player.setLevel(player.getLevel() - levelRequired);
@@ -389,7 +396,7 @@ public class Events implements Listener {
 
     @EventHandler
     public void onGrindstoneItem(InventoryClickEvent e) {
-        if (e.getInventory() instanceof GrindstoneInventory) {
+        if (e.getClickedInventory() instanceof GrindstoneInventory) {
             if (ItemUtils.isPortableBeacon(e.getCurrentItem()) || ItemUtils.isPortableBeacon(e.getCursor())) {
                 e.setResult(Event.Result.DENY);
             }
