@@ -57,8 +57,7 @@ public class Events implements Listener {
             inventoryLoop:
             while (iterator.hasNext()) {
                 int nextIdx = iterator.nextIndex();
-                if ((nextIdx > 8 && nextIdx != 40) && Config.itemNerfsOnlyApplyInHotbar) {
-                    // 40 is the Bukkit converted slot ID for offhand
+                if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
                     continue; // out of hotbar
                 }
                 ItemStack is = iterator.next();
@@ -338,16 +337,17 @@ public class Events implements Listener {
         ItemStack newIs = ItemUtils.combineStack(is1, is2);
         int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
-            if (cost <= 39) {
-                e.setResult(newIs);
-                Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> e.getInventory().setRepairCost(cost));
-            } else if (!Config.anvilCombinationEnforceVanillaExpLimit) {
+            if (!Config.anvilCombinationEnforceVanillaExpLimit && cost > inv.getMaximumRepairCost()) {
                 ItemMeta meta = newIs.getItemMeta();
                 List<String> lore = meta.hasLore() ? Lists.newArrayList(meta.getLore()) : Lists.newArrayList();
                 lore.add("");
                 lore.add(""+ChatColor.GREEN + ChatColor.BOLD + "Enchantment cost: " + cost);
                 meta.setLore(lore);
                 newIs.setItemMeta(meta);
+                e.setResult(newIs);
+            } else if (!Config.anvilCombinationEnforceVanillaExpLimit) {
+                e.setResult(newIs);
+                Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> e.getInventory().setRepairCost(cost));
             }
         }
     }
