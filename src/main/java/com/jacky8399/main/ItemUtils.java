@@ -5,13 +5,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class ItemUtils {
@@ -71,15 +74,29 @@ public class ItemUtils {
     }
 
     public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {
-        if (isPortableBeacon(is1) && isPortableBeacon(is2)) {
+        if (!isPortableBeacon(is1))
+            return 0;
+        if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
             return getCost(e1) + getCost(e2);
+        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
+            BeaconEffects effects = getEffects(is1);
+            Map<Enchantment, Integer> enchants = ((EnchantmentStorageMeta) is2.getItemMeta()).getStoredEnchants();
+            int numOfEnchantsApplicable = 0;
+            if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundEnchantment != null && enchants.containsKey(Config.customEnchantSoulboundEnchantment))
+                numOfEnchantsApplicable++;
+            if (Config.customEnchantExpReductionEnabled && Config.customEnchantExpReductionEnchantment != null && enchants.containsKey(Config.customEnchantExpReductionEnchantment))
+                numOfEnchantsApplicable++;
+
+            return getCost(effects) * numOfEnchantsApplicable;
         }
         return 0;
     }
 
-    public static ItemStack combineStack(ItemStack is1, ItemStack is2) {
-        if (isPortableBeacon(is1) && isPortableBeacon(is2)) {
+    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2) {
+        if (!isPortableBeacon(is1))
+            return null;
+        if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
             HashMap<PotionEffectType, Short> effects = Maps.newHashMap(e1.getEffects());
             e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, Config.anvilCombinationCombineEffectsAdditively ? ItemUtils::sum : ItemUtils::anvilAlgorithm));
@@ -95,6 +112,25 @@ public class ItemUtils {
             }
 
             return createStack(new BeaconEffects(effects));
+        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
+            BeaconEffects effects = getEffects(is1);
+            EnchantmentStorageMeta meta = (EnchantmentStorageMeta) is2.getItemMeta();
+            Map<Enchantment, Integer> enchants = meta.getStoredEnchants();
+            boolean allowCombination = false;
+            if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundEnchantment != null && enchants.containsKey(Config.customEnchantSoulboundEnchantment)) {
+                allowCombination = true;
+                if (++effects.soulboundLevel > Config.customEnchantSoulboundMaxLevel) // level check
+                    return null;
+                if (effects.soulboundOwner == null || effects.soulboundOwner.equals(player.getUniqueId()))
+                    effects.soulboundOwner = player.getUniqueId();
+            }
+            if (Config.customEnchantExpReductionEnabled && Config.customEnchantExpReductionEnchantment != null && enchants.containsKey(Config.customEnchantExpReductionEnchantment)) {
+                allowCombination = true;
+                if (++effects.expReductionLevel > Config.customEnchantExpReductionMaxLevel) // level check
+                    return null;
+            }
+
+            return allowCombination ? createStackCopyItemData(effects, is1) : null;
         }
         return null;
     }

@@ -334,7 +334,7 @@ public class Events implements Listener {
             return;
         AnvilInventory inv = e.getInventory();
         ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
-        ItemStack newIs = ItemUtils.combineStack(is1, is2);
+        ItemStack newIs = ItemUtils.combineStack((Player) e.getView().getPlayer(), is1, is2);
         int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
             if (!Config.anvilCombinationEnforceVanillaExpLimit && cost > inv.getMaximumRepairCost()) {
@@ -363,16 +363,18 @@ public class Events implements Listener {
 
             AnvilInventory inv = (AnvilInventory) e.getClickedInventory();
             ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
-            if (!ItemUtils.isPortableBeacon(is1) || !ItemUtils.isPortableBeacon(is2))
+            if (!ItemUtils.isPortableBeacon(is1) ||
+                    (!ItemUtils.isPortableBeacon(is2) && is2 == null || is2.getType() != Material.ENCHANTED_BOOK))
                 return;
 
             int levelRequired = ItemUtils.calculateCombinationCost(is1, is2);
-            if (player.getLevel() < levelRequired || (levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit)) {
+            if (levelRequired != 0 &&
+                    (player.getLevel() < levelRequired || (levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit))) {
                 e.setResult(Event.Result.DENY);
                 e.setCancelled(true);
                 return;
             }
-            ItemStack newIs = ItemUtils.combineStack(is1, is2);
+            ItemStack newIs = ItemUtils.combineStack((Player) e.getWhoClicked(), is1, is2);
             if (newIs != null) {
                 if (e.getClick() == ClickType.SHIFT_LEFT) {
                     inv.setItem(0, null);
