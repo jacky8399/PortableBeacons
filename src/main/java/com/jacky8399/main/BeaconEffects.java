@@ -14,6 +14,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -245,7 +246,7 @@ public class BeaconEffects implements Cloneable {
             if (primitive.has(EFFECTS, TAG_CONTAINER)) {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
                 HashMap<PotionEffectType, Short> effectsMap = new HashMap<>();
-                for (NamespacedKey key : effects.getKeys()) {
+                for (NamespacedKey key : getKeys(effects)) {
                     PotionEffectType type = PotionEffectType.getByName(key.getKey());
                     if (type == null) {
                         PortableBeacons.INSTANCE.logger.warning("Found invalid potion effect type " + key.getKey() + ", skipping");
@@ -271,6 +272,31 @@ public class BeaconEffects implements Cloneable {
                 return parseLegacyV2(primitive);
             }
             return parseLegacyV1(primitive);
+        }
+
+        private static boolean GET_KEYS = false;
+        static {
+            try {
+                GET_KEYS = PersistentDataContainer.class.getMethod("getKeys") != null;
+            } catch (NoSuchMethodException ignored) {}
+        }
+        private static Set<NamespacedKey> getKeys(PersistentDataContainer container) {
+            if (GET_KEYS) {
+                return container.getKeys();
+            } else {
+                try {
+                    Class<? extends PersistentDataContainer> clazz = container.getClass();
+                    Field internal = clazz.getDeclaredField("customDataTags");
+                    internal.setAccessible(true);
+                    Set<String> keys = ((Map<String, ?>) internal.get(container)).keySet();
+                    return keys.stream().map(key -> {
+                        String[] keyData = key.split(":", 2);
+                        return new NamespacedKey(keyData[0], keyData[1]);
+                    }).collect(Collectors.toSet());
+                } catch (ReflectiveOperationException e) {
+                    throw new Error("Failed to find keys for NBT tag!", e);
+                }
+            }
         }
 
         private static final NamespacedKey // LEGACY V1

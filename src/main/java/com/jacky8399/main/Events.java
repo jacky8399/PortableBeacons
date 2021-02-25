@@ -213,7 +213,7 @@ public class Events implements Listener {
         World world = location.getWorld();
         Location initialLoc = location.clone();
         initialLoc.setY(world.getMaxHeight() - 1);
-        FallingBlock ent = location.getWorld().spawnFallingBlock(initialLoc, data);
+        FallingBlock ent = world.spawnFallingBlock(initialLoc, data);
         ent.setInvulnerable(true);
         ent.setGlowing(true);
         ent.setDropItem(false);
@@ -233,7 +233,12 @@ public class Events implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (Config.itemCreationReminderDisableIfAlreadyOwnBeaconItem) {
                 // check if already own beacon item
-                if (Arrays.stream(player.getInventory().getStorageContents()).parallel().anyMatch(ItemUtils::isPortableBeacon)) {
+                if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
+                    // clear old entities
+                    Map<Vector, FallingBlock> entities = reminderOutline.remove(player);
+                    if (entities != null) {
+                        entities.values().forEach(Entity::remove);
+                    }
                     continue;
                 }
             }
