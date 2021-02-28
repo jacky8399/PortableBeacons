@@ -6,6 +6,7 @@ import com.google.common.collect.Maps;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -60,29 +61,46 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
             } else if (args[0].equals("item")) {
                 switch (args.length) {
-                    case 2:
+                    case 2: {
                         return Stream.of("give", "add", "remove", "setenchantment")
                                 .filter(name -> name.startsWith(args[1]))
                                 .collect(Collectors.toList());
-                    case 3:
+                    }
+                    case 3: {
                         return Stream.concat(
                                 Stream.of("@a", "@s", "@p"),
                                 Bukkit.getOnlinePlayers().stream().map(Player::getName)
                         ).filter(name -> name.startsWith(args[2])).collect(Collectors.toList());
+                    }
                     default: {
                         // Enchantment autocomplete
                         if (args[1].equals("setenchantment")) {
-                            if (args.length == 4)
-                                return Stream.of("exp-reduction", "soulbound")
-                                        .filter(name -> name.startsWith(args[3]))
-                                        .collect(Collectors.toList());
-                            else {
-                                // levels
-                                int maxLevel = args[3].equals("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
-                                return IntStream.rangeClosed(1, maxLevel)
-                                        .mapToObj(Integer::toString)
-                                        .filter(level -> level.startsWith(args[4]))
-                                        .collect(Collectors.toList());
+                            switch (args.length) {
+                                case 4: {
+                                    return Stream.of("exp-reduction", "soulbound")
+                                            .filter(name -> name.startsWith(args[3]))
+                                            .collect(Collectors.toList());
+                                }
+                                case 5: {
+                                    // levels
+                                    int maxLevel = args[3].equals("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
+                                    return IntStream.rangeClosed(1, maxLevel)
+                                            .mapToObj(Integer::toString)
+                                            .filter(level -> level.startsWith(args[4]))
+                                            .collect(Collectors.toList());
+                                }
+                                case 6: {
+                                    if (args[3].equals("soulbound")) {
+                                        // show player names for soulbound owner
+                                        return Bukkit.getOnlinePlayers().stream()
+                                                .map(Player::getName)
+                                                .filter(name -> name.startsWith(args[5]))
+                                                .collect(Collectors.toList());
+                                    }
+                                }
+                                default: {
+                                    return Collections.emptyList();
+                                }
                             }
                         }
 
@@ -90,12 +108,17 @@ public class CommandPortableBeacons implements TabExecutor {
                         String input = args[args.length - 1];
                         if (getType(input) != null) {
                             // valid input, show amplifiers
-                            return IntStream.range(1, 10).mapToObj(i -> input + "*" + i).collect(Collectors.toList());
+                            return IntStream.range(1, 10)
+                                    .mapToObj(i -> input + "*" + i)
+                                    .filter(level -> level.startsWith(input))
+                                    .collect(Collectors.toList());
                         }
                         // show potion effects
-                        return Arrays.stream(PotionEffectType.values()).map(PotionEffectType::getName).map(String::toLowerCase)
+                        return Arrays.stream(PotionEffectType.values())
+                                .map(PotionEffectType::getName).map(String::toLowerCase) // get potion name
                                 .map(name -> VANILLA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
-                                .filter(name -> name.startsWith(input)).collect(Collectors.toList());
+                                .filter(name -> name.startsWith(input))
+                                .collect(Collectors.toList());
                     }
                 }
             }
@@ -142,16 +165,16 @@ public class CommandPortableBeacons implements TabExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage("You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
+            sender.sendMessage(ChatColor.GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
             return true;
         }
 
-        switch (args[0]) {
+        switch (args[0].toLowerCase(Locale.ROOT)) {
             case "reload": {
                 PortableBeacons.INSTANCE.reloadConfig();
                 sender.sendMessage(ChatColor.GREEN + "Configuration reloaded.");
+                break;
             }
-            break;
             case "setitem":
             case "setritualitem": {
                 if (sender instanceof Player) {
@@ -169,8 +192,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else {
                     sender.sendMessage(ChatColor.RED + "You must be a player to use this command!");
                 }
+                break;
             }
-            break;
             case "givebeacon": {
                 sender.sendMessage(ChatColor.RED + "Please use /" + label + " item give <players> <effects...>");
                 if (args.length < 3) {
@@ -187,14 +210,14 @@ public class CommandPortableBeacons implements TabExecutor {
                 player.getInventory().addItem(ItemUtils.createStack(beaconEffects));
                 sender.sendMessage(ChatColor.GREEN + "Given " + args[1] + " a portable beacon with " +
                         String.join(ChatColor.WHITE + ", ", beaconEffects.toLore()));
+                break;
             }
-            break;
             case "updateitems": {
                 Config.itemCustomVersion = UUID.randomUUID().toString().replace("-", "");
                 PortableBeacons.INSTANCE.saveConfig();
                 sender.sendMessage(ChatColor.GREEN + "All portable beacon items will be forced to update.");
+                break;
             }
-            break;
             case "inspect": {
                 if (!(sender instanceof Player)) {
                     sender.sendMessage(ChatColor.RED + "This command can only be run by a player!");
@@ -207,9 +230,9 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 sender.sendMessage(ChatColor.GREEN + "Potion effects:");
-                effects.getEffects().forEach((pot, amplifier) -> sender.sendMessage("  " + ChatColor.YELLOW + VANILLA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
+                effects.getEffects().forEach((pot, amplifier) ->
+                        sender.sendMessage("  " + ChatColor.YELLOW + VANILLA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
                 sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
-                sender.sendMessage(ChatColor.GREEN + "Is obsolete: " + ChatColor.YELLOW + effects.shouldUpdate());
                 if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
                     sender.sendMessage(ChatColor.GREEN + "Enchantments:");
                     if (effects.expReductionLevel != 0)
@@ -224,8 +247,8 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
                             String.format("%.3f%%/7.5s, %.2f%%/min, %.2f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
                 }
+                break;
             }
-            break;
             case "item": {
                 if (args.length < 4) {
                     sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove/setenchantment> <players> <effects...>");
@@ -261,8 +284,8 @@ public class CommandPortableBeacons implements TabExecutor {
                             sender.sendMessage(ChatColor.RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                                     " couldn't be given a portable beacon because their inventory is full."
                             );
+                        break;
                     }
-                    break;
                     case "add":
                     case "remove": {
                         players.forEach(player -> {
@@ -297,8 +320,8 @@ public class CommandPortableBeacons implements TabExecutor {
                                     failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                                     " because they were not holding a portable beacon."
                             );
+                        break;
                     }
-                    break;
                     case "setenchantment": {
                         if (args.length < 5) {
                             sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level> [soulboundOwner]");
@@ -311,14 +334,23 @@ public class CommandPortableBeacons implements TabExecutor {
 
                         if (enchantment.equals("soulbound")) {
                             if (args.length >= 6) { // has soulboundOnwer arg
-                                Player newOwner = Bukkit.getPlayer(args[5]);
-                                if (newOwner != null) {
+                                UUID uuid = null;
+                                try {
+                                    uuid = UUID.fromString(args[5]);
+                                } catch (IllegalArgumentException ignored) {
+                                    Player newOwner = Bukkit.getPlayer(args[5]);
+                                    if (newOwner != null) {
+                                        uuid = newOwner.getUniqueId();
+                                    }
+                                }
+                                if (uuid != null) {
+                                    UUID finalUuid = uuid;
                                     modifier = effects -> {
                                         effects.soulboundLevel = newLevel;
-                                        effects.soulboundOwner = newOwner.getUniqueId();
+                                        effects.soulboundOwner = finalUuid;
                                     };
                                 } else {
-                                    sender.sendMessage(ChatColor.RED + "Couldn't find player '" + args[5] + "'!");
+                                    sender.sendMessage(ChatColor.RED + "Couldn't find UUID or online player '" + args[5] + "'!");
                                     return true;
                                 }
                             } else {
@@ -356,20 +388,19 @@ public class CommandPortableBeacons implements TabExecutor {
                                     failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                                     " because they were not holding a portable beacon."
                             );
+                        break;
                     }
-                    break;
                     default: {
                         sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/remove/setenchantment> <players> <effects...>");
+                        break;
                     }
-                    break;
                 }
+                break;
             }
-            break;
-
             default: {
                 sender.sendMessage(ChatColor.RED + "Usage: /" + label + " <reload/setritualitem/update/item> [...]");
+                break;
             }
-            break;
         }
         return true;
     }
