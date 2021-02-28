@@ -114,18 +114,19 @@ public class BeaconEffects implements Cloneable {
         ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
         if (section != null) {
             section.getValues(false).forEach((effect, name) -> {
-                PotionEffectType type = CommandPortableBeacons.getType(effect); // for vanilla names
-                if (type != null) {
+                try {
+                    PotionEffectType type = CommandPortableBeacons.parseType(effect); // for vanilla names
                     String newName = Config.translateColor((String) name);
                     // override PotionEffectInfo
                     Config.PotionEffectInfo info = Config.effects.get(type);
                     Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
                     Config.effects.put(type, newInfo);
                     config.set("effects." + effect + ".name", name);
-                }
+                } catch (IllegalArgumentException ignored) {}
             });
             // delete section
             config.set("beacon-item.effects", null);
+            PortableBeacons.INSTANCE.logger.info("Old config (beacon-item.effects) has been migrated automatically. Use '/pb saveconfig' to save to file.");
         }
     }
 

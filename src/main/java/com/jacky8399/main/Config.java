@@ -34,13 +34,13 @@ public class Config {
         itemCreationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
         itemCreationReminderDisableIfAlreadyOwnBeaconItem = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
-        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.US)));
+        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
         customEnchantExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
         customEnchantExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
         customEnchantExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
         customEnchantExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
 
-        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.US)));
+        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
         customEnchantSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
         customEnchantSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
         customEnchantSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
@@ -80,21 +80,22 @@ public class Config {
         for (String key : keys) {
             ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
 
-            //PortableBeacons.INSTANCE.logger.info("Reading " + key);
-            String displayName = translateColor(yaml.getString("name"));
-            Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
-            Integer duration = (Integer) yaml.get("duration");
-            if (key.equals("default")) {
-                Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
-                Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
+            try {
+                String displayName = translateColor(yaml.getString("name"));
+                Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
+                Integer duration = (Integer) yaml.get("duration");
+                if (key.equals("default")) {
+                    Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
+                    Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
 
-                effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier);
-            } else {
-                PotionEffectType type = CommandPortableBeacons.getType(key);
-                if (type == null)
-                    throw new IllegalArgumentException(key + " is not a valid potion effect type");
+                    effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier);
+                } else {
+                    PotionEffectType type = CommandPortableBeacons.parseType(key);
 
-                effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier));
+                    effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier));
+                }
+            } catch (Exception e) {
+                PortableBeacons.INSTANCE.logger.severe(String.format("Error while reading config 'effects.%s' (%s), skipping!", key, e.getMessage()));
             }
         }
 
