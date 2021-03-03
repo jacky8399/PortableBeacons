@@ -43,6 +43,8 @@ effects:
     duration: 280
     # The maximum amplifier allowed. Set to 0 to disallow the effect, even in commands.
     max-amplifier: 3
+    # Set to true to hide particles for the effect, false to use beacon ambient effect
+    hide-particles: false
   REGENERATION:
     # Display name of the effect
     # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)

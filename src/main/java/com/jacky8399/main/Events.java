@@ -30,7 +30,6 @@ import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
@@ -40,68 +39,7 @@ import java.util.function.Predicate;
 public class Events implements Listener {
     public Events(PortableBeacons plugin) {
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
-        Bukkit.getScheduler().runTaskTimer(plugin, this::applyEffects, 0, 150);
         Bukkit.getScheduler().runTaskTimer(plugin, this::checkPlayerItem, 0, 40);
-    }
-
-    public void applyEffects() {
-        Bukkit.getOnlinePlayers().forEach(p -> {
-            // world check
-            if (Config.itemNerfsDisabledWorlds.contains(p.getWorld().getName()))
-                return;
-
-            if (Config.worldGuard && PortableBeacons.INSTANCE.worldGuard && !WorldGuardHelper.canUseBeacons(p) && !p.hasPermission("portablebeacons.bypass.world-guard-limit"))
-                return;
-
-            ListIterator<ItemStack> iterator = p.getInventory().iterator();
-            inventoryLoop:
-            while (iterator.hasNext()) {
-                int nextIdx = iterator.nextIndex();
-                if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
-                    continue; // out of hotbar
-                }
-                ItemStack is = iterator.next();
-                if (ItemUtils.isPortableBeacon(is)) {
-                    BeaconEffects beaconEffects = ItemUtils.getEffects(is);
-                    // owner check
-                    if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundOwnerUsageOnly &&
-                            beaconEffects.soulboundOwner != null && !p.getUniqueId().equals(beaconEffects.soulboundOwner)) {
-                        continue;
-                    }
-
-                    // deduct exp first
-                    double xp = beaconEffects.calcExpPerCycle();
-                    if (xp != 0) {
-                        double playerXpPercentage = p.getExp();
-                        int levels = p.getLevel();
-                        while (playerXpPercentage < xp) {
-                            if (--levels < 0)
-                                continue inventoryLoop; // do not apply
-                            playerXpPercentage += 1;
-                        }
-                        playerXpPercentage -= xp;
-                        p.setLevel(levels);
-                        p.setExp((float) playerXpPercentage);
-                    }
-
-                    PotionEffect[] effects = beaconEffects.toEffects();
-                    for (PotionEffect effect : effects) {
-                        p.addPotionEffect(effect);
-                    }
-                    boolean needsUpdate = beaconEffects.shouldUpdate();
-                    if (needsUpdate) {
-                        BeaconEffects newEffects;
-                        // force downgrade
-                        if (Config.itemNerfsForceDowngrade)
-                            newEffects = beaconEffects.fixOpEffects();
-                        else
-                            newEffects = beaconEffects.clone();
-                        iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
-                        PortableBeacons.INSTANCE.logger.fine("Updated outdated beacon item in " + p.getName() + "'s inventory.");
-                    }
-                }
-            }
-        });
     }
 
     public void doItemLocationCheck() {

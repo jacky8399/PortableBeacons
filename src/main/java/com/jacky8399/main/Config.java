@@ -58,7 +58,7 @@ public class Config {
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
         if (config.contains("anvil-combination.max-effect-amplifier", true)) {
             int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
-            Config.effectsDefault = new PotionEffectInfo(null, Config.effectsDefault.durationInTicks, maxAmplifier);
+            Config.effectsDefault = new PotionEffectInfo(null, Config.effectsDefault.durationInTicks, maxAmplifier, Config.effectsDefault.hideParticles);
             config.set("effects.default.max-amplifier", maxAmplifier);
             config.set("anvil-combination.max-effect-amplifier", null);
         }
@@ -84,15 +84,17 @@ public class Config {
                 String displayName = translateColor(yaml.getString("name"));
                 Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
                 Integer duration = (Integer) yaml.get("duration");
+                Boolean hideParticles = (Boolean) yaml.get("hide-particles");
                 if (key.equals("default")) {
                     Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
                     Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
+                    Preconditions.checkNotNull(hideParticles, "'hide-particles' in default cannot be null");
 
-                    effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier);
+                    effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier, hideParticles);
                 } else {
                     PotionEffectType type = CommandPortableBeacons.parseType(key);
 
-                    effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier));
+                    effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier, hideParticles));
                 }
             } catch (Exception e) {
                 PortableBeacons.INSTANCE.logger.severe(String.format("Error while reading config 'effects.%s' (%s), skipping!", key, e.getMessage()));
@@ -192,11 +194,14 @@ public class Config {
         public final Integer durationInTicks;
         @Nullable
         public final Integer maxAmplifier;
+        @Nullable
+        public final Boolean hideParticles;
 
-        public PotionEffectInfo(@Nullable String displayName, @Nullable Integer duration, @Nullable Integer maxAmplifier) {
+        public PotionEffectInfo(@Nullable String displayName, @Nullable Integer duration, @Nullable Integer maxAmplifier, @Nullable Boolean hideParticles) {
             this.displayName = displayName;
             this.durationInTicks = duration;
             this.maxAmplifier = maxAmplifier;
+            this.hideParticles = hideParticles;
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -207,6 +212,11 @@ public class Config {
         @SuppressWarnings("ConstantConditions")
         public int getMaxAmplifier() {
             return maxAmplifier != null ? maxAmplifier : effectsDefault.maxAmplifier;
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        public boolean isHideParticles() {
+            return hideParticles != null ? hideParticles : effectsDefault.hideParticles;
         }
     }
 }

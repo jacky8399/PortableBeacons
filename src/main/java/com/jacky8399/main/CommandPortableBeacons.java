@@ -221,7 +221,7 @@ public class CommandPortableBeacons implements TabExecutor {
             case "givebeacon": {
                 sender.sendMessage(ChatColor.RED + "Please use /" + label + " item give <players> <effects...>");
                 if (args.length < 3) {
-                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " givebeacon <player> <effects...>");
+                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item give <player> <effects...>");
                     return true;
                 }
                 Player player = Bukkit.getPlayer(args[1]);
@@ -239,7 +239,8 @@ public class CommandPortableBeacons implements TabExecutor {
             case "updateitems": {
                 Config.itemCustomVersion = UUID.randomUUID().toString().replace("-", "");
                 PortableBeacons.INSTANCE.saveConfig();
-                sender.sendMessage(ChatColor.GREEN + "All portable beacon items will be forced to update.");
+                sender.sendMessage(ChatColor.GREEN + "All portable beacon items will be forced to update soon.");
+                sender.sendMessage(ChatColor.GREEN + "Configuration saved to file.");
                 break;
             }
             case "inspect": {
@@ -276,6 +277,7 @@ public class CommandPortableBeacons implements TabExecutor {
             case "item": {
                 if (args.length < 4) {
                     sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment> <players> <effects...>");
+                    return true;
                 }
 
                 // TODO find a way to make it silent to players or modify all items in inventory

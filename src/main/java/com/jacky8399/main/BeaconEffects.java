@@ -7,6 +7,7 @@ import org.apache.commons.lang.StringUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -69,16 +70,33 @@ public class BeaconEffects implements Cloneable {
     public PotionEffect[] toEffects() {
         @SuppressWarnings("ConstantConditions")
         int defaultDuration = Config.effectsDefault.durationInTicks;
-        return effects.entrySet().stream()
-                .map(entry -> {
-                    Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
-                    int duration = defaultDuration;
-                    if (info != null && info.durationInTicks != null) {
-                        duration = info.durationInTicks;
-                    }
-                    return entry.getKey().createEffect(duration, entry.getValue() - 1);
-                })
-                .toArray(PotionEffect[]::new);
+        PotionEffect[] arr = new PotionEffect[effects.size()];
+        int i = 0;
+        for (Map.Entry<PotionEffectType, Short> entry : effects.entrySet()) {
+            Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
+            int duration = defaultDuration;
+            if (info != null && info.durationInTicks != null) {
+                duration = info.durationInTicks;
+            }
+            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info != null && info.isHideParticles());
+        }
+        return arr;
+//        return effects.entrySet().stream()
+//                .map(entry -> {
+//                    Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
+//                    int duration = defaultDuration;
+//                    if (info != null && info.durationInTicks != null) {
+//                        duration = info.durationInTicks;
+//                    }
+//                    return new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info != null && info.isHideParticles());
+//                })
+//                .toArray(PotionEffect[]::new);
+    }
+
+    public void applyEffects(LivingEntity entity) {
+        for (PotionEffect effect : toEffects()) {
+            entity.addPotionEffect(effect);
+        }
     }
 
     public List<String> toLore() {
@@ -119,7 +137,7 @@ public class BeaconEffects implements Cloneable {
                     String newName = Config.translateColor((String) name);
                     // override PotionEffectInfo
                     Config.PotionEffectInfo info = Config.effects.get(type);
-                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null);
+                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
                     Config.effects.put(type, newInfo);
                     config.set("effects." + effect + ".name", name);
                 } catch (IllegalArgumentException ignored) {}
@@ -162,12 +180,11 @@ public class BeaconEffects implements Cloneable {
         if (info != null && info.displayName != null)
             return info.displayName + toRomanNumeral(amplifier);
         else
-            return ChatColor.GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase()) + toRomanNumeral(amplifier);
+            return ChatColor.GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase(Locale.ROOT)) + toRomanNumeral(amplifier);
     }
 
     public boolean shouldUpdate() {
         return needsUpdate || !Objects.equals(Config.itemCustomVersion, customDataVersion);
-        //(Config.itemCustomVersion != null && !Config.itemCustomVersion.equals(customDataVersion));
     }
 
     public BeaconEffects fixOpEffects() {
@@ -187,6 +204,9 @@ public class BeaconEffects implements Cloneable {
                     entry.setValue((short) maxAmplifier);
             }
         }
+        // downgrade enchantments
+        ret.expReductionLevel = Math.min(expReductionLevel, Config.customEnchantExpReductionMaxLevel);
+        ret.soulboundLevel = Math.min(soulboundLevel, Config.customEnchantSoulboundMaxLevel);
         ret.setEffects(newEffects);
         return ret;
     }

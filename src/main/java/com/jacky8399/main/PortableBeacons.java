@@ -12,8 +12,7 @@ public final class PortableBeacons extends JavaPlugin {
     public static PortableBeacons INSTANCE;
 
     public Logger logger = getLogger();
-
-    public Metrics metrics;
+    public EffectsTimer effectsTimer;
 
     public boolean worldGuard = false;
 
@@ -34,13 +33,14 @@ public final class PortableBeacons extends JavaPlugin {
 
         Metrics metrics = new Metrics(this, 10409);
 
-        CommandPortableBeacons cmd = new CommandPortableBeacons();
-        getCommand("portablebeacons").setExecutor(cmd);
+        getCommand("portablebeacons").setExecutor(new CommandPortableBeacons());
 
         saveDefaultConfig();
         reloadConfig();
         saveConfig();
         Bukkit.getPluginManager().registerEvents(new Events(this), this);
+        effectsTimer = new EffectsTimer();
+        effectsTimer.register();
     }
 
     @Override
