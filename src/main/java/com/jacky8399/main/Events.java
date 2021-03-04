@@ -266,8 +266,7 @@ public class Events implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPlaceBlock(BlockPlaceEvent e) {
         if (ItemUtils.isPortableBeacon(e.getItemInHand())) {
-            e.setCancelled(true); // don't place the beacon (yet)
-            // TODO rebuild the beacon structure?
+            e.setCancelled(true); // don't place the beacon
         }
     }
 

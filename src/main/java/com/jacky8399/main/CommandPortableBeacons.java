@@ -45,9 +45,17 @@ public class CommandPortableBeacons implements TabExecutor {
             } else if (args[0].equals("item")) {
                 switch (args.length) {
                     case 2: {
-                        return Stream.of("give", "add", "remove", "setenchantment")
-                                .filter(name -> name.startsWith(args[1]))
-                                .collect(Collectors.toList());
+                        String[] operations = {"give", "add", "remove", "set", "setenchantment"};
+                        List<String> completions = new ArrayList<>();
+                        for (String operation : operations) {
+                            // flags
+                            if (operation.equalsIgnoreCase(args[1])) {
+                                return Arrays.asList(operation, operation + "-silently"); // show original operation too
+                            } else if (operation.startsWith(args[1])) {
+                                completions.add(operation);
+                            }
+                        }
+                        return completions;
                     }
                     case 3: {
                         return Stream.concat(
@@ -57,7 +65,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     default: {
                         // Enchantment autocomplete
-                        if (args[1].equals("setenchantment")) {
+                        if (args[1].equalsIgnoreCase("setenchantment")) {
                             switch (args.length) {
                                 case 4: {
                                     return Stream.of("exp-reduction", "soulbound")
@@ -66,14 +74,14 @@ public class CommandPortableBeacons implements TabExecutor {
                                 }
                                 case 5: {
                                     // levels
-                                    int maxLevel = args[3].equals("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
+                                    int maxLevel = args[3].equalsIgnoreCase("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
                                     return IntStream.rangeClosed(1, maxLevel)
                                             .mapToObj(Integer::toString)
                                             .filter(level -> level.startsWith(args[4]))
                                             .collect(Collectors.toList());
                                 }
                                 case 6: {
-                                    if (args[3].equals("soulbound")) {
+                                    if (args[3].equalsIgnoreCase("soulbound")) {
                                         // show player names for soulbound owner
                                         return Bukkit.getOnlinePlayers().stream()
                                                 .map(Player::getName)
@@ -91,7 +99,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         String input = args[args.length - 1];
                         if (parseTypeLenient(input) != null) {
                             // valid input, show amplifiers
-                            return IntStream.range(1, 10)
+                            return IntStream.range("give".equalsIgnoreCase(args[1]) ? 1 : 0, 10)
                                     .mapToObj(i -> input + "*" + i)
                                     .filter(level -> level.startsWith(input))
                                     .collect(Collectors.toList());
@@ -125,7 +133,7 @@ public class CommandPortableBeacons implements TabExecutor {
     }
 
     @NotNull
-    public static BeaconEffects parseEffects(CommandSender sender, String[] input) {
+    public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowZeroAmplifier) {
         HashMap<PotionEffectType, Short> effects = new HashMap<>();
         for (String s : input) {
             try {
@@ -139,7 +147,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else {
                     type = parseType(s);
                 }
-                Preconditions.checkArgument(amplifier >= 0, "Amplifier is negative");
+                Preconditions.checkArgument(amplifier >= (allowZeroAmplifier ? 0 : 1), "Amplifier is negative");
                 effects.put(type, amplifier);
             } catch (IllegalArgumentException e) {
                 sender.sendMessage(ChatColor.RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
@@ -219,7 +227,6 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "givebeacon": {
-                sender.sendMessage(ChatColor.RED + "Please use /" + label + " item give <players> <effects...>");
                 if (args.length < 3) {
                     sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item give <player> <effects...>");
                     return true;
@@ -230,10 +237,12 @@ public class CommandPortableBeacons implements TabExecutor {
                     return true;
                 }
                 String[] effectsString = Arrays.copyOfRange(args, 2, args.length);
-                BeaconEffects beaconEffects = parseEffects(sender, effectsString);
+                BeaconEffects beaconEffects = parseEffects(sender, effectsString, false);
                 player.getInventory().addItem(ItemUtils.createStack(beaconEffects));
                 sender.sendMessage(ChatColor.GREEN + "Given " + args[1] + " a portable beacon with " +
                         String.join(ChatColor.WHITE + ", ", beaconEffects.toLore()));
+
+                sender.sendMessage(ChatColor.RED + String.format("Please use /%s item give %s %s", label, args[1], String.join(" ", effectsString)));
                 break;
             }
             case "updateitems": {
@@ -275,31 +284,44 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "item": {
+                String usage = ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment>[-silently/-to-inventory] <players> <effects...>";
                 if (args.length < 4) {
-                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment> <players> <effects...>");
+                    sender.sendMessage(usage);
                     return true;
                 }
 
-                // TODO find a way to make it silent to players or modify all items in inventory
+                String[] operationWithFlags = args[1].split("-");
+                String operation = operationWithFlags[0];
+                boolean silent = false;
+                for (int i = 1; i < operationWithFlags.length; i++) {
+                    String flag = operationWithFlags[i];
+                    if ("silently".equalsIgnoreCase(flag)) {
+                        silent = true;
+                    } else if ("force".equalsIgnoreCase(flag)) {
+                        // TODO modify all items in inventory
+                    } else {
+                        sender.sendMessage(ChatColor.RED + "Unknown flag -" + flag);
+                    }
+                }
 
-                String operation = args[1];
                 List<Player> players = Bukkit.selectEntities(sender, args[2]).stream()
                         .filter(entity -> entity instanceof Player)
                         .map(player -> (Player) player)
                         .collect(Collectors.toList());
                 String[] effectsString = Arrays.copyOfRange(args, 3, args.length);
-                BeaconEffects beaconEffects = !operation.equals("setenchantment") ? parseEffects(sender, effectsString) : null;
 
                 Set<Player> failedPlayers = new HashSet<>();
 
                 switch (operation) {
                     case "give": {
+                        BeaconEffects beaconEffects = parseEffects(sender, effectsString, false);
                         ItemStack stack = ItemUtils.createStack(beaconEffects);
+                        final boolean finalSilent = silent;
                         players.forEach(player -> {
                             Map<Integer, ItemStack> unfit = player.getInventory().addItem(stack);
                             if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
                                 failedPlayers.add(player);
-                            else
+                            else if (finalSilent)
                                 player.sendMessage(ChatColor.GREEN + "You were given a portable beacon!");
                         });
 
@@ -342,13 +364,14 @@ public class CommandPortableBeacons implements TabExecutor {
                                 throw new UnsupportedOperationException(operation);
                         }
 
+                        BeaconEffects beaconEffects = parseEffects(sender, effectsString, true);
                         Map<PotionEffectType, Short> newEffects = beaconEffects.getEffects();
                         Consumer<BeaconEffects> modifier = effects -> {
                             HashMap<PotionEffectType, Short> map = new HashMap<>(effects.getEffects());
                             newEffects.forEach((pot, lvl) -> map.merge(pot, lvl, merger));
                             effects.setEffects(map);
                         };
-                        editPlayers(sender, players, modifier, false);
+                        editPlayers(sender, players, modifier, silent);
                         break;
                     }
                     case "setenchantment": {
@@ -391,11 +414,11 @@ public class CommandPortableBeacons implements TabExecutor {
                             sender.sendMessage(ChatColor.RED + "Invalid enchantment " + enchantment + "!");
                             return true;
                         }
-                        editPlayers(sender, players, modifier, false);
+                        editPlayers(sender, players, modifier, silent);
                         break;
                     }
                     default: {
-                        sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment> <players> <effects...>");
+                        sender.sendMessage(usage);
                         break;
                     }
                 }
