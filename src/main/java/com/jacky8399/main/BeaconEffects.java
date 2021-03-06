@@ -234,11 +234,6 @@ public class BeaconEffects implements Cloneable {
         @Override
         public @NotNull PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
-//            container.set(EFFECTS_LEGACY_V2, PersistentDataType.STRING,
-//                    complex.effects.entrySet().stream().map(entry ->
-//                            entry.getKey().getName() + (entry.getValue() > 1 ? ":" + entry.getValue() : ""))
-//                            .collect(Collectors.joining(","))
-//            );
             PersistentDataContainer effects = context.newPersistentDataContainer();
             complex.effects.forEach((type, level) -> {
                 @SuppressWarnings("deprecation")

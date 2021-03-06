@@ -39,10 +39,10 @@ public class CommandPortableBeacons implements TabExecutor {
             .build();
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, Command command, @NotNull String alias, String[] args) {
-        if (command.getLabel().equals("portablebeacons")) {
+        if (command.getLabel().equalsIgnoreCase("portablebeacons")) {
             if (args.length <= 1) {
                 return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect").filter(name -> name.startsWith(args[0])).collect(Collectors.toList());
-            } else if (args[0].equals("item")) {
+            } else if (args[0].equalsIgnoreCase("item")) {
                 switch (args.length) {
                     case 2: {
                         String[] operations = {"give", "add", "remove", "set", "setenchantment"};
@@ -156,27 +156,44 @@ public class CommandPortableBeacons implements TabExecutor {
         return new BeaconEffects(effects);
     }
 
-    static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier, boolean silent) {
+    static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier, boolean silent, boolean modifyAll) {
         HashSet<Player> failedPlayers = new HashSet<>();
 
-        players.forEach(player -> {
-            PlayerInventory inventory = player.getInventory();
-            ItemStack hand = inventory.getItemInMainHand();
-            if (!ItemUtils.isPortableBeacon(hand)) {
-                failedPlayers.add(player);
-                return;
-            }
+        if (modifyAll) // modify inventory or hand
+            players.forEach(player -> {
+                boolean success = false;
+                for (ListIterator<ItemStack> iterator = player.getInventory().iterator(); iterator.hasNext();) {
+                    ItemStack stack = iterator.next();
+                    if (!ItemUtils.isPortableBeacon(stack))
+                        continue;
+                    success = true;
+                    BeaconEffects effects = ItemUtils.getEffects(stack);
+                    modifier.accept(effects);
+                    iterator.set(ItemUtils.createStackCopyItemData(effects, stack));
+                }
 
-            BeaconEffects effects = ItemUtils.getEffects(hand);
+                if (success && !silent)
+                    player.sendMessage(ChatColor.GREEN + "One or more of your portable beacon was modified!");
+                else if (!success)
+                    failedPlayers.add(player);
+            });
+        else
+            players.forEach(player -> {
+                PlayerInventory inventory = player.getInventory();
+                ItemStack hand = inventory.getItemInMainHand();
+                if (!ItemUtils.isPortableBeacon(hand)) {
+                    failedPlayers.add(player);
+                    return;
+                }
 
-            modifier.accept(effects);
+                BeaconEffects effects = ItemUtils.getEffects(hand);
+                modifier.accept(effects);
+                inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
+                if (!silent)
+                    player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
+            });
 
-            inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
-            if (!silent)
-                player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
-        });
-
-        sender.sendMessage(ChatColor.GREEN + "Modified the held portable beacon of " +
+        sender.sendMessage(ChatColor.GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
                 players.stream()
                         .filter(player -> !failedPlayers.contains(player))
                         .map(Player::getName)
@@ -284,7 +301,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "item": {
-                String usage = ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment>[-silently/-to-inventory] <players> <effects...>";
+                String usage = ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment>[-silently/-modify-all] <players> <effects...>";
                 if (args.length < 4) {
                     sender.sendMessage(usage);
                     return true;
@@ -292,14 +309,15 @@ public class CommandPortableBeacons implements TabExecutor {
 
                 String[] operationWithFlags = args[1].split("-");
                 String operation = operationWithFlags[0];
-                boolean silent = false;
+                boolean silent = false, modifyAll = false;
                 for (int i = 1; i < operationWithFlags.length; i++) {
                     String flag = operationWithFlags[i];
                     if ("silently".equalsIgnoreCase(flag)) {
                         silent = true;
-                    } else if ("force".equalsIgnoreCase(flag)) {
-                        // TODO modify all items in inventory
-                    } else {
+                    } else if ("all".equalsIgnoreCase(flag) && "modify".equalsIgnoreCase(operationWithFlags[i - 1])) {
+                        modifyAll = true;
+                        sender.sendMessage(ChatColor.YELLOW + "Name of the flag '-modify-all' is subject to change.");
+                    } else if (!"modify".equalsIgnoreCase(flag)) {
                         sender.sendMessage(ChatColor.RED + "Unknown flag -" + flag);
                     }
                 }
@@ -371,7 +389,7 @@ public class CommandPortableBeacons implements TabExecutor {
                             newEffects.forEach((pot, lvl) -> map.merge(pot, lvl, merger));
                             effects.setEffects(map);
                         };
-                        editPlayers(sender, players, modifier, silent);
+                        editPlayers(sender, players, modifier, silent, modifyAll);
                         break;
                     }
                     case "setenchantment": {
@@ -414,7 +432,7 @@ public class CommandPortableBeacons implements TabExecutor {
                             sender.sendMessage(ChatColor.RED + "Invalid enchantment " + enchantment + "!");
                             return true;
                         }
-                        editPlayers(sender, players, modifier, silent);
+                        editPlayers(sender, players, modifier, silent, modifyAll);
                         break;
                     }
                     default: {

@@ -34,6 +34,7 @@ beacon-item:
     # Whether the effects should only be applied when the item is in hotbar
     only-apply-in-hotbar: false
     # Force downgrade all effects stronger than its max-amplifier
+    # Note: requires an item update to take effect
     force-downgrade: false
 
 # Specify the name and custom behavior of different potion effects
