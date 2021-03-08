@@ -36,6 +36,11 @@ beacon-item:
     # Force downgrade all effects stronger than its max-amplifier
     # Note: requires an item update to take effect
     force-downgrade: false
+    # Portable beacons will be disabled in these worlds
+    # For finer control, use WorldGuard
+    disabled-worlds:
+      - disabled_world_1
+      - disabled_world_2
 
 # Specify the name and custom behavior of different potion effects
 effects:
