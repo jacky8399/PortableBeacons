@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.math.BigDecimal;
 import java.util.ListIterator;
 
 public class EffectsTimer extends BukkitRunnable {
@@ -66,16 +67,19 @@ public class EffectsTimer extends BukkitRunnable {
         }
     }
 
+    private static final BigDecimal CYCLE_TIME_MULTIPLIER_PRECISION = BigDecimal.valueOf(CYCLE_TIME_MULTIPLIER);
     boolean tryDeductExp(Player player, BeaconEffects effects) {
-        double xp = effects.calcExpPerCycle() * CYCLE_TIME_MULTIPLIER;
-        if (xp != 0) {
-            double combined = player.getLevel() + player.getExp();
-            combined -= xp;
-            if (combined < 0)
+        BigDecimal expPerCycle = BigDecimal.valueOf(effects.calcExpPerCycle());
+        BigDecimal xp = expPerCycle.multiply(CYCLE_TIME_MULTIPLIER_PRECISION);
+        if (xp.doubleValue() != 0) {
+            BigDecimal combined = BigDecimal.valueOf(player.getLevel() + player.getExp());
+            BigDecimal result = combined.subtract(xp);
+            if (result.doubleValue() < 0)
                 return false;
-            int newLevel = (int) combined;
+            int newLevel = result.intValue();
             player.setLevel(newLevel);
-            player.setExp((float) (combined - newLevel));
+            BigDecimal resultDecimal = result.subtract(BigDecimal.valueOf(result.intValue()));
+            player.setExp(resultDecimal.floatValue());
         }
         return true;
     }

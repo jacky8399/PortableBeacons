@@ -50,7 +50,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         for (String operation : operations) {
                             // flags
                             if (operation.equalsIgnoreCase(args[1])) {
-                                return Arrays.asList(operation, operation + "-silently"); // show original operation too
+                                return Arrays.asList(operation, operation + "-silently", operation + "-modify-all", operation + "-silently-modify-all", operation + "-modify-all-silently"); // show original operation too
                             } else if (operation.startsWith(args[1])) {
                                 completions.add(operation);
                             }
@@ -65,7 +65,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     default: {
                         // Enchantment autocomplete
-                        if (args[1].equalsIgnoreCase("setenchantment")) {
+                        if (args[1].startsWith("setenchantment")) {
                             switch (args.length) {
                                 case 4: {
                                     return Stream.of("exp-reduction", "soulbound")
@@ -157,7 +157,7 @@ public class CommandPortableBeacons implements TabExecutor {
     }
 
     static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier, boolean silent, boolean modifyAll) {
-        HashSet<Player> failedPlayers = new HashSet<>();
+        ArrayList<Player> failedPlayers = new ArrayList<>();
 
         if (modifyAll) // modify inventory or hand
             players.forEach(player -> {
@@ -193,15 +193,18 @@ public class CommandPortableBeacons implements TabExecutor {
                     player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
             });
 
-        sender.sendMessage(ChatColor.GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
-                players.stream()
-                        .filter(player -> !failedPlayers.contains(player))
-                        .map(Player::getName)
-                        .collect(Collectors.joining(", ")));
+        ArrayList<Player> succeeded = new ArrayList<>(players);
+        succeeded.removeAll(failedPlayers);
+
+        if (succeeded.size() != 0)
+            sender.sendMessage(ChatColor.GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
+                    succeeded.stream()
+                            .map(Player::getName)
+                            .collect(Collectors.joining(", ")));
         if (failedPlayers.size() != 0)
             sender.sendMessage(ChatColor.RED + "Failed to apply the operation on " +
                     failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
-                    " because they were not holding a portable beacon."
+                    " because they " + (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon.")
             );
     }
 
@@ -296,7 +299,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (Config.itemNerfsExpPercentagePerCycle > 0) {
                     double xpPerCycle = effects.calcExpPerCycle();
                     sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
-                            String.format("%.3f%%/7.5s, %.2f%%/min, %.2f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
+                            String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
                 }
                 break;
             }

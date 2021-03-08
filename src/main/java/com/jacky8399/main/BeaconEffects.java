@@ -78,7 +78,7 @@ public class BeaconEffects implements Cloneable {
             if (info != null && info.durationInTicks != null) {
                 duration = info.durationInTicks;
             }
-            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info != null && info.isHideParticles());
+            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info == null || !info.isHideParticles());
         }
         return arr;
 //        return effects.entrySet().stream()
@@ -119,8 +119,7 @@ public class BeaconEffects implements Cloneable {
         if (Config.itemNerfsExpPercentagePerCycle <= 0)
             return 0;
         double expMultiplier = Config.customEnchantExpReductionEnabled ?
-                Math.max(0, 1 - expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) :
-                1;
+                Math.max(0, 1 - expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) : 1;
         return Math.max(0, effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
     }
 

@@ -340,7 +340,7 @@ public class Events implements Listener {
 
     @EventHandler
     public void onGrindstoneItem(InventoryClickEvent e) {
-        if (e.getClickedInventory() instanceof GrindstoneInventory || e.getClick().isShiftClick()) {
+        if (e.getClickedInventory() instanceof GrindstoneInventory || (e.getInventory() instanceof GrindstoneInventory && e.getClick().isShiftClick())) {
             if (ItemUtils.isPortableBeacon(e.getCurrentItem()) || ItemUtils.isPortableBeacon(e.getCursor())) {
                 e.setResult(Event.Result.DENY);
             }
