@@ -35,7 +35,6 @@ public final class PortableBeacons extends JavaPlugin {
 
         getCommand("portablebeacons").setExecutor(new CommandPortableBeacons());
 
-        saveDefaultConfig();
         reloadConfig();
         saveConfig();
         Bukkit.getPluginManager().registerEvents(new Events(this), this);
