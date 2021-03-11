@@ -2,11 +2,9 @@ package com.jacky8399.main;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
@@ -18,6 +16,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
@@ -30,6 +29,7 @@ import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
@@ -43,9 +43,9 @@ public class Events implements Listener {
     }
 
     public void doItemLocationCheck() {
-        if (netherStarItems.size() == 0)
+        if (ritualItems.size() == 0)
             return;
-        Iterator<Map.Entry<Item, Player>> iterator = netherStarItems.entrySet().iterator();
+        Iterator<Map.Entry<Item, Player>> iterator = ritualItems.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<Item, Player> entry = iterator.next();
             Item item = entry.getKey();
@@ -55,8 +55,7 @@ public class Events implements Listener {
                 continue;
             }
 
-            Block loc = item.getLocation().getBlock();
-            Block blockBelow = loc.getRelative(BlockFace.DOWN);
+            Block blockBelow = item.getLocation().add(0, -1, 0).getBlock();
             if (blockBelow.getType() == Material.BEACON) {
                 // check if activated
                 Beacon tileEntity = (Beacon) blockBelow.getState();
@@ -64,18 +63,19 @@ public class Events implements Listener {
                     continue;
                 }
 
-                PotionEffectType primary = tileEntity.getPrimaryEffect().getType();
-                PotionEffectType secondary = null;
-                if (tileEntity.getSecondaryEffect() != null) {
-                    secondary = PotionEffectType.REGENERATION;
-                } else if (tileEntity.getPrimaryEffect().getAmplifier() == 1) {
-                    secondary = primary;
-                }
+                Map<PotionEffectType, Short> effects = new HashMap<>();
+                PotionEffect primary = tileEntity.getPrimaryEffect();
+                effects.put(primary.getType(), (short) primary.getAmplifier());
+                PotionEffect secondary = tileEntity.getSecondaryEffect();
+                if (secondary != null)
+                    effects.put(secondary.getType(), (short) secondary.getAmplifier());
                 if (!removeBeacon(thrower, blockBelow, tileEntity.getTier())) {
                     continue;
                 }
-                ItemStack stack = ItemUtils.createStack(new BeaconEffects(primary, secondary));
+                // play sound to complement block break effects
+                item.getWorld().playSound(item.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1, 1);
 
+                ItemStack stack = ItemUtils.createStack(new BeaconEffects(effects));
                 // check split amount
                 ItemStack currentStack = item.getItemStack();
                 int newAmount = currentStack.getAmount() - Config.ritualItem.getAmount();
@@ -83,16 +83,16 @@ public class Events implements Listener {
                     continue;
                 } else if (newAmount > 0) {
                     currentStack.setAmount(newAmount);
-                    item.getWorld().dropItem(item.getLocation(), currentStack);
+                    Item splitItem = item.getWorld().dropItem(item.getLocation(), currentStack);
+                    ritualItems.put(splitItem, thrower);
                 }
 
-
-                // replace itemstack
+                // replace item stack
                 item.setItemStack(stack);
+                item.setOwner(thrower.getUniqueId()); // pickup priority
                 item.setGlowing(true);
 
-                // play sound
-                item.getWorld().playSound(item.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1, 1);
+                iterator.remove();
             }
         }
     }
@@ -105,7 +105,8 @@ public class Events implements Listener {
     }
 
     public boolean removeBeacon(Player player, Block block, int tier) {
-        ArrayList<Block> blocksToBreak = Lists.newArrayList(block);
+        ArrayList<Block> blocksToBreak = new ArrayList<>();
+        blocksToBreak.add(block);
         for (int i = 1; i <= tier; i++) {
             for (int x = -i; x <= i; x++) {
                 for (int z = -i; z <= i; z++) {
@@ -130,10 +131,10 @@ public class Events implements Listener {
 
     private static Map<Player, HashMap<Vector, FallingBlock>> reminderOutline = new WeakHashMap<>();
 
-    private static Set<Block> findBeaconInRadius(Player player, double radius) {
+    private static List<Block> findBeaconInRadius(Player player, double radius) {
         int r = (int) Math.ceil(radius);
         Block block = player.getLocation().getBlock();
-        Set<Block> blocks = Sets.newHashSet();
+        List<Block> blocks = new ArrayList<>();
         for (int x = -r; x <= r; x++) {
             for (int y = -r; y <= r; y++) {
                 for (int z = -r; z <= r; z++) {
@@ -161,11 +162,15 @@ public class Events implements Listener {
         return ent;
     }
 
+    private void removeOutlines(Player player) {
+        HashMap<Vector, FallingBlock> entities = reminderOutline.remove(player);
+        if (entities != null)
+            entities.values().forEach(Entity::remove);
+    }
+
     public void checkPlayerItem() {
         if (!Config.itemCreationReminderEnabled || Config.ritualItem.getType() == Material.AIR) {
-            // clean up
-            reminderOutline.values().forEach(map -> map.values().forEach(Entity::remove));
-            reminderOutline.clear();
+            cleanUp();
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -173,25 +178,22 @@ public class Events implements Listener {
                 // check if already own beacon item
                 if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
                     // clear old entities
-                    Map<Vector, FallingBlock> entities = reminderOutline.remove(player);
-                    if (entities != null) {
-                        entities.values().forEach(Entity::remove);
-                    }
+                    removeOutlines(player);
                     continue;
                 }
             }
 
             if (player.getInventory().containsAtLeast(Config.ritualItem, Config.ritualItem.getAmount())) {
-                Set<Block> nearbyBeacons = findBeaconInRadius(player, Config.itemCreationReminderRadius);
-                HashMap<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored->Maps.newHashMap());
-                if (nearbyBeacons.size() > 0) {
-                    nearbyBeacons.forEach(nearbyBeacon -> {
+                List<Block> nearbyBeacons = findBeaconInRadius(player, Config.itemCreationReminderRadius);
+                if (nearbyBeacons.size() != 0) {
+                    HashMap<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored->Maps.newHashMap());
+                    for (Block nearbyBeacon : nearbyBeacons) {
                         Vector vector = nearbyBeacon.getLocation().toVector();
                         Location location = nearbyBeacon.getLocation().add(0.5, -0.01, 0.5);
                         // spawn or ensure there is a falling block
                         FallingBlock oldEnt = entities.get(vector);
                         if (oldEnt == null) {
-                            if (entities.size() == 0) // if first falling sand for player
+                            if (entities.size() == 0) // if first outline for player
                                 player.sendMessage(Config.itemCreationReminderMessage);
                             entities.put(vector, spawnFallingBlock(nearbyBeacon.getBlockData(), location));
                         } else {
@@ -199,16 +201,13 @@ public class Events implements Listener {
                         }
                         // display particles
                         nearbyBeacon.getWorld().spawnParticle(Particle.END_ROD, nearbyBeacon.getLocation().add(0.5, 1.5, 0.5), 20, 0, 0.5, 0, 0.4);
-                    });
+                    }
                     player.setCooldown(Config.ritualItem.getType(), 20);
                 } else {
-                    if (entities.size() > 0)
-                        entities.values().forEach(Entity::remove);
+                    removeOutlines(player);
                 }
             } else {
-                HashMap<Vector, FallingBlock> entities = reminderOutline.remove(player);
-                if (entities != null)
-                    entities.values().forEach(Entity::remove);
+                removeOutlines(player);
             }
         }
         // remove old entries
@@ -237,30 +236,35 @@ public class Events implements Listener {
         }
     }
 
-    public static void onDisable() {
+    public static void cleanUp() {
         reminderOutline.values().forEach(ents -> ents.values().forEach(Entity::remove));
         reminderOutline.clear();
     }
 
-    private WeakHashMap<Item, Player> netherStarItems = new WeakHashMap<>();
+    private WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         ItemStack is = e.getItemDrop().getItemStack();
         if (is.isSimilar(Config.ritualItem) && is.getAmount() >= Config.ritualItem.getAmount()) {
-            netherStarItems.put(e.getItemDrop(), e.getPlayer());
+            ritualItems.put(e.getItemDrop(), e.getPlayer());
         }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onItemDespawn(ItemDespawnEvent e) {
+        ritualItems.remove(e.getEntity());
     }
 
     @EventHandler
     public void onItemMerge(ItemMergeEvent e) {
-        if (netherStarItems.containsKey(e.getEntity()) || netherStarItems.containsKey(e.getTarget())) {
+        if (ritualItems.containsKey(e.getEntity()) || ritualItems.containsKey(e.getTarget())) {
             e.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerLeave(PlayerQuitEvent e) {
-        netherStarItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
+        ritualItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -300,25 +304,25 @@ public class Events implements Listener {
             return;
         if (e.getClickedInventory() instanceof AnvilInventory) {
             Player player = (Player) e.getWhoClicked();
-            if (e.getRawSlot() != 2 || (e.getClick() != ClickType.LEFT && e.getClick() != ClickType.SHIFT_LEFT))
+            if (e.getRawSlot() != 2 || e.getCursor() != null ||
+                    e.getClick() != ClickType.LEFT && e.getClick() != ClickType.SHIFT_LEFT)
                 return;
 
             AnvilInventory inv = (AnvilInventory) e.getClickedInventory();
             ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
             if (!ItemUtils.isPortableBeacon(is1) ||
-                    (!ItemUtils.isPortableBeacon(is2) && is2 == null || is2.getType() != Material.ENCHANTED_BOOK))
+                    (is2 == null || !(ItemUtils.isPortableBeacon(is2) || is2.getType() == Material.ENCHANTED_BOOK)))
                 return;
 
             int levelRequired = ItemUtils.calculateCombinationCost(is1, is2);
-            if (levelRequired != 0 &&
-                    (player.getLevel() < levelRequired || (levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit))) {
+            if (levelRequired != 0 && (player.getLevel() < levelRequired ||
+                    levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit)) {
                 e.setResult(Event.Result.DENY);
-                e.setCancelled(true);
                 return;
             }
-            ItemStack newIs = ItemUtils.combineStack((Player) e.getWhoClicked(), is1, is2);
+            ItemStack newIs = ItemUtils.combineStack(player, is1, is2);
             if (newIs != null) {
-                if (e.getClick() == ClickType.SHIFT_LEFT) {
+                if (e.getClick().isShiftClick()) {
                     inv.setItem(0, null);
                     inv.setItem(1, null);
                     player.getInventory().addItem(newIs);
@@ -327,7 +331,7 @@ public class Events implements Listener {
                     inv.setItem(1, null);
                     player.setItemOnCursor(newIs);
                 } else {
-                    e.setCancelled(true);
+                    e.setResult(Event.Result.DENY);
                     return;
                 }
                 player.updateInventory();

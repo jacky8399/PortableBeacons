@@ -14,6 +14,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -21,13 +22,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class BeaconEffects implements Cloneable {
-
     private static final int DATA_VERSION = 3;
-
+    @Nullable
     public String customDataVersion = Config.itemCustomVersion;
-
-    public static final NamespacedKey STORAGE_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "beacon_effect");
-    public static final BeaconEffectsDataType STORAGE_TYPE = new BeaconEffectsDataType();
 
     public BeaconEffects() {
         this.effects = ImmutableMap.of();
@@ -48,8 +45,10 @@ public class BeaconEffects implements Cloneable {
         this.effects = ImmutableMap.copyOf(effects);
     }
 
+    @NotNull
     private Map<PotionEffectType, Short> effects;
     public int expReductionLevel = 0;
+    @Nullable
     public UUID soulboundOwner = null;
     public int soulboundLevel = 0;
     public boolean needsUpdate = false;
@@ -210,6 +209,10 @@ public class BeaconEffects implements Cloneable {
         return ret;
     }
 
+    public static final NamespacedKey STORAGE_KEY = new NamespacedKey(PortableBeacons.INSTANCE, "beacon_effect");
+    public static final BeaconEffectsDataType STORAGE_TYPE = new BeaconEffectsDataType();
+
+    @SuppressWarnings({"deprecation", "unchecked", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
         private static final NamespacedKey
@@ -235,7 +238,6 @@ public class BeaconEffects implements Cloneable {
             PersistentDataContainer container = context.newPersistentDataContainer();
             PersistentDataContainer effects = context.newPersistentDataContainer();
             complex.effects.forEach((type, level) -> {
-                @SuppressWarnings("deprecation")
                 NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName().toLowerCase(Locale.US));
                 effects.set(key, SHORT, level);
             });
@@ -255,10 +257,12 @@ public class BeaconEffects implements Cloneable {
             return container;
         }
 
-        @SuppressWarnings("ConstantConditions")
         @Override
         public @NotNull BeaconEffects fromPrimitive(PersistentDataContainer primitive, @NotNull PersistentDataAdapterContext context) {
-            if (primitive.has(EFFECTS, TAG_CONTAINER)) {
+            Integer dataVersion = primitive.get(DATA_VERSION_KEY, INTEGER);
+            if (dataVersion == null)
+                return parseLegacyV1(primitive);
+            else if (dataVersion == 3) {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
                 HashMap<PotionEffectType, Short> effectsMap = new HashMap<>();
                 for (NamespacedKey key : getKeys(effects)) {
@@ -271,23 +275,28 @@ public class BeaconEffects implements Cloneable {
                     effectsMap.put(type, level);
                 }
                 BeaconEffects ret = new BeaconEffects(effectsMap);
-                if (primitive.has(ENCHANT_EXP_REDUCTION, INTEGER)) {
-                    ret.expReductionLevel = primitive.get(ENCHANT_EXP_REDUCTION, INTEGER);
-                }
-                if (primitive.has(ENCHANT_SOULBOUND, INTEGER)) {
-                    ret.soulboundLevel = primitive.get(ENCHANT_SOULBOUND, INTEGER);
-                    if (primitive.has(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY)) {
-                        long[] bits = primitive.get(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY);
-                        // bypass UUID.fromString
-                        ret.soulboundOwner = new UUID(bits[0], bits[1]);
-                    }
+                ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, STRING);
+                // enchants
+                Integer enchantExpReduction = primitive.get(ENCHANT_EXP_REDUCTION, INTEGER);
+                if (enchantExpReduction != null)
+                    ret.expReductionLevel = enchantExpReduction;
+                Integer enchantSoulbound = primitive.get(ENCHANT_SOULBOUND, INTEGER);
+                if (enchantSoulbound != null)
+                    ret.soulboundLevel = enchantSoulbound;
+                long[] bits = primitive.get(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY);
+                if (bits != null) {
+                    // bypass UUID.fromString
+                    ret.soulboundOwner = new UUID(bits[0], bits[1]);
                 }
                 return ret;
-            } else if (primitive.has(EFFECTS_LEGACY_V2, STRING) && primitive.get(DATA_VERSION_KEY, INTEGER) == 2) {
+            } else if (dataVersion == 2) {
                 return parseLegacyV2(primitive);
+            } else {
+                throw new UnsupportedOperationException("Invalid data version " + dataVersion + ", only data versions null, 2 and 3 are supported");
             }
-            return parseLegacyV1(primitive);
         }
+
+        // LEGACY
 
         private static boolean GET_KEYS = false;
         static {
@@ -320,7 +329,6 @@ public class BeaconEffects implements Cloneable {
                 EFFECTS_LEGACY_V1 = new NamespacedKey(PortableBeacons.INSTANCE, "effects"),
                 EFFECTS_LEGACY_V2 = new NamespacedKey(PortableBeacons.INSTANCE, "effects_v2");
 
-        @SuppressWarnings("derepcation")
         BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
             if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) {
                 // newer
@@ -344,7 +352,6 @@ public class BeaconEffects implements Cloneable {
             return null;
         }
 
-        @SuppressWarnings("ConstantConditions")
         BeaconEffects parseLegacyV2(PersistentDataContainer primitive) {
             String effectsCombined = primitive.get(EFFECTS_LEGACY_V2, PersistentDataType.STRING);
             if (effectsCombined.isEmpty()) // empty string fix

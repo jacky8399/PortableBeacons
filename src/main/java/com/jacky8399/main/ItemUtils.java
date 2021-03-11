@@ -16,11 +16,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BinaryOperator;
 
 public class ItemUtils {
     public static boolean isPortableBeacon(ItemStack stack) {
-        return stack != null && stack.getType() == Material.BEACON &&
-                stack.hasItemMeta() &&
+        return stack != null && stack.getType() == Material.BEACON && stack.hasItemMeta() &&
                 stack.getItemMeta().getPersistentDataContainer().has(BeaconEffects.STORAGE_KEY, BeaconEffects.STORAGE_TYPE);
     }
 
@@ -99,15 +99,15 @@ public class ItemUtils {
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
             HashMap<PotionEffectType, Short> effects = Maps.newHashMap(e1.getEffects());
-            e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, Config.anvilCombinationCombineEffectsAdditively ? ItemUtils::sum : ItemUtils::anvilAlgorithm));
+            BinaryOperator<Short> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
+                    ItemUtils::sum : ItemUtils::anvilAlgorithm;
+            e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, algorithm));
             // boundary checks
             if (effects.size() > Config.anvilCombinationMaxEffects ||
-                    effects.entrySet().stream().anyMatch(
-                            entry -> {
-                                Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
-                                return entry.getValue() > (info != null ? info.getMaxAmplifier() : Config.effectsDefault.maxAmplifier);
-                            }
-                    )) {
+                    effects.entrySet().stream().anyMatch(entry -> {
+                        Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
+                        return entry.getValue() > (info != null ? info.getMaxAmplifier() : Config.effectsDefault.maxAmplifier);
+                    })) {
                 return null; // disallow combination
             }
 

@@ -28,15 +28,13 @@ public final class PortableBeacons extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        logger.info("PortableBeacons is starting up!");
         INSTANCE = this;
-
         Metrics metrics = new Metrics(this, 10409);
 
         getCommand("portablebeacons").setExecutor(new CommandPortableBeacons());
 
+        saveDefaultConfig();
         reloadConfig();
-        saveConfig();
         Bukkit.getPluginManager().registerEvents(new Events(this), this);
         effectsTimer = new EffectsTimer();
         effectsTimer.register();
@@ -62,7 +60,6 @@ public final class PortableBeacons extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        logger.info("PortableBeacons is shutting down!");
-        Events.onDisable();
+        Events.cleanUp();
     }
 }
