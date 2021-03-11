@@ -33,10 +33,10 @@ public class EffectsTimer extends BukkitRunnable {
         ListIterator<ItemStack> iterator = player.getInventory().iterator();
         while (iterator.hasNext()) {
             int nextIdx = iterator.nextIndex();
+            ItemStack is = iterator.next(); // lol
             if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
                 continue; // out of hotbar
             }
-            ItemStack is = iterator.next();
             if (!ItemUtils.isPortableBeacon(is))
                 continue;
             BeaconEffects beaconEffects = ItemUtils.getEffects(is);
