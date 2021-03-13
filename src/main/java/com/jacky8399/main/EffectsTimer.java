@@ -23,13 +23,13 @@ public class EffectsTimer extends BukkitRunnable {
     }
 
     public void applyEffects(Player player) {
-        boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled &&
-                !player.hasPermission("portablebeacons.bypass.world-guard-limit") ;
+        boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled;
         // world check
         if (Config.itemNerfsDisabledWorlds.contains(player.getWorld().getName()))
             return;
 
-        if (doWorldGuard && !WorldGuardHelper.canUseBeacons(player))
+        if (doWorldGuard && !player.hasPermission("portablebeacons.bypass.world-guard-limit") &&
+                !WorldGuardHelper.canUseBeacons(player))
             return;
 
         ListIterator<ItemStack> iterator = player.getInventory().iterator();
@@ -69,7 +69,8 @@ public class EffectsTimer extends BukkitRunnable {
                 else
                     newEffects = beaconEffects.clone();
                 iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
-                PortableBeacons.INSTANCE.logger.fine("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
+                if (Config.debug)
+                    PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
             }
         }
     }

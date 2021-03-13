@@ -20,10 +20,14 @@ public final class PortableBeacons extends JavaPlugin {
     public void onLoad() {
         try {
             worldGuardInstalled = WorldGuardHelper.tryAddFlag(this);
-            reloadConfig();
-            if (worldGuardInstalled && Config.worldGuard)
-                logger.info("Registered WorldGuard flag");
-        } catch (Exception | NoClassDefFoundError ignored) {}
+            logger.info("Registered WorldGuard flag");
+        } catch (Exception | NoClassDefFoundError e) {
+            if (Bukkit.getPluginManager().getPlugin("WorldGuard") != null) {
+                logger.info("Failed to register WorldGuard flag, but WorldGuard loaded??");
+                e.printStackTrace();
+                worldGuardInstalled = true;
+            }
+        }
     }
 
     @Override

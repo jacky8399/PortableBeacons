@@ -12,10 +12,7 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BinaryOperator;
 
 public class ItemUtils {
@@ -93,8 +90,16 @@ public class ItemUtils {
         return 0;
     }
 
-    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2) {
-        if (!isPortableBeacon(is1))
+    public static ItemStack createMessageStack(String message) {
+        ItemStack messageStack = new ItemStack(Material.BARRIER);
+        ItemMeta meta = messageStack.getItemMeta();
+        meta.setDisplayName(ChatColor.RED + message);
+        messageStack.setItemMeta(meta);
+        return messageStack;
+    }
+
+    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2, boolean visual) {
+        if (!isPortableBeacon(is1) || is2 == null)
             return null;
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
@@ -102,17 +107,26 @@ public class ItemUtils {
             BinaryOperator<Short> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
                     ItemUtils::sum : ItemUtils::anvilAlgorithm;
             e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, algorithm));
-            // boundary checks
+            // soulbound owner check
+            // check if both beacons are unclaimed/opwned
+            UUID playerUuid = player.getUniqueId();
+            if (Config.customEnchantSoulboundOwnerUsageOnly && 
+                    ((e1.soulboundOwner != null && !playerUuid.equals(e1.soulboundOwner)) ||
+                    (e2.soulboundOwner != null && !playerUuid.equals(e2.soulboundOwner)))) {
+                return visual ? createMessageStack("You do not own the portable beacons") : null;
+            }
+
+            // check max effects count / overpowered effects
             if (effects.size() > Config.anvilCombinationMaxEffects ||
                     effects.entrySet().stream().anyMatch(entry -> {
                         Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
                         return entry.getValue() > (info != null ? info.getMaxAmplifier() : Config.effectsDefault.maxAmplifier);
                     })) {
-                return null; // disallow combination
+                return visual ? createMessageStack("Overpowered effects") : null;
             }
 
             return createStack(new BeaconEffects(effects));
-        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
+        } else if (is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
             BeaconEffects effects = getEffects(is1);
             EnchantmentStorageMeta meta = (EnchantmentStorageMeta) is2.getItemMeta();
             Map<Enchantment, Integer> enchants = meta.getStoredEnchants();
@@ -120,19 +134,21 @@ public class ItemUtils {
             if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundEnchantment != null && enchants.containsKey(Config.customEnchantSoulboundEnchantment)) {
                 allowCombination = true;
                 if (++effects.soulboundLevel > Config.customEnchantSoulboundMaxLevel) // level check
-                    return null;
+                    return visual ? createMessageStack("Overpowered Soulbound") : null;
                 if (effects.soulboundOwner == null || effects.soulboundOwner.equals(player.getUniqueId()))
                     effects.soulboundOwner = player.getUniqueId();
             }
             if (Config.customEnchantExpReductionEnabled && Config.customEnchantExpReductionEnchantment != null && enchants.containsKey(Config.customEnchantExpReductionEnchantment)) {
                 allowCombination = true;
                 if (++effects.expReductionLevel > Config.customEnchantExpReductionMaxLevel) // level check
-                    return null;
+                    return visual ? createMessageStack("Overpowered Experience Efficiency") : null;
             }
 
-            return allowCombination ? createStackCopyItemData(effects, is1) : null;
+            return allowCombination ?
+                    createStackCopyItemData(effects, is1) :
+                    visual ? createMessageStack("Incompatible enchantments") : null;
         }
-        return null;
+        return visual ? createMessageStack("Invalid combination") : null;
     }
 
     private static short sum(short s1, short s2) {

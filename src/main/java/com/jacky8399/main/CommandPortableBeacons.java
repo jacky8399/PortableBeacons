@@ -290,7 +290,13 @@ public class CommandPortableBeacons implements TabExecutor {
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 sender.sendMessage(ChatColor.GREEN + "Potion effects:");
                 effects.getEffects().forEach((pot, amplifier) ->
-                        sender.sendMessage("  " + ChatColor.YELLOW + VANILLA_EFFECT_NAMES.getOrDefault(pot.getName(), pot.getName()) + " " + amplifier));
+                        sender.sendMessage("  " + ChatColor.YELLOW + getPotionEffectTypeName(pot) + " " + amplifier));
+                if (PortableBeacons.INSTANCE.worldGuardInstalled && Config.worldGuard) {
+                    BeaconEffects effectiveEffects = WorldGuardHelper.filterBeaconEffects((Player) sender, effects);
+                    sender.sendMessage(ChatColor.GREEN + "Effective potion effects in region:");
+                    effectiveEffects.getEffects().forEach((pot, amplifier) ->
+                            sender.sendMessage("  " + ChatColor.YELLOW + getPotionEffectTypeName(pot) + " " + amplifier));
+                }
                 sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
                 if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
                     sender.sendMessage(ChatColor.GREEN + "Enchantments:");

@@ -23,6 +23,7 @@ public class WorldGuardHelper {
     public static StateFlag PORTABLE_BEACONS;
     public static SetFlag<PotionEffectType> PB_ALLOWED_EFFECTS;
     public static SetFlag<PotionEffectType> PB_BLOCKED_EFFECTS;
+    @SuppressWarnings("unchecked")
     public static boolean tryAddFlag(PortableBeacons plugin) {
         FlagRegistry registry = WorldGuard.getInstance().getFlagRegistry();
         try {
@@ -35,10 +36,14 @@ public class WorldGuardHelper {
             registry.register(blockedEffects);
             PB_ALLOWED_EFFECTS = allowedEffects;
             PB_BLOCKED_EFFECTS = blockedEffects;
-            return true;
-        } catch (FlagConflictException e) {
-            throw new IllegalStateException("One or more flags already exist!", e);
+        } catch (FlagConflictException | IllegalStateException e) {
+            // try to recover flags
+            plugin.logger.severe("Failed to register flags; trying to use existing flags");
+            PORTABLE_BEACONS = (StateFlag) registry.get("allow-portable-beacons");
+            PB_ALLOWED_EFFECTS = (SetFlag<PotionEffectType>) registry.get("allowed-beacon-effects");
+            PB_BLOCKED_EFFECTS = (SetFlag<PotionEffectType>) registry.get("blocked-beacon-effects");
         }
+        return true;
     }
 
     public static boolean canUseBeacons(Player player) {
