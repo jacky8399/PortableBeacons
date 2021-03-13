@@ -106,8 +106,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         }
                         // show potion effects
                         return Arrays.stream(PotionEffectType.values())
-                                .map(PotionEffectType::getName).map(String::toLowerCase) // get potion name
-                                .map(name -> VANILLA_EFFECT_NAMES.getOrDefault(name, name)) // try convert to vanilla names, fallback to Bukkit name
+                                .map(CommandPortableBeacons::getPotionEffectTypeName)
                                 .filter(name -> name.startsWith(input))
                                 .collect(Collectors.toList());
                     }
@@ -130,6 +129,12 @@ public class CommandPortableBeacons implements TabExecutor {
         if (type == null)
             throw new IllegalArgumentException("Can't find potion effect " + input);
         return type;
+    }
+
+    @NotNull
+    public static String getPotionEffectTypeName(PotionEffectType pet) {
+        String name = pet.getName().toLowerCase(Locale.US);
+        return VANILLA_EFFECT_NAMES.getOrDefault(name, name);
     }
 
     @NotNull

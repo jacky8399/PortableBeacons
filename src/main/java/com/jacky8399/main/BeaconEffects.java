@@ -5,8 +5,6 @@ import com.google.common.collect.Maps;
 import net.md_5.bungee.api.ChatColor;
 import org.apache.commons.lang.StringUtils;
 import org.bukkit.NamespacedKey;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -122,28 +120,9 @@ public class BeaconEffects implements Cloneable {
         return Math.max(0, effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
     }
 
+    @NotNull
     public Map<PotionEffectType, Short> getEffects() {
         return effects;
-    }
-
-    public static void loadConfig(FileConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
-        if (section != null) {
-            section.getValues(false).forEach((effect, name) -> {
-                try {
-                    PotionEffectType type = CommandPortableBeacons.parseType(effect); // for vanilla names
-                    String newName = Config.translateColor((String) name);
-                    // override PotionEffectInfo
-                    Config.PotionEffectInfo info = Config.effects.get(type);
-                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
-                    Config.effects.put(type, newInfo);
-                    config.set("effects." + effect + ".name", name);
-                } catch (IllegalArgumentException ignored) {}
-            });
-            // delete section
-            config.set("beacon-item.effects", null);
-            PortableBeacons.INSTANCE.logger.info("Old config (beacon-item.effects) has been migrated automatically. Use '/pb saveconfig' to save to file.");
-        }
     }
 
     private static String toRomanNumeral(int i) {

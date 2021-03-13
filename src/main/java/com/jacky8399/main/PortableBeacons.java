@@ -14,14 +14,14 @@ public final class PortableBeacons extends JavaPlugin {
     public Logger logger = getLogger();
     public EffectsTimer effectsTimer;
 
-    public boolean worldGuard = false;
+    public boolean worldGuardInstalled = false;
 
     @Override
     public void onLoad() {
         try {
-            Config.worldGuard = WorldGuardHelper.tryAddFlag(this);
+            worldGuardInstalled = WorldGuardHelper.tryAddFlag(this);
             reloadConfig();
-            if (worldGuard && Config.worldGuard)
+            if (worldGuardInstalled && Config.worldGuard)
                 logger.info("Registered WorldGuard flag");
         } catch (Exception | NoClassDefFoundError ignored) {}
     }
@@ -44,7 +44,6 @@ public final class PortableBeacons extends JavaPlugin {
     public void reloadConfig() {
         super.reloadConfig();
         Config.loadConfig();
-        BeaconEffects.loadConfig(getConfig());
     }
 
     @Override

@@ -14,58 +14,115 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Config {
 
     public static void loadConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
-        ritualItem = config.getItemStack("item-used",
-                config.getItemStack("item_used",  new ItemStack(Material.NETHER_STAR, 32))); // migrate old data
+
+        // debug
+        Logger logger = PortableBeacons.INSTANCE.logger;
+        if (config.getBoolean("debug")) {
+            logger.setLevel(Level.CONFIG);
+            logger.fine("Debug enabled");
+        }
+
+        // what an unintelligible mess
+
+        // Ritual item
+        ritualItem = config.getItemStack("item-used", config.getItemStack("item_used",
+                new ItemStack(Material.NETHER_STAR, 32)));
+        logger.config(()->"Ritual item: " + ritualItem);
+
+        // Beacon item properties
 
         itemCustomVersion = config.getString("item-custom-version-do-not-edit");
+        logger.config(()->"Item custom version: " + itemCustomVersion);
 
         itemName = translateColor(config.getString("beacon-item.name", ""));
+        logger.config(()->"Beacon item/name: " + itemName);
         itemLore = config.getStringList("beacon-item.lore").stream().map(Config::translateColor).collect(Collectors.toList());
+        logger.config(()->"Beacon item/lore: " + String.join("\\n", itemLore));
         itemCustomModelData = config.getInt("beacon-item.custom-model-data");
+        logger.config(()->"Beacon item/custom model data: " + itemCustomModelData);
 
-        itemCreationReminderEnabled = config.getBoolean("beacon-item.creation-reminder.enabled");
-        itemCreationReminderMessage = translateColor(config.getString("beacon-item.creation-reminder.message"));
-        itemCreationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
-        itemCreationReminderDisableIfAlreadyOwnBeaconItem = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
+        // Creation reminder
 
-        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
+        creationReminder = config.getBoolean("beacon-item.creation-reminder.enabled");
+        logger.config(()->"Creation reminder/enabled: " + creationReminder);
+        creationReminderMessage = translateColor(config.getString("beacon-item.creation-reminder.message"));
+        logger.config(()->"Creation reminder/message: " + creationReminderMessage);
+        creationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
+        logger.config(()->"Creation reminder/radius: " + creationReminderRadius);
+        creationReminderDisableIfOwned = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
+        logger.config(()->"Creation reminder/disable if owned: " + creationReminderDisableIfOwned);
+
+        // Custom enchantments
+
+        // Exp-reduction
+
         customEnchantExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
+        logger.config(()->"Enchant/Exp-reduction/enabled: " + customEnchantExpReductionEnabled);
+        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
+        logger.config(()->"Enchant/Exp-reduction/enchantment: " + customEnchantExpReductionEnchantment);
         customEnchantExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
+        logger.config(()->"Enchant/Exp-reduction/max level: " + customEnchantExpReductionMaxLevel);
         customEnchantExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
+        logger.config(()->"Enchant/Exp-reduction/name: " + customEnchantExpReductionName);
         customEnchantExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
+        logger.config(()->"Enchant/Exp-reduction/reduction per level: " + customEnchantExpReductionReductionPerLevel);
 
-        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
+        // Soulbound
+
         customEnchantSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
+        logger.config(()->"Enchant/Soulbound/enabled: " + customEnchantSoulboundEnabled);
+        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
+        logger.config(()->"Enchant/Soulbound/enchantment: " + customEnchantSoulboundEnchantment);
         customEnchantSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
+        logger.config(()->"Enchant/Soulbound/max level: " + customEnchantSoulboundMaxLevel);
         customEnchantSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
+        logger.config(()->"Enchant/Soulbound/name: " + customEnchantSoulboundName);
         customEnchantSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
+        logger.config(()->"Enchant/Soulbound/owner usage only: " + customEnchantSoulboundOwnerUsageOnly);
         customEnchantSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
+        logger.config(()->"Enchant/Soulbound/consume level on death: " + customEnchantSoulboundConsumeLevelOnDeath);
+
+        // Nerfs
 
         itemNerfsExpPercentagePerCycle = Math.max(0, config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle"));
+        logger.config(()->"Nerfs/exp % per cycle: " + itemNerfsExpPercentagePerCycle);
         itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
+        logger.config(()->"Nerfs/only apply when in hotbar: " + itemNerfsOnlyApplyInHotbar);
         itemNerfsDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
+        logger.config(()->"Nerfs/disabled worlds: " + String.join(", ", itemNerfsDisabledWorlds));
         itemNerfsForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
+        logger.config(()->"Nerfs/force downgrade: " + itemNerfsForceDowngrade);
 
         readEffects(config);
 
+        // Anvil combination
+
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
+        logger.config(()->"Anvil combination/enabled: " + anvilCombinationEnabled);
         anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
+        logger.config(()->"Anvil combination/max effects: " + anvilCombinationMaxEffects);
         if (config.contains("anvil-combination.max-effect-amplifier", true)) {
             int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
             Config.effectsDefault = new PotionEffectInfo(null, Config.effectsDefault.durationInTicks, maxAmplifier, Config.effectsDefault.hideParticles);
             config.set("effects.default.max-amplifier", maxAmplifier);
             config.set("anvil-combination.max-effect-amplifier", null);
+            PortableBeacons.INSTANCE.logger.info("Old config (anvil-combination.max-effect-amplifier) has been migrated automatically. Use '/pb saveconfig' to save to file.");
         }
         anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
+        logger.config(()->"Anvil combination/combine effects additively: " + anvilCombinationCombineEffectsAdditively);
         anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
+        logger.config(()->"Anvil combination/enforce vanilla exp limit: " + anvilCombinationEnforceVanillaExpLimit);
 
         worldGuard = config.getBoolean("world-guard");
+        logger.config(()->"World guard: " + worldGuard);
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -102,6 +159,26 @@ public class Config {
         }
 
         Preconditions.checkNotNull(effectsDefault, "default must be provided");
+    }
+
+    public static void loadConfigLegacy(FileConfiguration config) {
+        ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
+        if (section != null) {
+            section.getValues(false).forEach((effect, name) -> {
+                try {
+                    PotionEffectType type = CommandPortableBeacons.parseType(effect); // for vanilla names
+                    String newName = Config.translateColor((String) name);
+                    // override PotionEffectInfo
+                    Config.PotionEffectInfo info = Config.effects.get(type);
+                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
+                    Config.effects.put(type, newInfo);
+                    config.set("effects." + effect + ".name", name);
+                } catch (IllegalArgumentException ignored) {}
+            });
+            // delete section
+            config.set("beacon-item.effects", null);
+            PortableBeacons.INSTANCE.logger.info("Old config (beacon-item.effects) has been migrated automatically. Use '/pb saveconfig' to save to file.");
+        }
     }
 
     private static final boolean canUseRGB;
@@ -149,10 +226,10 @@ public class Config {
     public static String itemCustomVersion = null;
 
     // Reminder
-    public static boolean itemCreationReminderEnabled;
-    public static String itemCreationReminderMessage;
-    public static double itemCreationReminderRadius;
-    public static boolean itemCreationReminderDisableIfAlreadyOwnBeaconItem;
+    public static boolean creationReminder;
+    public static String creationReminderMessage;
+    public static double creationReminderRadius;
+    public static boolean creationReminderDisableIfOwned;
 
     // Custom Enchantments
     public static boolean customEnchantExpReductionEnabled;

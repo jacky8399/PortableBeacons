@@ -23,11 +23,13 @@ public class EffectsTimer extends BukkitRunnable {
     }
 
     public void applyEffects(Player player) {
+        boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled &&
+                !player.hasPermission("portablebeacons.bypass.world-guard-limit") ;
         // world check
         if (Config.itemNerfsDisabledWorlds.contains(player.getWorld().getName()))
             return;
 
-        if (Config.worldGuard && PortableBeacons.INSTANCE.worldGuard && !WorldGuardHelper.canUseBeacons(player) && !player.hasPermission("portablebeacons.bypass.world-guard-limit"))
+        if (doWorldGuard && !WorldGuardHelper.canUseBeacons(player))
             return;
 
         ListIterator<ItemStack> iterator = player.getInventory().iterator();
@@ -40,17 +42,23 @@ public class EffectsTimer extends BukkitRunnable {
             if (!ItemUtils.isPortableBeacon(is))
                 continue;
             BeaconEffects beaconEffects = ItemUtils.getEffects(is);
+            // effects for calculation purposes
+            BeaconEffects actualEffects = beaconEffects;
             // owner check
             if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundOwnerUsageOnly &&
                     beaconEffects.soulboundOwner != null && !player.getUniqueId().equals(beaconEffects.soulboundOwner)) {
                 continue;
             }
 
-            // deduct exp first
-            if (!tryDeductExp(player, beaconEffects))
+            // filter effects
+            if (doWorldGuard)
+                actualEffects = WorldGuardHelper.filterBeaconEffects(player, beaconEffects);
+
+            // check levels
+            if (!tryDeductExp(player, actualEffects))
                 continue;
 
-            beaconEffects.applyEffects(player);
+            actualEffects.applyEffects(player);
 
             boolean needsUpdate = beaconEffects.shouldUpdate();
             if (needsUpdate) {

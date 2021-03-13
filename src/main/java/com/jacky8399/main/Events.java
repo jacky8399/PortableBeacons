@@ -169,12 +169,12 @@ public class Events implements Listener {
     }
 
     public void checkPlayerItem() {
-        if (!Config.itemCreationReminderEnabled || Config.ritualItem.getType() == Material.AIR) {
+        if (!Config.creationReminder || Config.ritualItem.getType() == Material.AIR) {
             cleanUp();
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (Config.itemCreationReminderDisableIfAlreadyOwnBeaconItem) {
+            if (Config.creationReminderDisableIfOwned) {
                 // check if already own beacon item
                 if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
                     // clear old entities
@@ -184,7 +184,7 @@ public class Events implements Listener {
             }
 
             if (player.getInventory().containsAtLeast(Config.ritualItem, Config.ritualItem.getAmount())) {
-                List<Block> nearbyBeacons = findBeaconInRadius(player, Config.itemCreationReminderRadius);
+                List<Block> nearbyBeacons = findBeaconInRadius(player, Config.creationReminderRadius);
                 if (nearbyBeacons.size() != 0) {
                     HashMap<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored->Maps.newHashMap());
                     for (Block nearbyBeacon : nearbyBeacons) {
@@ -194,7 +194,7 @@ public class Events implements Listener {
                         FallingBlock oldEnt = entities.get(vector);
                         if (oldEnt == null) {
                             if (entities.size() == 0) // if first outline for player
-                                player.sendMessage(Config.itemCreationReminderMessage);
+                                player.sendMessage(Config.creationReminderMessage);
                             entities.put(vector, spawnFallingBlock(nearbyBeacon.getBlockData(), location));
                         } else {
                             oldEnt.teleport(location);
@@ -291,7 +291,7 @@ public class Events implements Listener {
                 meta.setLore(lore);
                 newIs.setItemMeta(meta);
                 e.setResult(newIs);
-            } else if (!Config.anvilCombinationEnforceVanillaExpLimit) {
+            } else {
                 e.setResult(newIs);
                 Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> e.getInventory().setRepairCost(cost));
             }
