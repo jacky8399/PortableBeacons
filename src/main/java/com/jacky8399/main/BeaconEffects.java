@@ -2,8 +2,7 @@ package com.jacky8399.main;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import net.md_5.bungee.api.ChatColor;
-import org.apache.commons.lang.StringUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.persistence.PersistentDataAdapterContext;
@@ -97,19 +96,40 @@ public class BeaconEffects implements Cloneable {
     }
 
     public List<String> toLore() {
-        List<String> lore = effects.entrySet().stream()
+        List<String> effectsLore = effects.entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getName()))
-                .map(entry -> stringifyEffect(entry.getKey(), entry.getValue().intValue()))
+                .map(entry -> PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue().intValue()))
                 .collect(Collectors.toList());
 
+        List<String> enchantsLore = new ArrayList<>();
         if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
-            lore.add(Config.customEnchantExpReductionName + toRomanNumeral(expReductionLevel));
+            if (Config.customEnchantExpReductionName.contains("{level}"))
+                enchantsLore.add(Config.customEnchantExpReductionName.replace("{level}", PotionEffectUtils.toRomanNumeral(expReductionLevel)));
+            else
+                enchantsLore.add(Config.customEnchantExpReductionName + PotionEffectUtils.toRomanNumeral(expReductionLevel));
         }
         if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
-            lore.add(Config.customEnchantSoulboundName + toRomanNumeral(soulboundLevel));
+            if (Config.customEnchantSoulboundName.contains("{level}")) {
+                String owner;
+                if (soulboundOwner != null) {
+                    owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
+                    if (owner == null) owner = "???"; // haven't seen player before?
+                } else {
+                    owner = "no-one";
+                }
+                enchantsLore.add(Config.customEnchantSoulboundName
+                        .replace("{level}", PotionEffectUtils.toRomanNumeral(soulboundLevel))
+                        .replace("{soulbound}", owner));
+            } else {
+                enchantsLore.add(Config.customEnchantSoulboundName + PotionEffectUtils.toRomanNumeral(soulboundLevel));
+            }
         }
-
-        return lore;
+        // merge
+        if (enchantsLore.size() != 0) {
+            effectsLore.add("");
+            effectsLore.addAll(enchantsLore);
+        }
+        return effectsLore;
     }
 
     public double calcExpPerCycle() {
@@ -123,41 +143,6 @@ public class BeaconEffects implements Cloneable {
     @NotNull
     public Map<PotionEffectType, Short> getEffects() {
         return effects;
-    }
-
-    private static String toRomanNumeral(int i) {
-        switch (i) {
-            case 1:
-                return "";
-            case 2:
-                return " II";
-            case 3:
-                return " III";
-            case 4:
-                return " IV";
-            case 5:
-                return " V";
-            case 6:
-                return " VI";
-            case 7:
-                return " VII";
-            case 8:
-                return " VIII";
-            case 9:
-                return " IX";
-            case 10:
-                return " X";
-            default:
-                return " " + i;
-        }
-    }
-
-    private static String stringifyEffect(PotionEffectType effect, int amplifier) {
-        Config.PotionEffectInfo info = Config.effects.get(effect);
-        if (info != null && info.displayName != null)
-            return info.displayName + toRomanNumeral(amplifier);
-        else
-            return ChatColor.GREEN + StringUtils.capitalize(effect.getName().replace('_', ' ').toLowerCase(Locale.ROOT)) + toRomanNumeral(amplifier);
     }
 
     public boolean shouldUpdate() {

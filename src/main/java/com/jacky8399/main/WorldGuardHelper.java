@@ -38,7 +38,7 @@ public class WorldGuardHelper {
             PB_BLOCKED_EFFECTS = blockedEffects;
         } catch (FlagConflictException | IllegalStateException e) {
             // try to recover flags
-            plugin.logger.severe("Failed to register flags; trying to use existing flags");
+            plugin.logger.warning("Failed to register flags; trying to use existing flags");
             PORTABLE_BEACONS = (StateFlag) registry.get("allow-portable-beacons");
             PB_ALLOWED_EFFECTS = (SetFlag<PotionEffectType>) registry.get("allowed-beacon-effects");
             PB_BLOCKED_EFFECTS = (SetFlag<PotionEffectType>) registry.get("blocked-beacon-effects");
@@ -93,21 +93,18 @@ public class WorldGuardHelper {
 
         @Override
         public PotionEffectType parseInput(FlagContext context) throws InvalidFlagFormat {
-            try {
-                return CommandPortableBeacons.parseType(context.getUserInput());
-            } catch (IllegalArgumentException e) {
-                throw new InvalidFlagFormat(e.getMessage());
-            }
+            return PotionEffectUtils.parsePotion(context.getUserInput(), false)
+                    .orElseThrow(()->new InvalidFlagFormat(context.getUserInput() + "is not a valid potion effect"));
         }
 
         @Override
         public PotionEffectType unmarshal(@Nullable Object o) {
-            return CommandPortableBeacons.parseTypeLenient(String.valueOf(o));
+            return PotionEffectUtils.parsePotion(String.valueOf(o), true).orElse(null);
         }
 
         @Override
         public Object marshal(PotionEffectType o) {
-            return CommandPortableBeacons.getPotionEffectTypeName(o);
+            return PotionEffectUtils.getName(o);
         }
     }
 }

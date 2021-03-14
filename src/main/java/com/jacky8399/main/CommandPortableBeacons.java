@@ -1,9 +1,10 @@
 package com.jacky8399.main;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableBiMap;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.*;
+import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -13,7 +14,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -23,20 +23,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class CommandPortableBeacons implements TabExecutor {
-    /**
-     * A bi-map of Bukkit effect names to vanilla names
-     */
-    private static final ImmutableBiMap<String, String> VANILLA_EFFECT_NAMES = ImmutableBiMap.<String, String>builder()
-            .put("slow", "slowness")
-            .put("fast_digging", "haste")
-            .put("slow_digging", "mining_fatigue")
-            .put("increase_damage", "strength")
-            .put("heal", "instant_health")
-            .put("harm", "instant_damage")
-            .put("jump", "jump_boost")
-            .put("confusion", "nausea")
-            .put("damage_resistance", "resistance")
-            .build();
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, Command command, @NotNull String alias, String[] args) {
         if (command.getLabel().equalsIgnoreCase("portablebeacons")) {
@@ -97,7 +83,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
                         // Potion effect type autocomplete
                         String input = args[args.length - 1];
-                        if (parseTypeLenient(input) != null) {
+                        if (PotionEffectUtils.parsePotion(input, false).isPresent()) {
                             // valid input, show amplifiers
                             return IntStream.range("give".equalsIgnoreCase(args[1]) ? 1 : 0, 10)
                                     .mapToObj(i -> input + "*" + i)
@@ -106,7 +92,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         }
                         // show potion effects
                         return Arrays.stream(PotionEffectType.values())
-                                .map(CommandPortableBeacons::getPotionEffectTypeName)
+                                .map(PotionEffectUtils::getName)
                                 .filter(name -> name.startsWith(input))
                                 .collect(Collectors.toList());
                     }
@@ -116,26 +102,6 @@ public class CommandPortableBeacons implements TabExecutor {
         return Collections.emptyList();
     }
 
-    @Nullable
-    public static PotionEffectType parseTypeLenient(String input) {
-        input = input.toLowerCase(Locale.US);
-        String bukkitName = VANILLA_EFFECT_NAMES.inverse().get(input);
-        return PotionEffectType.getByName(bukkitName != null ? bukkitName : input);
-    }
-
-    @NotNull
-    public static PotionEffectType parseType(String input) {
-        PotionEffectType type = parseTypeLenient(input);
-        if (type == null)
-            throw new IllegalArgumentException("Can't find potion effect " + input);
-        return type;
-    }
-
-    @NotNull
-    public static String getPotionEffectTypeName(PotionEffectType pet) {
-        String name = pet.getName().toLowerCase(Locale.US);
-        return VANILLA_EFFECT_NAMES.getOrDefault(name, name);
-    }
 
     @NotNull
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowZeroAmplifier) {
@@ -147,10 +113,12 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (s.contains("*")) {
                     String[] split = s.split("\\*");
                     Preconditions.checkState(split.length == 2, "Invalid format, correct format is TYPE*AMPLIFIER");
-                    type = parseType(split[0]);
+                    type = PotionEffectUtils.parsePotion(split[0], false)
+                            .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect"));
                     amplifier = Short.parseShort(split[1]);
                 } else {
-                    type = parseType(s);
+                    type = PotionEffectUtils.parsePotion(s, false)
+                            .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect"));
                 }
                 Preconditions.checkArgument(amplifier >= (allowZeroAmplifier ? 0 : 1), "Amplifier is negative");
                 effects.put(type, amplifier);
@@ -217,6 +185,7 @@ public class CommandPortableBeacons implements TabExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
             sender.sendMessage(ChatColor.GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
+            sender.sendMessage(ChatColor.DARK_GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
             return true;
         }
 
@@ -282,36 +251,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(ChatColor.RED + "This command can only be run by a player!");
                     return true;
                 }
-                ItemStack stack = ((Player) sender).getInventory().getItemInMainHand();
-                if (!ItemUtils.isPortableBeacon(stack)) {
-                    sender.sendMessage(ChatColor.RED + "You are not holding a portable beacon!");
-                    return true;
-                }
-                BeaconEffects effects = ItemUtils.getEffects(stack);
-                sender.sendMessage(ChatColor.GREEN + "Potion effects:");
-                effects.getEffects().forEach((pot, amplifier) ->
-                        sender.sendMessage("  " + ChatColor.YELLOW + getPotionEffectTypeName(pot) + " " + amplifier));
-                if (PortableBeacons.INSTANCE.worldGuardInstalled && Config.worldGuard) {
-                    BeaconEffects effectiveEffects = WorldGuardHelper.filterBeaconEffects((Player) sender, effects);
-                    sender.sendMessage(ChatColor.GREEN + "Effective potion effects in region:");
-                    effectiveEffects.getEffects().forEach((pot, amplifier) ->
-                            sender.sendMessage("  " + ChatColor.YELLOW + getPotionEffectTypeName(pot) + " " + amplifier));
-                }
-                sender.sendMessage(ChatColor.GREEN + "Custom data ver: " + ChatColor.YELLOW + effects.customDataVersion);
-                if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
-                    sender.sendMessage(ChatColor.GREEN + "Enchantments:");
-                    if (effects.expReductionLevel != 0)
-                        sender.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
-                                String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) * 100));
-                    if (effects.soulboundLevel != 0)
-                        sender.sendMessage("  " + ChatColor.YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
-                                (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
-                }
-                if (Config.itemNerfsExpPercentagePerCycle > 0) {
-                    double xpPerCycle = effects.calcExpPerCycle();
-                    sender.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
-                            String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
-                }
+                doInspect((Player) sender);
                 break;
             }
             case "item": {
@@ -462,5 +402,95 @@ public class CommandPortableBeacons implements TabExecutor {
             }
         }
         return true;
+    }
+
+    // find COPY_TO_CLIPBOARD, or use SUGGEST_COMMAND on older versions
+    private static ClickEvent.Action getCopyToClipboard() {
+        try {
+            return ClickEvent.Action.valueOf("COPY_TO_CLIPBOARD");
+        } catch (IllegalArgumentException e) {
+            return ClickEvent.Action.SUGGEST_COMMAND;
+        }
+    }
+
+    public void doInspect(Player player) {
+        ItemStack stack = player.getInventory().getItemInMainHand();
+        if (!ItemUtils.isPortableBeacon(stack)) {
+            player.sendMessage(ChatColor.RED + "You are not holding a portable beacon!");
+            return;
+        }
+        BeaconEffects effects = ItemUtils.getEffects(stack);
+
+        // simulate nerfs
+        boolean isInDisabledWorld = Config.itemNerfsDisabledWorlds.contains(player.getWorld().getName());
+        boolean canUseBeacons = true;
+        BeaconEffects effectiveEffects = effects;
+        if (PortableBeacons.INSTANCE.worldGuardInstalled && Config.worldGuard) {
+            canUseBeacons = WorldGuardHelper.canUseBeacons(player);
+            effectiveEffects = WorldGuardHelper.filterBeaconEffects(player, effects);
+        }
+        Map<PotionEffectType, Short> effectsMap = effects.getEffects();
+        Map<PotionEffectType, Short> effectiveEffectsMap = effectiveEffects.getEffects();
+        player.sendMessage(ChatColor.GREEN + "Potion effects:");
+        for (Map.Entry<PotionEffectType, Short> entry : effectsMap.entrySet()) {
+            // format used in commands
+            String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (entry.getValue() != 1 ? "*" + entry.getValue() : "");
+            BaseComponent[] potionDisplay = new ComponentBuilder()
+                    .append("  ") // indentation
+                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue())))
+                    .append(" ")
+                    .append("(" + internalFormat + ")").color(ChatColor.YELLOW)
+                    .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
+                            .color(ChatColor.YELLOW)
+                            .create()
+                    )))
+                    .event(new ClickEvent(getCopyToClipboard(), internalFormat))
+                    .create();
+
+            BaseComponent[] disabledDisplay = null; // hover event, null if not disabled
+            if (isInDisabledWorld) {
+                disabledDisplay = new ComponentBuilder("You are in a world where Portable Beacons are disabled!\n" +
+                        "Check config 'beacon-items.nerfs.disabled-worlds'.")
+                        .color(ChatColor.RED)
+                        .create();
+            } else if (!canUseBeacons) {
+                disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where Portable Beacons are disabled!\n" +
+                        "Check 'allow-portable-beacons' of the region.")
+                        .color(ChatColor.RED)
+                        .create();
+            } else if (!effectiveEffectsMap.containsKey(entry.getKey())) {
+                disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
+                        "Check 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.")
+                        .color(ChatColor.RED)
+                        .create();
+            }
+
+            if (disabledDisplay != null) {
+                BaseComponent[] actualDisplay = new ComponentBuilder()
+                        .append(potionDisplay).strikethrough(true)
+                        .append(" ")
+                        .append("DISABLED").color(ChatColor.DARK_GRAY).italic(true)
+                        .append("[?]").color(ChatColor.DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
+                        .create();
+                player.spigot().sendMessage(actualDisplay);
+            } else {
+                player.spigot().sendMessage(potionDisplay);
+            }
+        }
+        player.sendMessage(ChatColor.GREEN + "Custom data version: " + ChatColor.YELLOW + effects.customDataVersion);
+        if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
+            player.sendMessage(ChatColor.GREEN + "Enchantments:");
+            if (effects.expReductionLevel != 0)
+                player.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
+                        String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) * 100));
+            if (effects.soulboundLevel != 0)
+                player.sendMessage("  " + ChatColor.YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
+                        (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
+        }
+        if (Config.itemNerfsExpPercentagePerCycle > 0) {
+            double xpPerCycle = effects.calcExpPerCycle();
+            player.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
+                    String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
+        }
     }
 }

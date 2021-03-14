@@ -152,7 +152,8 @@ public class Config {
 
                     effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier, hideParticles);
                 } else {
-                    PotionEffectType type = CommandPortableBeacons.parseType(key);
+                    PotionEffectType type = PotionEffectUtils.parsePotion(key, true)
+                            .orElseThrow(()->new IllegalArgumentException(key + " is not a valid potion effect"));
 
                     effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier, hideParticles));
                 }
@@ -169,7 +170,8 @@ public class Config {
         if (section != null) {
             section.getValues(false).forEach((effect, name) -> {
                 try {
-                    PotionEffectType type = CommandPortableBeacons.parseType(effect); // for vanilla names
+                    PotionEffectType type = PotionEffectUtils.parsePotion(effect, true)
+                            .orElseThrow(IllegalArgumentException::new); // for vanilla names
                     String newName = Config.translateColor((String) name);
                     // override PotionEffectInfo
                     Config.PotionEffectInfo info = Config.effects.get(type);
