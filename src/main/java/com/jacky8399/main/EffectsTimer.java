@@ -68,6 +68,7 @@ public class EffectsTimer extends BukkitRunnable {
                     newEffects = beaconEffects.fixOpEffects();
                 else
                     newEffects = beaconEffects.clone();
+                newEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
                 iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
                 if (Config.debug)
                     PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");

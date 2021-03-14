@@ -185,7 +185,7 @@ public class CommandPortableBeacons implements TabExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
             sender.sendMessage(ChatColor.GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
-            sender.sendMessage(ChatColor.DARK_GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
+            sender.sendMessage(ChatColor.GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
             return true;
         }
 
@@ -438,7 +438,7 @@ public class CommandPortableBeacons implements TabExecutor {
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
                     .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue())))
-                    .append(" ")
+                    .append(" ", ComponentBuilder.FormatRetention.NONE)
                     .append("(" + internalFormat + ")").color(ChatColor.YELLOW)
                     .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
                             .color(ChatColor.YELLOW)
@@ -466,11 +466,16 @@ public class CommandPortableBeacons implements TabExecutor {
             }
 
             if (disabledDisplay != null) {
+                // an interesting way to apply strikethrough to the entire component
+                TextComponent potionDisplayStrikethrough = new TextComponent();
+                potionDisplayStrikethrough.setExtra(Arrays.asList(potionDisplay));
+
                 BaseComponent[] actualDisplay = new ComponentBuilder()
-                        .append(potionDisplay).strikethrough(true)
-                        .append(" ")
-                        .append("DISABLED").color(ChatColor.DARK_GRAY).italic(true)
-                        .append("[?]").color(ChatColor.DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
+                        .append(potionDisplayStrikethrough).strikethrough(true)
+                        .append(" DISABLED ", ComponentBuilder.FormatRetention.NONE)
+                        .color(ChatColor.DARK_GRAY).italic(true)
+                        .append("[?]", ComponentBuilder.FormatRetention.NONE)
+                        .color(ChatColor.DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
                         .create();
                 player.spigot().sendMessage(actualDisplay);
             } else {

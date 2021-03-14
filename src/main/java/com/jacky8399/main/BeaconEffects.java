@@ -43,7 +43,7 @@ public class BeaconEffects implements Cloneable {
     }
 
     @NotNull
-    private Map<PotionEffectType, Short> effects;
+    private ImmutableMap<PotionEffectType, Short> effects;
     public int expReductionLevel = 0;
     @Nullable
     public UUID soulboundOwner = null;
@@ -77,16 +77,6 @@ public class BeaconEffects implements Cloneable {
             arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info == null || !info.isHideParticles());
         }
         return arr;
-//        return effects.entrySet().stream()
-//                .map(entry -> {
-//                    Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
-//                    int duration = defaultDuration;
-//                    if (info != null && info.durationInTicks != null) {
-//                        duration = info.durationInTicks;
-//                    }
-//                    return new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info != null && info.isHideParticles());
-//                })
-//                .toArray(PotionEffect[]::new);
     }
 
     public void applyEffects(LivingEntity entity) {
@@ -98,31 +88,20 @@ public class BeaconEffects implements Cloneable {
     public List<String> toLore() {
         List<String> effectsLore = effects.entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getName()))
-                .map(entry -> PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue().intValue()))
+                .map(entry -> PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
 
         List<String> enchantsLore = new ArrayList<>();
         if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
-            if (Config.customEnchantExpReductionName.contains("{level}"))
-                enchantsLore.add(Config.customEnchantExpReductionName.replace("{level}", PotionEffectUtils.toRomanNumeral(expReductionLevel)));
-            else
-                enchantsLore.add(Config.customEnchantExpReductionName + PotionEffectUtils.toRomanNumeral(expReductionLevel));
+            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null, Config.customEnchantExpReductionName, expReductionLevel));
         }
         if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
-            if (Config.customEnchantSoulboundName.contains("{level}")) {
-                String owner;
-                if (soulboundOwner != null) {
-                    owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
-                    if (owner == null) owner = "???"; // haven't seen player before?
-                } else {
-                    owner = "no-one";
-                }
-                enchantsLore.add(Config.customEnchantSoulboundName
-                        .replace("{level}", PotionEffectUtils.toRomanNumeral(soulboundLevel))
-                        .replace("{soulbound}", owner));
-            } else {
-                enchantsLore.add(Config.customEnchantSoulboundName + PotionEffectUtils.toRomanNumeral(soulboundLevel));
+            String owner = null;
+            if (soulboundOwner != null) {
+                owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
+                if (owner == null) owner = "???"; // haven't seen player before?
             }
+            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null, Config.customEnchantSoulboundName, soulboundLevel, owner));
         }
         // merge
         if (enchantsLore.size() != 0) {

@@ -12,6 +12,7 @@ beacon-item:
   custom-enchantments:
     exp-reduction:
       enabled: true
+      # You can use placeholders detailed in effects
       name: '&dExperience Efficiency'
       # to disable set to empty string
       # enchantment: ''
@@ -21,7 +22,12 @@ beacon-item:
       max-level: 5
     soulbound:
       enabled: true
-      name: '&4Soulbound'
+      # You can use placeholders detailed in effects
+      # Additionally:
+      # Use {soulbound-player} to get player name of soulbound owner
+      # Use {soulbound-player|Your custom text} to change the displayed text when the owner's name cannot be found
+      # (This is usually unnecessary)
+      name: '&4Soulbound {level}&7 to {soulbound-player}'
       enchantment: binding_curse
       max-level: 5
       # whether a level will be deducted on death
@@ -54,7 +60,11 @@ effects:
   REGENERATION:
     # Display name of the effect
     # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
+    # Use {level} for Roman numeral
+    # The preceding space of {level} is removed to avoid extra space when level = 1
+    # Use {level|number} for decimal
     name: '&cRegeneration'
+    # name: '&cRegeneration {level}' will replicate default behavior
   SPEED:
     name: '&fSpeed'
   RESISTANCE:
@@ -65,7 +75,7 @@ effects:
     name: '&aJump Boost'
   STRENGTH:
     name: '&4Strength'
-  # You can add more potion effects, the key must match vanilla/Bukkit names
+  # You can add more potion effects, the key must match vanilla names
   # Specifying duration & max-amplifier overrides default section
   # For example,
 # NIGHT_VISION:
