@@ -270,6 +270,11 @@ public class Config {
     @NotNull
     public static PotionEffectInfo effectsDefault;
     public static HashMap<PotionEffectType, PotionEffectInfo> effects;
+    private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null);
+    @NotNull
+    public static PotionEffectInfo getInfo(PotionEffectType potion) {
+        return effects.getOrDefault(potion, EMPTY_INFO);
+    }
 
     public static class PotionEffectInfo {
         @Nullable
