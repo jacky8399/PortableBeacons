@@ -154,9 +154,18 @@ public class CommandPortableBeacons implements TabExecutor {
         return beaconEffects;
     }
 
+    private boolean checkPermission(CommandSender sender, String permission) {
+        boolean result = sender.hasPermission(permission);
+        if (!result)
+            sender.sendMessage(ChatColor.RED + "You don't have permission to do this!");
+        return result;
+    }
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
+            if (!checkPermission(sender, "portablebeacons.command.info"))
+                return true;
             sender.sendMessage(ChatColor.GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
             sender.sendMessage(ChatColor.GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
             return true;
@@ -164,16 +173,22 @@ public class CommandPortableBeacons implements TabExecutor {
 
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "reload": {
+                if (!checkPermission(sender, "portablebeacons.command.reload"))
+                    return true;
                 PortableBeacons.INSTANCE.reloadConfig();
                 sender.sendMessage(ChatColor.GREEN + "Configuration reloaded.");
                 break;
             }
             case "saveconfig": {
+                if (!checkPermission(sender, "portablebeacons.command.saveconfig"))
+                    return true;
                 PortableBeacons.INSTANCE.saveConfig();
                 sender.sendMessage(ChatColor.GREEN + "Configuration saved to file.");
                 break;
             }
             case "setritualitem": {
+                if (!checkPermission(sender, "portablebeacons.command.setritualitem"))
+                    return true;
                 if (sender instanceof Player) {
                     ItemStack stack = ((Player) sender).getInventory().getItemInMainHand();
                     if (stack.getType() == Material.AIR) {
@@ -193,6 +208,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "updateitems": {
+                if (!checkPermission(sender, "portablebeacons.command.updateitems"))
+                    return true;
                 Config.itemCustomVersion = UUID.randomUUID().toString().replace("-", "");
                 PortableBeacons.INSTANCE.saveConfig();
                 sender.sendMessage(ChatColor.GREEN + "All portable beacon items will be forced to update soon.");
@@ -200,6 +217,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "inspect": {
+                if (!checkPermission(sender, "portablebeacons.command.inspect"))
+                    return true;
                 if (!(sender instanceof Player)) {
                     sender.sendMessage(ChatColor.RED + "This command can only be run by a player!");
                     return true;
@@ -208,6 +227,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "item": {
+                if (!checkPermission(sender, "portablebeacons.command.item"))
+                    return true;
                 doItem(sender, args, label);
                 break;
             }
@@ -373,6 +394,8 @@ public class CommandPortableBeacons implements TabExecutor {
 
         String[] operationWithFlags = args[1].split("-");
         String operation = operationWithFlags[0];
+        if (!checkPermission(sender, "portablebeacons.command.item." + operation))
+            return;
         boolean silent = false, modifyAll = false;
         for (int i = 1; i < operationWithFlags.length; i++) {
             String flag = operationWithFlags[i];
@@ -391,7 +414,6 @@ public class CommandPortableBeacons implements TabExecutor {
                 .map(player -> (Player) player)
                 .collect(Collectors.toList());
         String[] effectsString = Arrays.copyOfRange(args, 3, args.length);
-
 
         switch (operation) {
             case "give": {

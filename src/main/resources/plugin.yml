@@ -7,16 +7,37 @@ softdepend:
   - WorldGuard
 commands:
   portablebeacons:
-    permission: portablebeacons.admin
+    permission: portablebeacons.command
     aliases:
       - pb
       - beacons
 
 permissions:
   portablebeacons.admin:
-    default: op
+    default: false
     children:
       portablebeacons.bypass.*: true
+      portablebeacons.command: true
+      portablebeacons.command.*: true
+  portablebeacons.command.*:
+    default: op
+    children:
+      portablebeacons.command.reload: true
+      portablebeacons.command.saveconfig: true
+      portablebeacons.command.item: true
+      portablebeacons.command.item.*: true
+      portablebeacons.command.inspect: true
+      portablebeacons.command.updateitems: true
+      portablebeacons.command.setritualitem: true
+      portablebeacons.command.info: true
+  portablebeacons.command.item.*:
+    default: op
+    children:
+      portablebeacons.command.item.give: true
+      portablebeacons.command.item.add: true
+      portablebeacons.command.item.remove: true
+      portablebeacons.command.item.set: true
+      portablebeacons.command.item.setenchantment: true
   portablebeacons.bypass.*:
     children:
 #      portablebeacons.bypass.level-limit: true
