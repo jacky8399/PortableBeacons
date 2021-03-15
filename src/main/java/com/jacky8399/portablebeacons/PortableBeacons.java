@@ -1,5 +1,9 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons;
 
+import com.jacky8399.portablebeacons.events.EffectsTimer;
+import com.jacky8399.portablebeacons.events.Events;
+import com.jacky8399.portablebeacons.events.ReminderOutline;
+import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -39,7 +43,7 @@ public final class PortableBeacons extends JavaPlugin {
 
         saveDefaultConfig();
         reloadConfig();
-        Bukkit.getPluginManager().registerEvents(new Events(this), this);
+        Events.registerEvents();
         effectsTimer = new EffectsTimer();
         effectsTimer.register();
     }
@@ -63,6 +67,6 @@ public final class PortableBeacons extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        Events.cleanUp();
+        ReminderOutline.cleanUp();
     }
 }

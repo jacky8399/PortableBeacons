@@ -1,5 +1,7 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons.utils;
 
+import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.PortableBeacons;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.LocalPlayer;
 import com.sk89q.worldguard.WorldGuard;

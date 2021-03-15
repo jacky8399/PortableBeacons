@@ -1,7 +1,8 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons.utils;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
+import com.jacky8399.portablebeacons.Config;
 import org.apache.commons.lang.WordUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;

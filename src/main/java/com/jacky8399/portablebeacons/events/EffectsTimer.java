@@ -1,8 +1,14 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons.events;
 
+import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.PortableBeacons;
+import com.jacky8399.portablebeacons.utils.ItemUtils;
+import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ListIterator;
@@ -13,7 +19,6 @@ public class EffectsTimer extends BukkitRunnable {
     public void register() {
         this.runTaskTimer(PortableBeacons.INSTANCE, 0, (int) (150 * CYCLE_TIME_MULTIPLIER));
     }
-
 
     @Override
     public void run() {
@@ -58,7 +63,10 @@ public class EffectsTimer extends BukkitRunnable {
             if (!tryDeductExp(player, actualEffects))
                 continue;
 
-            actualEffects.applyEffects(player);
+            PotionEffect[] effects = actualEffects.toEffects();
+            for (PotionEffect effect : effects) {
+                player.addPotionEffect(effect);
+            }
 
             boolean needsUpdate = beaconEffects.shouldUpdate();
             if (needsUpdate) {

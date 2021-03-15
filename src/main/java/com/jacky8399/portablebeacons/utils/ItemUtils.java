@@ -1,6 +1,8 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons.utils;
 
 import com.google.common.collect.Maps;
+import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.Config;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -18,16 +20,16 @@ import java.util.function.BinaryOperator;
 public class ItemUtils {
     public static boolean isPortableBeacon(ItemStack stack) {
         return stack != null && stack.getType() == Material.BEACON && stack.hasItemMeta() &&
-                stack.getItemMeta().getPersistentDataContainer().has(BeaconEffects.STORAGE_KEY, BeaconEffects.STORAGE_TYPE);
+                stack.getItemMeta().getPersistentDataContainer().has(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE);
     }
 
     public static BeaconEffects getEffects(ItemStack stack) {
-        return stack.getItemMeta().getPersistentDataContainer().get(BeaconEffects.STORAGE_KEY, BeaconEffects.STORAGE_TYPE);
+        return stack.getItemMeta().getPersistentDataContainer().get(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE);
     }
 
     public static void setEffects(ItemStack stack, BeaconEffects effects) {
         ItemMeta meta = stack.getItemMeta();
-        meta.getPersistentDataContainer().set(BeaconEffects.STORAGE_KEY, BeaconEffects.STORAGE_TYPE, effects);
+        meta.getPersistentDataContainer().set(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE, effects);
         stack.setItemMeta(meta);
     }
 

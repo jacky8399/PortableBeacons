@@ -1,6 +1,9 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
+import com.jacky8399.portablebeacons.utils.ItemUtils;
+import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
+import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;

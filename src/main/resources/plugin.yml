@@ -1,6 +1,6 @@
 name: PortableBeacons
 version: @version@
-main: com.jacky8399.main.PortableBeacons
+main: com.jacky8399.portablebeacons.PortableBeacons
 api-version: '1.14'
 prefix: PortableBeacons
 softdepend:

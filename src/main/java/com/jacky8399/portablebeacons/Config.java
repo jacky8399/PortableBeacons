@@ -1,7 +1,8 @@
-package com.jacky8399.main;
+package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
