@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang.WordUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,6 +46,25 @@ public class PotionEffectUtils {
                     PotionEffectType.WITHER, PotionEffectType.LEVITATION);
     public static boolean isNegative(PotionEffectType potion) {
         return NEGATIVE_EFFECTS.contains(potion);
+    }
+
+    public static int getRequiredTier(PotionEffect potion) {
+        if (potion == null) {
+            return -1;
+        } if (potion.getAmplifier() == 1) { // Secondary Power
+            return 4;
+        }
+        PotionEffectType type = potion.getType();
+        if (type == PotionEffectType.SPEED || type == PotionEffectType.FAST_DIGGING) {
+            return 1;
+        } else if (type == PotionEffectType.DAMAGE_RESISTANCE || type == PotionEffectType.JUMP) {
+            return 2;
+        } else if (type == PotionEffectType.INCREASE_DAMAGE) {
+            return 3;
+        } else if (type == PotionEffectType.REGENERATION) {
+            return 4;
+        }
+        return -1;
     }
 
     @NotNull
@@ -97,7 +117,7 @@ public class PotionEffectUtils {
     private static Pattern LEVEL_NUMBER_PATTERN = Pattern.compile("\\{level\\|number}");
     private static Pattern SOULBOUND_PATTERN = Pattern.compile("\\{soulbound-player(?:\\|(.+?))?}");
 
-    public static String replacePlaceholders(Player player, String input, int level, @Nullable String soulboundOwner) {
+    public static String replacePlaceholders(@Nullable Player player, String input, int level, @Nullable String soulboundOwner) {
         if (input.indexOf('{') == -1) {
             return input + toRomanNumeral(level);
         }

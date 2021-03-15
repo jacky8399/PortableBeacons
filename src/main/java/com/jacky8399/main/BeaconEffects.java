@@ -64,17 +64,12 @@ public class BeaconEffects implements Cloneable {
     }
 
     public PotionEffect[] toEffects() {
-        @SuppressWarnings("ConstantConditions")
-        int defaultDuration = Config.effectsDefault.durationInTicks;
         PotionEffect[] arr = new PotionEffect[effects.size()];
         int i = 0;
         for (Map.Entry<PotionEffectType, Short> entry : effects.entrySet()) {
-            Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
-            int duration = defaultDuration;
-            if (info != null && info.durationInTicks != null) {
-                duration = info.durationInTicks;
-            }
-            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, info == null || !info.isHideParticles());
+            Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
+            int duration = info.getDuration();
+            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles());
         }
         return arr;
     }
@@ -93,7 +88,8 @@ public class BeaconEffects implements Cloneable {
 
         List<String> enchantsLore = new ArrayList<>();
         if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
-            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null, Config.customEnchantExpReductionName, expReductionLevel));
+            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
+                    Config.customEnchantExpReductionName, expReductionLevel));
         }
         if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
             String owner = null;
@@ -101,7 +97,8 @@ public class BeaconEffects implements Cloneable {
                 owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
                 if (owner == null) owner = "???"; // haven't seen player before?
             }
-            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null, Config.customEnchantSoulboundName, soulboundLevel, owner));
+            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
+                    Config.customEnchantSoulboundName, soulboundLevel, owner));
         }
         // merge
         if (enchantsLore.size() != 0) {

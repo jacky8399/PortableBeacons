@@ -122,6 +122,8 @@ public class CommandPortableBeacons implements TabExecutor {
     @NotNull
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowZeroAmplifier) {
         BeaconEffects beaconEffects = new BeaconEffects();
+        beaconEffects.expReductionLevel = -1;
+        beaconEffects.soulboundLevel = -1;
         HashMap<PotionEffectType, Short> effects = new HashMap<>();
         for (String s : input) {
             try {
@@ -477,10 +479,14 @@ public class CommandPortableBeacons implements TabExecutor {
                     newEffects.forEach((pot, lvl) -> map.merge(pot, lvl, shortMerger));
                     effects.setEffects(map);
 
-                    Integer newExpReductionLevel = merger.apply(effects.expReductionLevel, virtualEffects.expReductionLevel);
-                    effects.expReductionLevel = newExpReductionLevel != null ? newExpReductionLevel : 0;
-                    Integer newSoulboundLevel = merger.apply(effects.soulboundLevel, virtualEffects.soulboundLevel);
-                    effects.soulboundLevel = newSoulboundLevel != null ? newSoulboundLevel : 0;
+                    if (virtualEffects.expReductionLevel != -1) {
+                        Integer newExpReductionLevel = merger.apply(effects.expReductionLevel, virtualEffects.expReductionLevel);
+                        effects.expReductionLevel = newExpReductionLevel != null ? newExpReductionLevel : 0;
+                    }
+                    if (virtualEffects.soulboundLevel != -1) {
+                        Integer newSoulboundLevel = merger.apply(effects.soulboundLevel, virtualEffects.soulboundLevel);
+                        effects.soulboundLevel = newSoulboundLevel != null ? newSoulboundLevel : 0;
+                    }
                 };
                 editPlayers(sender, players, modifier, silent, modifyAll);
                 break;

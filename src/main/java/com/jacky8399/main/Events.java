@@ -65,11 +65,15 @@ public class Events implements Listener {
 
                 Map<PotionEffectType, Short> effects = new HashMap<>();
                 PotionEffect primary = tileEntity.getPrimaryEffect();
-                effects.put(primary.getType(), (short) primary.getAmplifier());
+                effects.put(primary.getType(), (short) (primary.getAmplifier() + 1));
                 PotionEffect secondary = tileEntity.getSecondaryEffect();
+                int beaconTier = tileEntity.getTier();
+                int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
+                if (beaconTier < requiredTier)
+                    continue;
                 if (secondary != null)
-                    effects.put(secondary.getType(), (short) secondary.getAmplifier());
-                if (!removeBeacon(thrower, blockBelow, tileEntity.getTier())) {
+                    effects.put(secondary.getType(), (short) (secondary.getAmplifier() + 1));
+                if (!removeBeacon(thrower, blockBelow, requiredTier)) {
                     continue;
                 }
                 // play sound to complement block break effects
@@ -83,8 +87,11 @@ public class Events implements Listener {
                     continue;
                 } else if (newAmount > 0) {
                     currentStack.setAmount(newAmount);
-                    Item splitItem = item.getWorld().dropItem(item.getLocation(), currentStack);
-                    ritualItems.put(splitItem, thrower);
+                    // ConcurrentModificationException
+                    Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, ()->{
+                        Item splitItem = item.getWorld().dropItem(item.getLocation(), currentStack);
+                        ritualItems.put(splitItem, thrower);
+                    });
                 }
 
                 // replace item stack
@@ -104,27 +111,51 @@ public class Events implements Listener {
         return !e.isCancelled();
     }
 
+    // the beacon will definitely be removed if this method returns true
     public boolean removeBeacon(Player player, Block block, int tier) {
-        ArrayList<Block> blocksToBreak = new ArrayList<>();
-        blocksToBreak.add(block);
-        for (int i = 1; i <= tier; i++) {
-            for (int x = -i; x <= i; x++) {
-                for (int z = -i; z <= i; z++) {
-                    Block offset = block.getRelative(x, -i, z);
-                    blocksToBreak.add(offset);
+//        HashMap<Integer, List<Block>> blocksToBreak = new HashMap<>();
+        Block[][] blocksToBreak = new Block[tier + 1][];
+//        ArrayList<Block> blocksToBreak = new ArrayList<>();
+//        blocksToBreak.add(block);
+        // beacon block
+
+        blocksToBreak[0] = new Block[] {block};
+        if (block.getType() != Material.BEACON)
+            return false;
+        else if (!callBreakBlockEvent(player, block))
+            return false;
+
+        for (int currentTier = 1; currentTier <= tier; currentTier++) {
+            int i = 0;
+            Block[] blockz = new Block[(int) Math.pow(currentTier * 2 + 1, 2)];
+            for (int x = -currentTier; x <= currentTier; x++) {
+                for (int z = -currentTier; z <= currentTier; z++) {
+                    Block offset = block.getRelative(x, -currentTier, z);
+                    // validate block
+                    if (!Tag.BEACON_BASE_BLOCKS.isTagged(offset.getType()))
+                        return false;
+                    else if (!callBreakBlockEvent(player, offset))
+                        return false;
+                    blockz[i++] = offset;
                 }
             }
-        }
-        for (Block b : blocksToBreak) {
-            if (!callBreakBlockEvent(player, b)) {
-                return false;
-            }
+            blocksToBreak[currentTier] = blockz;
         }
         World world = block.getWorld();
-        for (Block b : blocksToBreak) {
-            world.playEffect(b.getLocation(), Effect.STEP_SOUND, b.getType());
-            world.spawnParticle(Particle.EXPLOSION_HUGE, b.getLocation(), 1);
-            b.setType(Material.AIR);
+        for (int i = 0; i < blocksToBreak.length; i++) {
+            Block[] blocks = blocksToBreak[i];
+            for (Block b : blocks) {
+                b.setType(Material.GLASS); // to prevent duping
+            }
+            // don't break that many blocks at once
+            Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
+                for (Block b : blocks) {
+                    Location location = b.getLocation();
+                    world.playEffect(location, Effect.STEP_SOUND, b.getType());
+                    world.spawnParticle(Particle.EXPLOSION_LARGE, location.add(Math.random(), Math.random(), Math.random()), 1);
+                    b.setType(Material.AIR);
+                }
+            }, (i + 1) * 10L);
         }
         return true;
     }
@@ -280,6 +311,8 @@ public class Events implements Listener {
             return;
         AnvilInventory inv = e.getInventory();
         ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
+        if (is1 == null || is1.getAmount() != 1 || is2 == null || is2.getAmount() != 1)
+            return;
         ItemStack newIs = ItemUtils.combineStack((Player) e.getView().getPlayer(), is1, is2, false);
         int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
@@ -321,12 +354,14 @@ public class Events implements Listener {
             // item validation
             if (!ItemUtils.isPortableBeacon(is1) ||
                     (is2 == null || !(ItemUtils.isPortableBeacon(is2) || is2.getType() == Material.ENCHANTED_BOOK)) ||
-                    inv.getRenameText() != null && !inv.getRenameText().isEmpty() ||
-                    is1.getAmount() != 1 || is2.getAmount() != 1) {
+                    inv.getRenameText() != null && !inv.getRenameText().isEmpty()) {
                 // slot 0 not portable beacon
                 // or slot 1 not book and not beacon
                 // or textbox not empty (vanilla behavior)
-                // or invalid amount
+                return;
+            } else if (is1.getAmount() != 1 || is2.getAmount() != 1) {
+                // invalid amount
+                e.setResult(Event.Result.DENY);
                 return;
             }
 
@@ -335,8 +370,8 @@ public class Events implements Listener {
                 logger.info("Anvil combination for " + player);
                 logger.info("Required levels: " + levelRequired + ", max repair cost: " + inv.getMaximumRepairCost() + ", enforce: " + Config.anvilCombinationEnforceVanillaExpLimit);
             }
-            if (player.getLevel() < levelRequired ||
-                    levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit) {
+            if (player.getGameMode() != GameMode.CREATIVE && (player.getLevel() < levelRequired ||
+                    levelRequired >= inv.getMaximumRepairCost() && Config.anvilCombinationEnforceVanillaExpLimit)) {
                 e.setResult(Event.Result.DENY);
                 return;
             }
