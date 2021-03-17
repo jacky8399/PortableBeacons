@@ -6,7 +6,6 @@ import com.jacky8399.portablebeacons.events.ReminderOutline;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Logger;
@@ -56,12 +55,7 @@ public final class PortableBeacons extends JavaPlugin {
 
     @Override
     public void saveConfig() {
-        FileConfiguration config = getConfig();
-        config.set("item-used", Config.ritualItem);
-        if (Config.itemCustomVersion != null)
-            config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
-        config.options().copyDefaults(true).header("To see descriptions of different options: \n" +
-                "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml");
+        Config.saveConfig();
         super.saveConfig();
     }
 

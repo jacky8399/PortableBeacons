@@ -5,7 +5,6 @@ import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
-import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
@@ -26,6 +25,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static net.md_5.bungee.api.ChatColor.*;
+
 public class CommandPortableBeacons implements TabExecutor {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
@@ -38,7 +39,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
     private Stream<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length <= 1) {
-            return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect");
+            return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle");
         } else if (args[0].equalsIgnoreCase("item")) {
             switch (args.length) {
                 case 2: {
@@ -141,10 +142,18 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     // show potion effects and enchantments
                     return Stream.concat(
-                            Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName),
+                            PotionEffectUtils.getValidPotionNames().stream(),
                             Stream.of("exp-reduction", "soulbound")
                     );
                 }
+            }
+        } else if (args[0].equalsIgnoreCase("inspect") && args.length == 2) {
+            return Bukkit.getOnlinePlayers().stream().map(Player::getName);
+        } else if (args[0].equalsIgnoreCase("toggle")) {
+            if (args.length == 2) {
+                return Stream.of("ritual", "anvil-combination");
+            } else if (args.length == 3) {
+                return Stream.of("true", "false");
             }
         }
         return null;
@@ -181,7 +190,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 Preconditions.checkArgument(amplifier >= (allowZeroAmplifier ? 0 : 1), "Amplifier is negative");
                 effects.put(type, (short) amplifier);
             } catch (IllegalArgumentException e) {
-                sender.sendMessage(ChatColor.RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
+                sender.sendMessage(RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
             }
         }
         beaconEffects.setEffects(effects);
@@ -191,7 +200,7 @@ public class CommandPortableBeacons implements TabExecutor {
     private boolean checkPermission(CommandSender sender, String permission) {
         boolean result = sender.hasPermission(permission);
         if (!result)
-            sender.sendMessage(ChatColor.RED + "You don't have permission to do this!");
+            sender.sendMessage(RED + "You don't have permission to do this!");
         return result;
     }
 
@@ -200,8 +209,8 @@ public class CommandPortableBeacons implements TabExecutor {
         if (args.length == 0) {
             if (!checkPermission(sender, "portablebeacons.command.info"))
                 return true;
-            sender.sendMessage(ChatColor.GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
-            sender.sendMessage(ChatColor.GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
+            sender.sendMessage(GREEN + "You are running PortableBeacons " + PortableBeacons.INSTANCE.getDescription().getVersion());
+            sender.sendMessage(GRAY + "WorldGuard integration: " + Config.worldGuard + ", WorldGuard detected: " + PortableBeacons.INSTANCE.worldGuardInstalled);
             return true;
         }
 
@@ -210,14 +219,41 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (!checkPermission(sender, "portablebeacons.command.reload"))
                     return true;
                 PortableBeacons.INSTANCE.reloadConfig();
-                sender.sendMessage(ChatColor.GREEN + "Configuration reloaded.");
+                sender.sendMessage(GREEN + "Configuration reloaded.");
                 break;
             }
             case "saveconfig": {
                 if (!checkPermission(sender, "portablebeacons.command.saveconfig"))
                     return true;
                 PortableBeacons.INSTANCE.saveConfig();
-                sender.sendMessage(ChatColor.GREEN + "Configuration saved to file.");
+                sender.sendMessage(GREEN + "Configuration saved to file.");
+                break;
+            }
+            case "toggle": {
+                if (!checkPermission(sender, "portablebeacons.command.toggle"))
+                    return true;
+                if (args.length < 2) {
+                    sender.sendMessage(RED + "Usage: /" + label + " toggle <ritual/anvil-combination> [true/false]");
+                    return false;
+                }
+                Boolean value = args.length == 3 ? args[2].equalsIgnoreCase("true") : null;
+                boolean newValue;
+                switch (args[1].toLowerCase(Locale.ROOT)) {
+                    case "ritual": {
+                        newValue = Config.ritualEnabled = value != null ? value : !Config.ritualEnabled;
+                        break;
+                    }
+                    case "anvil-combination": {
+                        newValue = Config.anvilCombinationEnabled = value != null ? value : !Config.anvilCombinationEnabled;
+                        break;
+                    }
+                    default: {
+                        sender.sendMessage(RED + "Invalid toggle option!");
+                        return true;
+                    }
+                }
+                sender.sendMessage(GREEN + "Temporarily set " + args[1] + " to " + newValue);
+                sender.sendMessage(GREEN + "To make your change persist after a reload, do /" + label + " saveconfig");
                 break;
             }
             case "setritualitem": {
@@ -228,16 +264,18 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (stack.getType() == Material.AIR) {
                         Config.ritualItem = new ItemStack(Material.AIR);
                         PortableBeacons.INSTANCE.saveConfig();
-                        sender.sendMessage(ChatColor.RED + "Disabled portable beacon creation");
+                        sender.sendMessage(RED + "Set ritual item to air");
+                        sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, do /" + label + " toggle ritual false");
+                        sender.sendMessage(YELLOW + "This may have side effects in future updates!");
                     } else {
                         Config.ritualItem = stack.clone();
                         PortableBeacons.INSTANCE.saveConfig();
-                        sender.sendMessage(ChatColor.GREEN + "Successfully set ritual item to " +
+                        sender.sendMessage(GREEN + "Successfully set ritual item to " +
                                 stack.getAmount() + " of " + stack.getType().name() + "(+ additional item meta).");
                     }
-                    sender.sendMessage(ChatColor.GREEN + "Configuration saved to file.");
+                    sender.sendMessage(GREEN + "Configuration saved to file.");
                 } else {
-                    sender.sendMessage(ChatColor.RED + "You must be a player to use this command!");
+                    sender.sendMessage(RED + "You must be a player to use this command!");
                 }
                 break;
             }
@@ -246,18 +284,24 @@ public class CommandPortableBeacons implements TabExecutor {
                     return true;
                 Config.itemCustomVersion = UUID.randomUUID().toString().replace("-", "");
                 PortableBeacons.INSTANCE.saveConfig();
-                sender.sendMessage(ChatColor.GREEN + "All portable beacon items will be forced to update soon.");
-                sender.sendMessage(ChatColor.GREEN + "Configuration saved to file.");
+                sender.sendMessage(GREEN + "All portable beacon items will be forced to update soon.");
+                sender.sendMessage(GREEN + "Configuration saved to file.");
                 break;
             }
             case "inspect": {
                 if (!checkPermission(sender, "portablebeacons.command.inspect"))
                     return true;
-                if (!(sender instanceof Player)) {
-                    sender.sendMessage(ChatColor.RED + "This command can only be run by a player!");
-                    return true;
+                Player target = null;
+                if (args.length > 1)
+                    target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    if (!(sender instanceof Player)) {
+                        sender.sendMessage(RED + "You must specify a player!");
+                        return true;
+                    }
+                    target = (Player) sender;
                 }
-                doInspect((Player) sender);
+                doInspect(sender, target);
                 break;
             }
             case "item": {
@@ -267,7 +311,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             default: {
-                sender.sendMessage(ChatColor.RED + "Usage: /" + label + " <reload/setritualitem/update/item> [...]");
+                sender.sendMessage(RED + "Usage: /" + label + " <reload/setritualitem/updateitems/inspect/item/toggle> [...]");
                 break;
             }
         }
@@ -283,25 +327,26 @@ public class CommandPortableBeacons implements TabExecutor {
         }
     }
 
-    public void doInspect(Player player) {
-        ItemStack stack = player.getInventory().getItemInMainHand();
+    public void doInspect(CommandSender sender, Player target) {
+        ItemStack stack = target.getInventory().getItemInMainHand();
         if (!ItemUtils.isPortableBeacon(stack)) {
-            player.sendMessage(ChatColor.RED + "You are not holding a portable beacon!");
+            sender.sendMessage(RED + "Target is not holding a portable beacon!");
             return;
         }
+        boolean showHoverMessages = sender instanceof Player;
         BeaconEffects effects = ItemUtils.getEffects(stack);
 
         // simulate nerfs
-        boolean isInDisabledWorld = Config.itemNerfsDisabledWorlds.contains(player.getWorld().getName());
+        boolean isInDisabledWorld = Config.itemNerfsDisabledWorlds.contains(target.getWorld().getName());
         boolean canUseBeacons = true;
         BeaconEffects effectiveEffects = effects;
         if (PortableBeacons.INSTANCE.worldGuardInstalled && Config.worldGuard) {
-            canUseBeacons = WorldGuardHelper.canUseBeacons(player);
-            effectiveEffects = WorldGuardHelper.filterBeaconEffects(player, effects);
+            canUseBeacons = WorldGuardHelper.canUseBeacons(target);
+            effectiveEffects = WorldGuardHelper.filterBeaconEffects(target, effects);
         }
         Map<PotionEffectType, Short> effectsMap = effects.getEffects();
         Map<PotionEffectType, Short> effectiveEffectsMap = effectiveEffects.getEffects();
-        player.sendMessage(ChatColor.GREEN + "Potion effects:");
+        sender.sendMessage(GREEN + "Potion effects:");
         for (Map.Entry<PotionEffectType, Short> entry : effectsMap.entrySet()) {
             // format used in commands
             String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (entry.getValue() != 1 ? "*" + entry.getValue() : "");
@@ -309,9 +354,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     .append("  ") // indentation
                     .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue())))
                     .append(" ", ComponentBuilder.FormatRetention.NONE)
-                    .append("(" + internalFormat + ")").color(ChatColor.YELLOW)
+                    .append("(" + internalFormat + ")").color(YELLOW)
                     .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
-                            .color(ChatColor.YELLOW)
+                            .color(YELLOW)
                             .create()
                     )))
                     .event(new ClickEvent(getCopyToClipboard(), internalFormat))
@@ -321,17 +366,17 @@ public class CommandPortableBeacons implements TabExecutor {
             if (isInDisabledWorld) {
                 disabledDisplay = new ComponentBuilder("You are in a world where Portable Beacons are disabled!\n" +
                         "Check config 'beacon-items.nerfs.disabled-worlds'.")
-                        .color(ChatColor.RED)
+                        .color(RED)
                         .create();
             } else if (!canUseBeacons) {
                 disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where Portable Beacons are disabled!\n" +
                         "Check 'allow-portable-beacons' of the region.")
-                        .color(ChatColor.RED)
+                        .color(RED)
                         .create();
             } else if (!effectiveEffectsMap.containsKey(entry.getKey())) {
                 disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
                         "Check 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.")
-                        .color(ChatColor.RED)
+                        .color(RED)
                         .create();
             }
 
@@ -343,28 +388,33 @@ public class CommandPortableBeacons implements TabExecutor {
                 BaseComponent[] actualDisplay = new ComponentBuilder()
                         .append(potionDisplayStrikethrough).strikethrough(true)
                         .append(" DISABLED ", ComponentBuilder.FormatRetention.NONE)
-                        .color(ChatColor.DARK_GRAY).italic(true)
+                        .color(DARK_GRAY).italic(true)
                         .append("[?]", ComponentBuilder.FormatRetention.NONE)
-                        .color(ChatColor.DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
+                        .color(DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
                         .create();
-                player.spigot().sendMessage(actualDisplay);
+                sender.spigot().sendMessage(actualDisplay);
+                if (!showHoverMessages) { // show consoles too
+                    TextComponent disabledDisplayIndent = new TextComponent("    ");
+                    disabledDisplayIndent.setExtra(Arrays.asList(disabledDisplay));
+                    sender.spigot().sendMessage(disabledDisplayIndent);
+                }
             } else {
-                player.spigot().sendMessage(potionDisplay);
+                sender.spigot().sendMessage(potionDisplay);
             }
         }
-        player.sendMessage(ChatColor.GREEN + "Custom data version: " + ChatColor.YELLOW + effects.customDataVersion);
+        sender.sendMessage(GREEN + "Custom data version: " + YELLOW + effects.customDataVersion);
         if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
-            player.sendMessage(ChatColor.GREEN + "Enchantments:");
+            sender.sendMessage(GREEN + "Enchantments:");
             if (effects.expReductionLevel != 0)
-                player.sendMessage("  " + ChatColor.YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
+                sender.sendMessage("  " + YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
                         String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) * 100));
             if (effects.soulboundLevel != 0)
-                player.sendMessage("  " + ChatColor.YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
+                sender.sendMessage("  " + YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
                         (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
         }
         if (Config.itemNerfsExpPercentagePerCycle > 0) {
             double xpPerCycle = effects.calcExpPerCycle();
-            player.sendMessage(ChatColor.GREEN + "Exp %: " + ChatColor.YELLOW +
+            sender.sendMessage(GREEN + "Exp %: " + YELLOW +
                     String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
         }
     }
@@ -386,7 +436,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
 
                 if (success && !silent)
-                    player.sendMessage(ChatColor.GREEN + "One or more of your portable beacon was modified!");
+                    player.sendMessage(GREEN + "One or more of your portable beacon was modified!");
                 else if (!success)
                     failedPlayers.add(player);
             });
@@ -403,24 +453,24 @@ public class CommandPortableBeacons implements TabExecutor {
                 modifier.accept(effects);
                 inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
                 if (!silent)
-                    player.sendMessage(ChatColor.GREEN + "Your portable beacon was modified!");
+                    player.sendMessage(GREEN + "Your portable beacon was modified!");
             });
 
         ArrayList<Player> succeeded = new ArrayList<>(players);
         succeeded.removeAll(failedPlayers);
 
         if (succeeded.size() != 0)
-            sender.sendMessage(ChatColor.GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
+            sender.sendMessage(GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
                     succeeded.stream().map(Player::getName).collect(Collectors.joining(", ")));
         if (failedPlayers.size() != 0)
-            sender.sendMessage(ChatColor.RED + "Failed to apply the operation on " +
+            sender.sendMessage(RED + "Failed to apply the operation on " +
                     failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                     " because they " + (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon.")
             );
     }
 
     public void doItem(CommandSender sender, String[] args, String label) {
-        String usage = ChatColor.RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment>[-silently/-modify-all] <players> <effects...>";
+        String usage = RED + "Usage: /" + label + " item <give/add/set/remove/setenchantment/filter>[-silently/-modify-all] <players> <...>";
         if (args.length < 4) {
             sender.sendMessage(usage);
             return;
@@ -437,9 +487,9 @@ public class CommandPortableBeacons implements TabExecutor {
                 silent = true;
             } else if ("all".equalsIgnoreCase(flag) && "modify".equalsIgnoreCase(operationWithFlags[i - 1])) {
                 modifyAll = true;
-                sender.sendMessage(ChatColor.YELLOW + "Name of the flag '-modify-all' is subject to change.");
+                sender.sendMessage(YELLOW + "Name of the flag '-modify-all' is subject to change.");
             } else if (!"modify".equalsIgnoreCase(flag)) {
-                sender.sendMessage(ChatColor.RED + "Unknown flag -" + flag);
+                sender.sendMessage(RED + "Unknown flag -" + flag);
             }
         }
 
@@ -461,17 +511,17 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
                         failedPlayers.add(player);
                     else if (finalSilent)
-                        player.sendMessage(ChatColor.GREEN + "You were given a portable beacon!");
+                        player.sendMessage(GREEN + "You were given a portable beacon!");
                 });
 
-                sender.sendMessage(ChatColor.GREEN + "Given " +
+                sender.sendMessage(GREEN + "Given " +
                         players.stream()
                                 .filter(player -> !failedPlayers.contains(player))
                                 .map(Player::getName)
                                 .collect(Collectors.joining(", "))
-                        + " a portable beacon with " + String.join(ChatColor.WHITE + ", ", beaconEffects.toLore()));
+                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore()));
                 if (failedPlayers.size() != 0)
-                    sender.sendMessage(ChatColor.RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
+                    sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
                 break;
             }
@@ -525,7 +575,7 @@ public class CommandPortableBeacons implements TabExecutor {
             }
             case "setenchantment": {
                 if (args.length < 5) {
-                    sender.sendMessage(ChatColor.RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level> [soulboundOwner]");
+                    sender.sendMessage(RED + "Usage: /" + label + " item setenchantment <players> <enchantment> <level> [soulboundOwner]");
                     return;
                 }
 
@@ -551,7 +601,7 @@ public class CommandPortableBeacons implements TabExecutor {
                                 effects.soulboundOwner = finalUuid;
                             };
                         } else {
-                            sender.sendMessage(ChatColor.RED + "Couldn't find UUID or online player '" + args[5] + "'!");
+                            sender.sendMessage(RED + "Couldn't find UUID or online player '" + args[5] + "'!");
                             return;
                         }
                     } else {
@@ -560,10 +610,27 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else if (enchantment.equalsIgnoreCase("exp-reduction")) {
                     modifier = effects -> effects.expReductionLevel = newLevel;
                 } else {
-                    sender.sendMessage(ChatColor.RED + "Invalid enchantment " + enchantment + "!");
+                    sender.sendMessage(RED + "Invalid enchantment " + enchantment + "!");
                     return;
                 }
                 editPlayers(sender, players, modifier, silent, modifyAll);
+                break;
+            }
+            case "filter": {
+                if (args.length < 5) {
+                    sender.sendMessage(RED + "Usage: /" + label + " item filter <players> <allow/block> <filters...>");
+                }
+                boolean whitelist = args[3].equalsIgnoreCase("allow");
+                String[] filtersString = Arrays.copyOfRange(args, 4, args.length);
+                Set<BeaconEffectsFilter> filters = new HashSet<>();
+                for (String filterString : filtersString) {
+                    try {
+                        filters.add(BeaconEffectsFilter.fromString(filterString));
+                    } catch (IllegalArgumentException e) {
+                        sender.sendMessage(RED + "Invalid filter " + filterString + ": " + e.getMessage());
+                    }
+                }
+                editPlayers(sender, players, effects -> effects.filter(filters, whitelist), silent, modifyAll);
                 break;
             }
             default: {

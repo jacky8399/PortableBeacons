@@ -83,6 +83,11 @@ effects:
 #   duration: 400
 
 
+ritual:
+  enabled: true
+  item:
+    __: This is saved by the plugin! If this is empty, the default (32x nether_star) is used.
+
 anvil-combination:
   enabled: true # Enable combining portable beacons in anvil
   max-effects: 6 # Max no. of effects the resultant item can have
@@ -94,4 +99,3 @@ anvil-combination:
 
 # Enable WorldGuard integration
 world-guard: true
-# Item used is generated on startup

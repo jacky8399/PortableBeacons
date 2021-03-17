@@ -32,7 +32,6 @@ import java.util.*;
 import java.util.function.Predicate;
 
 public class Events implements Listener {
-
     public static void registerEvents() {
         PortableBeacons plugin = PortableBeacons.INSTANCE;
         Bukkit.getPluginManager().registerEvents(new Events(plugin), plugin);
@@ -40,13 +39,14 @@ public class Events implements Listener {
         Bukkit.getPluginManager().registerEvents(new AnvilRecipe(), plugin);
     }
 
-
+    public static Events INSTANCE;
     public Events(PortableBeacons plugin) {
+        INSTANCE = this;
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
     }
 
     public void doItemLocationCheck() {
-        if (ritualItems.size() == 0)
+        if (!Config.ritualEnabled || ritualItems.size() == 0)
             return;
         Iterator<Map.Entry<Item, Player>> iterator = ritualItems.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -107,11 +107,11 @@ public class Events implements Listener {
         }
     }
 
-    private static boolean callBreakBlockEvent(Player player, Block block) {
+    private static boolean checkBlockEventFail(Player player, Block block) {
         BlockBreakEvent e = new BlockBreakEvent(block, player);
         e.setDropItems(false);
         Bukkit.getPluginManager().callEvent(e);
-        return !e.isCancelled();
+        return e.isCancelled();
     }
 
     // the beacon will definitely be removed if this method returns true
@@ -125,7 +125,7 @@ public class Events implements Listener {
         blocksToBreak[0] = new Block[] {block};
         if (block.getType() != Material.BEACON)
             return false;
-        else if (!callBreakBlockEvent(player, block))
+        else if (checkBlockEventFail(player, block))
             return false;
 
         for (int currentTier = 1; currentTier <= tier; currentTier++) {
@@ -137,7 +137,7 @@ public class Events implements Listener {
                     // validate block
                     if (!Tag.BEACON_BASE_BLOCKS.isTagged(offset.getType()))
                         return false;
-                    else if (!callBreakBlockEvent(player, offset))
+                    else if (checkBlockEventFail(player, offset))
                         return false;
                     blockz[i++] = offset;
                 }
@@ -163,9 +163,11 @@ public class Events implements Listener {
         return true;
     }
 
-    private WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
+    public WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
+        if (!Config.ritualEnabled)
+            return;
         ItemStack is = e.getItemDrop().getItemStack();
         if (is.isSimilar(Config.ritualItem) && is.getAmount() >= Config.ritualItem.getAmount()) {
             ritualItems.put(e.getItemDrop(), e.getPlayer());
@@ -218,7 +220,7 @@ public class Events implements Listener {
                 if (ItemUtils.isPortableBeacon(dropped)) {
                     Player player = e.getEntity();
                     BeaconEffects effects = ItemUtils.getEffects(dropped);
-                    if (effects.soulboundLevel != 0 && effects.soulboundOwner.equals(player.getUniqueId())) {
+                    if (effects.soulboundLevel != 0 && player.getUniqueId().equals(effects.soulboundOwner)) {
                         iterator.remove();
                         List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
                         if (Config.customEnchantSoulboundConsumeLevelOnDeath) {

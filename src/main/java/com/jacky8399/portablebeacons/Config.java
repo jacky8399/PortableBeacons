@@ -19,6 +19,19 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Config {
+    public static void saveConfig() {
+        FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
+        // things that can be changed by commands
+        config.set("ritual.enabled", Config.ritualEnabled);
+        config.set("ritual.item", Config.ritualItem);
+        config.set("anvil-combination.enabled", Config.anvilCombinationEnabled);
+        // prompt
+        config.set("ritual.item.__", "This is saved by the plugin! If this is empty, the default (32x nether_star) is used.");
+        if (Config.itemCustomVersion != null)
+            config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
+        config.options().copyDefaults(true).header("To see descriptions of different options: \n" +
+                "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml");
+    }
 
     public static void loadConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
@@ -29,11 +42,22 @@ public class Config {
             logger.info("Debug enabled");
         }
 
-        // what an unintelligible mess
-
         // Ritual item
-        ritualItem = config.getItemStack("item-used", config.getItemStack("item_used",
-                new ItemStack(Material.NETHER_STAR, 32)));
+        ritualEnabled = config.getBoolean("ritual.enabled");
+        ritualItem = config.getItemStack("ritual.item");
+        if (ritualItem == null) {
+            ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
+            if (legacy != null) {
+                config.set("item-used", null);
+                config.set("item_used", null);
+                config.set("ritual.item", legacy);
+                config.set("ritual.item.__", "This is saved by the plugin! If this is empty, the default (32x nether_star) is used.");
+                ritualItem = legacy;
+                logger.info("Old config (item-used) has been migrated successfully. Use '/pb saveconfig' to save to file.");
+            } else {
+                ritualItem = new ItemStack(Material.NETHER_STAR, 32);
+            }
+        }
 
         // Beacon item properties
 
@@ -95,7 +119,8 @@ public class Config {
 
         worldGuard = config.getBoolean("world-guard");
         if (debug) {
-            logger.info(() -> "Ritual item: " + ritualItem);
+            logger.info(() -> "Ritual/enabled: " + ritualEnabled);
+            logger.info(() -> "Ritual/item: " + ritualItem);
             logger.info(() -> "Item custom version: " + itemCustomVersion);
             logger.info(() -> "Beacon item/name: " + itemName);
             logger.info(() -> "Beacon item/lore: " + String.join("\\n", itemLore));
@@ -226,6 +251,7 @@ public class Config {
 
     public static boolean debug;
 
+    public static boolean ritualEnabled;
     public static ItemStack ritualItem;
 
     public static String itemName;
