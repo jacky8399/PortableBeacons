@@ -1,6 +1,7 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
+import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
@@ -27,98 +28,126 @@ import java.util.stream.Stream;
 
 public class CommandPortableBeacons implements TabExecutor {
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, Command command, @NotNull String alias, String[] args) {
-        if (command.getLabel().equalsIgnoreCase("portablebeacons")) {
-            if (args.length <= 1) {
-                return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect").filter(name -> name.startsWith(args[0])).collect(Collectors.toList());
-            } else if (args[0].equalsIgnoreCase("item")) {
-                switch (args.length) {
-                    case 2: {
-                        String[] operations = {"give", "add", "remove", "set", "setenchantment"};
-                        String[] flags = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
-                        List<String> completions = new ArrayList<>();
-                        for (String operation : operations) {
-                            // flags
-                            if (operation.split("-")[0].equalsIgnoreCase(args[1])) {
-                                for (String flag : flags) {
-                                    if ((operation + flag).startsWith(args[1])) {
-                                        completions.add(operation);
-                                    }
-                                }
-                            } else if (operation.startsWith(args[1])) {
-                                completions.add(operation);
-                            }
-                        }
-                        return completions;
-                    }
-                    case 3: {
-                        return Stream.concat(
-                                Stream.of("@a", "@s", "@p"),
-                                Bukkit.getOnlinePlayers().stream().map(Player::getName)
-                        ).filter(name -> name.startsWith(args[2])).collect(Collectors.toList());
-                    }
-                    default: {
-                        // Enchantment autocomplete
-                        if (args[1].startsWith("setenchantment")) {
-                            switch (args.length) {
-                                case 4: {
-                                    return Stream.of("exp-reduction", "soulbound")
-                                            .filter(name -> name.startsWith(args[3]))
-                                            .collect(Collectors.toList());
-                                }
-                                case 5: {
-                                    // levels
-                                    int maxLevel = args[3].equalsIgnoreCase("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
-                                    return IntStream.rangeClosed(1, maxLevel)
-                                            .mapToObj(Integer::toString)
-                                            .filter(level -> level.startsWith(args[4]))
-                                            .collect(Collectors.toList());
-                                }
-                                case 6: {
-                                    if (args[3].equalsIgnoreCase("soulbound")) {
-                                        // show player names for soulbound owner
-                                        return Bukkit.getOnlinePlayers().stream()
-                                                .map(Player::getName)
-                                                .filter(name -> name.startsWith(args[5]))
-                                                .collect(Collectors.toList());
-                                    }
-                                }
-                                default: {
-                                    return Collections.emptyList();
-                                }
-                            }
-                        }
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        Stream<String> tabCompletion = tabComplete(sender, args);
+        if (tabCompletion == null)
+            return Collections.emptyList();
+        String input = args[args.length - 1];
+        return tabCompletion.filter(completion -> completion.startsWith(input)).collect(Collectors.toList());
+    }
 
-                        // Potion effect type autocomplete
-                        String input = args[args.length - 1];
-                        int maxAmplifier = -1;
-                        Optional<PotionEffectType> optionalPotion = PotionEffectUtils.parsePotion(input, false);
-                        if (optionalPotion.isPresent()) {
-                            // valid input, show amplifiers
-                            Config.PotionEffectInfo info = Config.getInfo(optionalPotion.get());
-                            maxAmplifier = info.getMaxAmplifier();
-                        } else if (input.equalsIgnoreCase("exp-reduction")) {
-                            maxAmplifier = Config.customEnchantExpReductionMaxLevel;
-                        } else if (input.equalsIgnoreCase("soulbound")) {
-                            maxAmplifier = Config.customEnchantSoulboundMaxLevel;
+    private Stream<String> tabComplete(CommandSender sender, String[] args) {
+        if (args.length <= 1) {
+            return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect");
+        } else if (args[0].equalsIgnoreCase("item")) {
+            switch (args.length) {
+                case 2: {
+                    String[] operations = {"give", "add", "remove", "set", "filter", "setenchantment"};
+                    String[] flags = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
+                    List<String> completions = new ArrayList<>();
+                    for (String operation : operations) {
+                        // flags
+                        if (operation.split("-")[0].equalsIgnoreCase(args[1])) {
+                            for (String flag : flags) {
+                                if ((operation + flag).startsWith(args[1])) {
+                                    completions.add(operation);
+                                }
+                            }
+                        } else if (operation.startsWith(args[1])) {
+                            completions.add(operation);
                         }
-                        if (maxAmplifier != -1)
-                            return IntStream.rangeClosed("give".equalsIgnoreCase(args[1]) ? 1 : 0, maxAmplifier)
-                                    .mapToObj(i -> input + "*" + i)
-                                    .filter(level -> level.startsWith(input))
-                                    .collect(Collectors.toList());
-                        // show potion effects and enchantments
-                        return Stream.concat(
-                                Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName),
-                                Stream.of("exp-reduction", "soulbound")
-                        )
-                                .filter(name -> name.startsWith(input))
-                                .collect(Collectors.toList());
                     }
+                    return completions.stream();
+                }
+                case 3: {
+                    return Stream.concat(
+                            Stream.of("@a", "@s", "@p"),
+                            Bukkit.getOnlinePlayers().stream().map(Player::getName)
+                    );
+                }
+                default: {
+                    // Enchantment autocomplete
+                    if (args[1].startsWith("setenchantment")) {
+                        switch (args.length) {
+                            case 4: {
+                                return Stream.of("exp-reduction", "soulbound");
+                            }
+                            case 5: {
+                                // levels
+                                int maxLevel = args[3].equalsIgnoreCase("exp-reduction") ? Config.customEnchantExpReductionMaxLevel : Config.customEnchantSoulboundMaxLevel;
+                                return IntStream.rangeClosed(1, maxLevel)
+                                        .mapToObj(Integer::toString);
+                            }
+                            case 6: {
+                                if (args[3].equalsIgnoreCase("soulbound")) {
+                                    // show player names for soulbound owner
+                                    return Bukkit.getOnlinePlayers().stream()
+                                            .map(Player::getName);
+                                }
+                            }
+                            default: {
+                                return null;
+                            }
+                        }
+                    } else if (args[1].startsWith("filter")) { // filter autocomplete
+                        if (args.length == 4) {
+                            return Stream.of("allow", "block");
+                        } else {
+                            String input = args[args.length - 1];
+                            List<String> operators = new ArrayList<>();
+                            for (BeaconEffectsFilter.Operator operator : BeaconEffectsFilter.Operator.values()) {
+                                if (operator == BeaconEffectsFilter.Operator.ANY)
+                                    continue;
+                                int idx = input.indexOf(operator.operator);
+                                if (idx == -1) {
+                                    operators.add(operator.operator);
+                                } else if (idx + operator.operator.length() == input.length()) {
+                                    // inputted potion name and operator, show constraints
+                                    return IntStream.range(0, 10).mapToObj(Integer::toString);
+                                }
+                                // already inputting constraint
+                            }
+                            Optional<PotionEffectType> type = PotionEffectUtils.parsePotion(input, false);
+                            if (type.isPresent()) {
+                                // already inputting operators
+                                return Stream.concat(operators.stream(), Stream.of(input));
+                            } else {
+                                return PotionEffectUtils.getValidPotionNames().stream();
+                            }
+                        }
+                    }
+
+                    // Potion effect type autocomplete
+                    String input = args[args.length - 1];
+                    // try removing asterisk and everything after
+                    int asteriskIdx = input.indexOf('*');
+                    if (asteriskIdx != -1)
+                        input = input.substring(0, asteriskIdx);
+                    int maxAmplifier = -1;
+                    Optional<PotionEffectType> optionalPotion = PotionEffectUtils.parsePotion(input, false);
+                    if (optionalPotion.isPresent()) {
+                        // valid input, show amplifiers
+                        Config.PotionEffectInfo info = Config.getInfo(optionalPotion.get());
+                        maxAmplifier = info.getMaxAmplifier();
+                    } else if (input.equalsIgnoreCase("exp-reduction")) {
+                        maxAmplifier = Config.customEnchantExpReductionMaxLevel;
+                    } else if (input.equalsIgnoreCase("soulbound")) {
+                        maxAmplifier = Config.customEnchantSoulboundMaxLevel;
+                    }
+                    if (maxAmplifier != -1) {
+                        String finalInput = input;
+                        return IntStream.rangeClosed("give".equalsIgnoreCase(args[1]) ? 1 : 0, maxAmplifier)
+                                .mapToObj(i -> finalInput + "*" + i);
+                    }
+                    // show potion effects and enchantments
+                    return Stream.concat(
+                            Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName),
+                            Stream.of("exp-reduction", "soulbound")
+                    );
                 }
             }
         }
-        return Collections.emptyList();
+        return null;
     }
 
 

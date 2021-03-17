@@ -2,6 +2,7 @@ package com.jacky8399.portablebeacons;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
@@ -63,6 +64,19 @@ public class BeaconEffects implements Cloneable {
 
     public void setEffects(Map<PotionEffectType, Short> effects) {
         this.effects = ImmutableMap.copyOf(effects);
+    }
+
+    public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
+        HashMap<PotionEffectType, Short> map = whitelist ? new HashMap<>() : new HashMap<>(effects);
+        for (BeaconEffectsFilter filter : filters) {
+            if (filter.contains(effects)) {
+                if (whitelist)
+                    map.put(filter.type, effects.get(filter.type));
+                else
+                    map.remove(filter.type);
+            }
+        }
+        this.effects = ImmutableMap.copyOf(map);
     }
 
     public PotionEffect[] toEffects() {
@@ -221,7 +235,7 @@ public class BeaconEffects implements Cloneable {
             }
         }
 
-        //<editor-fold desc="Utilities">
+        //<editor-fold desc="Utilities" defaultstate="collapsed">
         private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
         private static NamespacedKey key(String key) {
             return new NamespacedKey(plugin, key);
@@ -252,7 +266,7 @@ public class BeaconEffects implements Cloneable {
         }
         //</editor-fold>
 
-        //<editor-fold desc="Legacy code">
+        //<editor-fold desc="Legacy code" defaultstate="collapsed">
         private static final NamespacedKey LEGACY_PRIMARY = key("primary_effect"), LEGACY_SECONDARY = key("secondary_effect"), EFFECTS_LEGACY_V1 = key("effects"), EFFECTS_LEGACY_V2 = key("effects_v2");
         BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
             if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) { // older

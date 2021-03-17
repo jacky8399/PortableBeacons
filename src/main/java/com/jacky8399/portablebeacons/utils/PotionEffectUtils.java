@@ -11,6 +11,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -41,6 +42,11 @@ public class PotionEffectUtils {
         return Optional.ofNullable(PotionEffectType.getByName(bukkitName != null ? bukkitName : input));
     }
 
+    private static final ImmutableSet<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName).collect(ImmutableSet.toImmutableSet());
+    public static ImmutableSet<String> getValidPotionNames() {
+        return VALID_POTION_NAMES;
+    }
+
     private static final ImmutableSet<PotionEffectType> NEGATIVE_EFFECTS =
             ImmutableSet.of(PotionEffectType.SLOW, PotionEffectType.SLOW_DIGGING, PotionEffectType.WEAKNESS, PotionEffectType.HARM,
                     PotionEffectType.CONFUSION, PotionEffectType.BLINDNESS, PotionEffectType.HUNGER, PotionEffectType.POISON,
@@ -69,7 +75,7 @@ public class PotionEffectUtils {
     }
 
     @NotNull
-    public static String getName(PotionEffectType potion) {
+    public static String getName(@NotNull PotionEffectType potion) {
         String name = potion.getName().toLowerCase(Locale.US);
         return VANILLA_EFFECT_NAMES.getOrDefault(name, name);
     }
