@@ -17,12 +17,13 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashSet;
 import java.util.Set;
 
 public class WorldGuardHelper {
     public static StateFlag PORTABLE_BEACONS;
-    public static SetFlag<BeaconEffectsFilter> PB_ALLOWED_EFFECTS;
-    public static SetFlag<BeaconEffectsFilter> PB_BLOCKED_EFFECTS;
+    public static SetFlag<String> PB_ALLOWED_EFFECTS;
+    public static SetFlag<String> PB_BLOCKED_EFFECTS;
     @SuppressWarnings("unchecked")
     public static boolean tryAddFlag(PortableBeacons plugin) {
         FlagRegistry registry = WorldGuard.getInstance().getFlagRegistry();
@@ -30,8 +31,8 @@ public class WorldGuardHelper {
             StateFlag flag = new StateFlag("allow-portable-beacons", true);
             registry.register(flag);
             PORTABLE_BEACONS = flag;
-            SetFlag<BeaconEffectsFilter> allowedEffects = new SetFlag<>("allowed-beacon-effects", new BeaconEffectsFilterFlag(null));
-            SetFlag<BeaconEffectsFilter> blockedEffects = new SetFlag<>("blocked-beacon-effects", new BeaconEffectsFilterFlag(null));
+            SetFlag<String> allowedEffects = new SetFlag<>("allowed-beacon-effects", new BeaconEffectsFilterFlag(null));
+            SetFlag<String> blockedEffects = new SetFlag<>("blocked-beacon-effects", new BeaconEffectsFilterFlag(null));
             registry.register(allowedEffects);
             registry.register(blockedEffects);
             PB_ALLOWED_EFFECTS = allowedEffects;
@@ -40,8 +41,8 @@ public class WorldGuardHelper {
             // try to recover flags
             plugin.logger.warning("Failed to register flags; trying to use existing flags");
             PORTABLE_BEACONS = (StateFlag) registry.get("allow-portable-beacons");
-            PB_ALLOWED_EFFECTS = (SetFlag<BeaconEffectsFilter>) registry.get("allowed-beacon-effects");
-            PB_BLOCKED_EFFECTS = (SetFlag<BeaconEffectsFilter>) registry.get("blocked-beacon-effects");
+            PB_ALLOWED_EFFECTS = (SetFlag<String>) registry.get("allowed-beacon-effects");
+            PB_BLOCKED_EFFECTS = (SetFlag<String>) registry.get("blocked-beacon-effects");
         }
         return true;
     }
@@ -70,13 +71,21 @@ public class WorldGuardHelper {
             if (!set.isVirtual()) {
                 LocalPlayer wgPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
                 BeaconEffects newEffects = effects.clone();
-                Set<BeaconEffectsFilter> allowedEffects = set.queryValue(wgPlayer, PB_ALLOWED_EFFECTS);
+                Set<String> allowedEffects = set.queryValue(wgPlayer, PB_ALLOWED_EFFECTS);
                 if (allowedEffects != null) {
-                    newEffects.filter(allowedEffects, true);
+                    Set<BeaconEffectsFilter> actualSet = new HashSet<>();
+                    for (String allowed : allowedEffects) {
+                        actualSet.add(BeaconEffectsFilter.fromString(allowed));
+                    }
+                    newEffects.filter(actualSet, true);
                 }
-                Set<BeaconEffectsFilter> blockedEffects = set.queryValue(wgPlayer, PB_BLOCKED_EFFECTS);
+                Set<String> blockedEffects = set.queryValue(wgPlayer, PB_BLOCKED_EFFECTS);
                 if (blockedEffects != null) {
-                    newEffects.filter(blockedEffects, false);
+                    Set<BeaconEffectsFilter> actualSet = new HashSet<>();
+                    for (String allowed : blockedEffects) {
+                        actualSet.add(BeaconEffectsFilter.fromString(allowed));
+                    }
+                    newEffects.filter(actualSet, false);
                 }
                 return newEffects;
             }
@@ -84,13 +93,13 @@ public class WorldGuardHelper {
         return effects;
     }
 
-    public static class BeaconEffectsFilterFlag extends Flag<BeaconEffectsFilter> {
+    public static class BeaconEffectsFilterFlag extends Flag<String> {
         protected BeaconEffectsFilterFlag(String name) {
             super(name);
         }
 
         @Override
-        public BeaconEffectsFilter parseInput(FlagContext context) throws InvalidFlagFormat {
+        public String parseInput(FlagContext context) throws InvalidFlagFormat {
             try {
                 return unmarshal(context.getUserInput());
             } catch (IllegalArgumentException e) {
@@ -99,15 +108,15 @@ public class WorldGuardHelper {
         }
 
         @Override
-        public BeaconEffectsFilter unmarshal(@Nullable Object o) {
+        public String unmarshal(@Nullable Object o) {
             if (o == null)
                 return null;
-            return BeaconEffectsFilter.fromString(o.toString());
+            return BeaconEffectsFilter.fromString(o.toString()).toString();
         }
 
         @Override
-        public Object marshal(BeaconEffectsFilter o) {
-            return o.toString();
+        public Object marshal(String o) {
+            return o;
         }
     }
 }

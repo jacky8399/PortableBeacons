@@ -72,7 +72,7 @@ public class Events implements Listener {
                 PotionEffect secondary = tileEntity.getSecondaryEffect();
                 int beaconTier = tileEntity.getTier();
                 int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
-                if (beaconTier < requiredTier)
+                if (beaconTier < requiredTier || requiredTier == -1)
                     continue;
                 if (secondary != null)
                     effects.put(secondary.getType(), (short) (secondary.getAmplifier() + 1));

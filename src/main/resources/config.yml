@@ -85,8 +85,8 @@ effects:
 
 ritual:
   enabled: true
+  __: ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used
   item:
-    __: This is saved by the plugin! If this is empty, the default (32x nether_star) is used.
 
 anvil-combination:
   enabled: true # Enable combining portable beacons in anvil

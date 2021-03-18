@@ -26,7 +26,7 @@ public class Config {
         config.set("ritual.item", Config.ritualItem);
         config.set("anvil-combination.enabled", Config.anvilCombinationEnabled);
         // prompt
-        config.set("ritual.item.__", "This is saved by the plugin! If this is empty, the default (32x nether_star) is used.");
+        config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
         config.options().copyDefaults(true).header("To see descriptions of different options: \n" +
@@ -50,8 +50,6 @@ public class Config {
             if (legacy != null) {
                 config.set("item-used", null);
                 config.set("item_used", null);
-                config.set("ritual.item", legacy);
-                config.set("ritual.item.__", "This is saved by the plugin! If this is empty, the default (32x nether_star) is used.");
                 ritualItem = legacy;
                 logger.info("Old config (item-used) has been migrated successfully. Use '/pb saveconfig' to save to file.");
             } else {

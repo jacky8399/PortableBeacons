@@ -42,6 +42,11 @@ public class PotionEffectUtils {
         return Optional.ofNullable(PotionEffectType.getByName(bukkitName != null ? bukkitName : input));
     }
 
+    @NotNull
+    public static Optional<PotionEffectType> parsePotion(String input) {
+        return parsePotion(input, false);
+    }
+
     private static final ImmutableSet<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName).collect(ImmutableSet.toImmutableSet());
     public static ImmutableSet<String> getValidPotionNames() {
         return VALID_POTION_NAMES;
@@ -62,13 +67,13 @@ public class PotionEffectUtils {
             return 4;
         }
         PotionEffectType type = potion.getType();
-        if (type == PotionEffectType.SPEED || type == PotionEffectType.FAST_DIGGING) {
+        if (type.equals(PotionEffectType.SPEED) || type.equals(PotionEffectType.FAST_DIGGING)) {
             return 1;
-        } else if (type == PotionEffectType.DAMAGE_RESISTANCE || type == PotionEffectType.JUMP) {
+        } else if (type.equals(PotionEffectType.DAMAGE_RESISTANCE) || type.equals(PotionEffectType.JUMP)) {
             return 2;
-        } else if (type == PotionEffectType.INCREASE_DAMAGE) {
+        } else if (type.equals(PotionEffectType.INCREASE_DAMAGE)) {
             return 3;
-        } else if (type == PotionEffectType.REGENERATION) {
+        } else if (type.equals(PotionEffectType.REGENERATION)) {
             return 4;
         }
         return -1;
