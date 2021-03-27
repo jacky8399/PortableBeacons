@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
@@ -76,7 +77,7 @@ public class Inventories implements Listener {
         private InventoryData(Inventory inv, IInventory provider) {
             this.inv = inv;
             this.provider = provider;
-            this.eventHandlers = new ArrayList<>(inv.getSize());
+            this.eventHandlers = new ArrayList<>(Collections.nCopies(inv.getSize(), null));
         }
 
         private Inventory inv;

@@ -151,13 +151,12 @@ public class CommandPortableBeacons implements TabExecutor {
     @NotNull
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowZeroAmplifier) {
         BeaconEffects beaconEffects = new BeaconEffects();
-        beaconEffects.expReductionLevel = -1;
-        beaconEffects.soulboundLevel = -1;
+        beaconEffects.expReductionLevel = allowZeroAmplifier ? -1 : 0;
+        beaconEffects.soulboundLevel = allowZeroAmplifier ? -1 : 0;
         HashMap<PotionEffectType, Integer> effects = new HashMap<>();
         for (String s : input) {
             try {
                 String potionName = s;
-                PotionEffectType type;
                 int level = 1;
                 if (s.contains("*")) {
                     String[] split = s.split("\\*");
@@ -172,8 +171,12 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else if (potionName.equalsIgnoreCase("soulbound")) {
                     beaconEffects.soulboundLevel = level;
                     continue;
+                } else if (potionName.equalsIgnoreCase("all")) {
+                    for (PotionEffectType potionEffectType : PotionEffectType.values()) {
+                        effects.put(potionEffectType, level);
+                    }
                 }
-                type = PotionEffectUtils.parsePotion(potionName, false)
+                PotionEffectType type = PotionEffectUtils.parsePotion(potionName, false)
                         .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect or enchantment"));
                 Preconditions.checkArgument(level >= (allowZeroAmplifier ? 0 : 1), "Level is negative");
                 effects.put(type, level);
@@ -338,11 +341,12 @@ public class CommandPortableBeacons implements TabExecutor {
         Map<PotionEffectType, Integer> effectiveEffectsMap = effectiveEffects.getEffects();
         sender.sendMessage(GREEN + "Potion effects:");
         for (Map.Entry<PotionEffectType, Integer> entry : effectsMap.entrySet()) {
+            int absLevel = Math.abs(entry.getValue());
             // format used in commands
-            String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (entry.getValue() != 1 ? "*" + entry.getValue() : "");
+            String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (absLevel != 1 ? "*" + absLevel : "");
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
-                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue())))
+                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), absLevel)))
                     .append(" ", ComponentBuilder.FormatRetention.NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
                     .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
@@ -354,18 +358,22 @@ public class CommandPortableBeacons implements TabExecutor {
 
             BaseComponent[] disabledDisplay = null; // hover event, null if not disabled
             if (isInDisabledWorld) {
-                disabledDisplay = new ComponentBuilder("You are in a world where Portable Beacons are disabled!\n" +
+                disabledDisplay = new ComponentBuilder("Target is in a world where Portable Beacons are disabled!\n" +
                         "Check config 'beacon-items.nerfs.disabled-worlds'.")
                         .color(RED)
                         .create();
             } else if (!canUseBeacons) {
-                disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where Portable Beacons are disabled!\n" +
+                disabledDisplay = new ComponentBuilder("Target is in a WorldGuard region where Portable Beacons are disabled!\n" +
                         "Check 'allow-portable-beacons' of the region.")
                         .color(RED)
                         .create();
             } else if (!effectiveEffectsMap.containsKey(entry.getKey())) {
-                disabledDisplay = new ComponentBuilder("You are in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
+                disabledDisplay = new ComponentBuilder("Target is in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
                         "Check 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.")
+                        .color(RED)
+                        .create();
+            } else if (entry.getValue() < 0) { // disabled
+                disabledDisplay = new ComponentBuilder("Target has disabled the effect!")
                         .color(RED)
                         .create();
             }
@@ -513,6 +521,10 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (failedPlayers.size() != 0)
                     sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
+                break;
+            }
+            case "update": {
+                editPlayers(sender, players, effects -> {}, silent, modifyAll);
                 break;
             }
             case "add":

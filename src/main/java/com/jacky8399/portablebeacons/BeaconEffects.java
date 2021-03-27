@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -95,9 +96,10 @@ public class BeaconEffects implements Cloneable {
     }
 
     public PotionEffect[] toEffects() {
-        PotionEffect[] arr = new PotionEffect[effects.size()];
+        Map<PotionEffectType, Integer> actualEffects = getEnabledEffects();
+        PotionEffect[] arr = new PotionEffect[actualEffects.size()];
         int i = 0;
-        for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
+        for (Map.Entry<PotionEffectType, Integer> entry : actualEffects.entrySet()) {
             if (entry.getValue() < 0) continue; // ignore disabled effects
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
@@ -108,8 +110,13 @@ public class BeaconEffects implements Cloneable {
 
     public List<String> toLore() {
         List<String> effectsLore = effects.entrySet().stream()
-                .sorted(Comparator.comparing(entry -> entry.getKey().getName()))
-                .map(entry -> PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue()))
+                .sorted(Map.Entry.comparingByKey(PotionEffectUtils.POTION_COMPARATOR))
+                .map(entry -> {
+                    String display = PotionEffectUtils.getDisplayName(entry.getKey(), Math.abs(entry.getValue()));
+                    if (entry.getValue() < 0)
+                        display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
+                    return display;
+                })
                 .collect(Collectors.toList());
 
         List<String> enchantsLore = new ArrayList<>();

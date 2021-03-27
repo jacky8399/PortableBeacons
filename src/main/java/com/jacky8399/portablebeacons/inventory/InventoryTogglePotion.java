@@ -10,7 +10,9 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionType;
 
 import java.util.*;
 
@@ -25,7 +27,8 @@ public class InventoryTogglePotion implements IInventory {
         }
         this.stack = stack;
         BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
-        effects = beaconEffects.getNormalizedEffects();
+        effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR);
+        effects.putAll(beaconEffects.getNormalizedEffects());
         disabledEffects = new HashSet<>(beaconEffects.getDisabledEffects());
     }
 
@@ -40,7 +43,9 @@ public class InventoryTogglePotion implements IInventory {
                 entry.setValue(level);
         }
         effects.setEffects(effectsMap);
-        ItemUtils.setEffects(stack, effects);
+        // mildly inefficient
+        ItemStack temp = ItemUtils.createStackCopyItemData(effects, stack);
+        stack.setItemMeta(temp.getItemMeta());
     }
 
     @Override
@@ -59,12 +64,18 @@ public class InventoryTogglePotion implements IInventory {
         ItemMeta borderMeta = border.getItemMeta();
         borderMeta.setDisplayName(ChatColor.BLACK.toString());
         border.setItemMeta(borderMeta);
-        inventory.fill(border);
+        for (int i = 0; i < 9; i++) {
+            if (i == 4) {
+                inventory.set(4, stack);
+            } else {
+                inventory.set(i, border);
+            }
+        }
 
         Iterator<Map.Entry<PotionEffectType, Integer>> iterator = effects.entrySet().iterator();
         outer:
-        for (int i = 1; i < 8; i++) { // use slots 1 - 7 in every row
-            for (int j = 1, rows = getRows() - 1; j < rows; j++) {
+        for (int row = 1, rows = getRows(); row < rows; row++) {
+            for (int column = 0; column < 9; column++) {
                 if (!iterator.hasNext())
                     break outer;
 
@@ -83,13 +94,15 @@ public class InventoryTogglePotion implements IInventory {
                 } else {
                     stack = new ItemStack(Material.POTION);
                     meta = stack.getItemMeta();
-                    ((PotionMeta) meta).setColor(type.getColor());
+                    PotionMeta potionMeta = (PotionMeta) meta;
+                    potionMeta.setColor(type.getColor());
+                    potionMeta.setBasePotionData(new PotionData(PotionType.LUCK)); // to make the potion glow
                     meta.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS);
                 }
 
-                meta.setLore(Arrays.asList(display, ChatColor.YELLOW + "Click to toggle effect!"));
+                meta.setDisplayName(display);
                 stack.setItemMeta(meta);
-                inventory.set(i + j * 9, stack, e -> {
+                inventory.set(row * 9 + column, stack, e -> {
                     if (!disabledEffects.add(type))
                         disabledEffects.remove(type);
                     updateItem();

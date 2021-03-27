@@ -12,12 +12,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PotionEffectUtils {
+    public static final Comparator<PotionEffectType> POTION_COMPARATOR = Comparator
+            .comparing(PotionEffectUtils::isNegative)
+            .thenComparing(PotionEffectUtils::getName);
+
     /**
      * A bi-map of Bukkit effect names to vanilla names
      */
@@ -55,7 +60,9 @@ public class PotionEffectUtils {
     private static final ImmutableSet<PotionEffectType> NEGATIVE_EFFECTS =
             ImmutableSet.of(PotionEffectType.SLOW, PotionEffectType.SLOW_DIGGING, PotionEffectType.WEAKNESS, PotionEffectType.HARM,
                     PotionEffectType.CONFUSION, PotionEffectType.BLINDNESS, PotionEffectType.HUNGER, PotionEffectType.POISON,
-                    PotionEffectType.WITHER, PotionEffectType.LEVITATION);
+                    PotionEffectType.WITHER, PotionEffectType.LEVITATION,
+                    // neutral according to minecraft wiki
+                    PotionEffectType.GLOWING, PotionEffectType.BAD_OMEN, PotionEffectType.UNLUCK);
     public static boolean isNegative(PotionEffectType potion) {
         return NEGATIVE_EFFECTS.contains(potion);
     }
@@ -120,7 +127,7 @@ public class PotionEffectUtils {
             return replacePlaceholders(null, info.displayName, level);
         } else {
             return (isNegative(effect) ? ChatColor.RED : ChatColor.BLUE) +
-                    WordUtils.capitalizeFully(getName(effect)) + toRomanNumeral(level);
+                    WordUtils.capitalizeFully(getName(effect).replace('_', ' ')) + toRomanNumeral(level);
         }
     }
 

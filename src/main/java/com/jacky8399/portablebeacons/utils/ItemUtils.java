@@ -69,7 +69,7 @@ public class ItemUtils {
     }
 
     private static int getCost(BeaconEffects effects) {
-        return effects.getEffects().values().stream().mapToInt(aShort -> 1 << aShort).sum();
+        return effects.getEffects().values().stream().mapToInt(level -> 1 << Math.abs(level)).sum();
     }
 
     public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {

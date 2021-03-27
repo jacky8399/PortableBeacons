@@ -40,6 +40,7 @@ public class Events implements Listener {
         Bukkit.getPluginManager().registerEvents(new Events(plugin), plugin);
         Bukkit.getPluginManager().registerEvents(new ReminderOutline(plugin), plugin);
         Bukkit.getPluginManager().registerEvents(new AnvilRecipe(), plugin);
+        Bukkit.getPluginManager().registerEvents(new Inventories(), plugin);
     }
 
     public static Events INSTANCE;
@@ -204,9 +205,10 @@ public class Events implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBeaconUse(PlayerInteractEvent e) {
         if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK) &&
-                e.getPlayer().isSneaking() && (e.useItemInHand() == Event.Result.ALLOW || e.useItemInHand() == Event.Result.DEFAULT) &&
+                e.getPlayer().isSneaking() &&
                 ItemUtils.isPortableBeacon(e.getItem())) {
-            e.setUseItemInHand(Event.Result.DENY);
+            e.setUseInteractedBlock(Event.Result.DENY);
+            e.setUseItemInHand(Event.Result.ALLOW);
             Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem()));
         }
     }
