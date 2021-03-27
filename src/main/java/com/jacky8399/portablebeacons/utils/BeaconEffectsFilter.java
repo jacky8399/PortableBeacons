@@ -64,11 +64,11 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
         return this.type == type && (operator == null || operator.predicate.test(integer, constraint));
     }
 
-    public boolean contains(Map<PotionEffectType, Short> map) {
-        Short val = map.get(type);
+    public boolean contains(Map<PotionEffectType, Integer> map) {
+        Integer val = map.get(type);
         if (val == null)
             return false;
-        return operator == null || operator.predicate.test(val.intValue(), constraint);
+        return operator == null || operator.predicate.test(val, constraint);
     }
 
     public enum Operator {

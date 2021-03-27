@@ -105,9 +105,9 @@ public class ItemUtils {
             return null;
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
-            HashMap<PotionEffectType, Short> effects = Maps.newHashMap(e1.getEffects());
-            BinaryOperator<Short> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
-                    ItemUtils::sum : ItemUtils::anvilAlgorithm;
+            HashMap<PotionEffectType, Integer> effects = Maps.newHashMap(e1.getEffects());
+            BinaryOperator<Integer> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
+                    Integer::sum : ItemUtils::anvilAlgorithm;
             e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, algorithm));
             // soulbound owner check
             // check if both beacons are unclaimed/opwned
@@ -153,15 +153,11 @@ public class ItemUtils {
         return visual ? createMessageStack("Invalid combination") : null;
     }
 
-    private static short sum(short s1, short s2) {
-        return (short)(s1 + s2);
-    }
-
-    private static short anvilAlgorithm(short s1, short s2) {
+    private static int anvilAlgorithm(int s1, int s2) {
         if (s1 == s2) {
-            return (short)(s1 + 1);
+            return s1 + 1;
         } else {
-            return (short) Math.max(s1, s2);
+            return Math.max(s1, s2);
         }
     }
 }

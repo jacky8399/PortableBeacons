@@ -3,6 +3,7 @@ package com.jacky8399.portablebeacons.events;
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
+import com.jacky8399.portablebeacons.inventory.InventoryTogglePotion;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.*;
@@ -14,6 +15,7 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.ItemDespawnEvent;
@@ -21,6 +23,7 @@ import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.GrindstoneInventory;
@@ -66,16 +69,16 @@ public class Events implements Listener {
                     continue;
                 }
 
-                Map<PotionEffectType, Short> effects = new HashMap<>();
+                Map<PotionEffectType, Integer> effects = new HashMap<>();
                 PotionEffect primary = tileEntity.getPrimaryEffect();
-                effects.put(primary.getType(), (short) (primary.getAmplifier() + 1));
+                effects.put(primary.getType(), primary.getAmplifier() + 1);
                 PotionEffect secondary = tileEntity.getSecondaryEffect();
                 int beaconTier = tileEntity.getTier();
                 int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
                 if (beaconTier < requiredTier || requiredTier == -1)
                     continue;
                 if (secondary != null)
-                    effects.put(secondary.getType(), (short) (secondary.getAmplifier() + 1));
+                    effects.put(secondary.getType(), secondary.getAmplifier() + 1);
                 if (!removeBeacon(thrower, blockBelow, requiredTier)) {
                     continue;
                 }
@@ -195,6 +198,16 @@ public class Events implements Listener {
     public void onPlaceBlock(BlockPlaceEvent e) {
         if (ItemUtils.isPortableBeacon(e.getItemInHand())) {
             e.setCancelled(true); // don't place the beacon
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBeaconUse(PlayerInteractEvent e) {
+        if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK) &&
+                e.getPlayer().isSneaking() && (e.useItemInHand() == Event.Result.ALLOW || e.useItemInHand() == Event.Result.DEFAULT) &&
+                ItemUtils.isPortableBeacon(e.getItem())) {
+            e.setUseItemInHand(Event.Result.DENY);
+            Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem()));
         }
     }
 

@@ -32,16 +32,16 @@ public class BeaconEffects implements Cloneable {
     public BeaconEffects(PotionEffectType... effects) {
         this.effects = Arrays.stream(effects).filter(Objects::nonNull)
                 .collect(Collectors.collectingAndThen(
-                        Collectors.groupingBy(Function.identity(), Collectors.collectingAndThen(Collectors.counting(), Long::shortValue)),
+                        Collectors.groupingBy(Function.identity(), Collectors.collectingAndThen(Collectors.counting(), Long::intValue)),
                         ImmutableMap::copyOf));
     }
 
-    public BeaconEffects(Map<PotionEffectType, Short> effects) {
+    public BeaconEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
     }
 
     @NotNull
-    private ImmutableMap<PotionEffectType, Short> effects;
+    private ImmutableMap<PotionEffectType, Integer> effects;
     public int expReductionLevel = 0;
     @Nullable
     public UUID soulboundOwner = null;
@@ -58,16 +58,31 @@ public class BeaconEffects implements Cloneable {
     }
 
     @NotNull
-    public ImmutableMap<PotionEffectType, Short> getEffects() {
+    public ImmutableMap<PotionEffectType, Integer> getEffects() {
         return effects;
     }
 
-    public void setEffects(Map<PotionEffectType, Short> effects) {
+    @NotNull
+    public Map<PotionEffectType, Integer> getNormalizedEffects() {
+        return Maps.transformValues(effects, Math::abs);
+    }
+
+    @NotNull
+    public Map<PotionEffectType, Integer> getEnabledEffects() {
+        return Maps.filterValues(effects, num -> num >= 0);
+    }
+
+    @NotNull
+    public Set<PotionEffectType> getDisabledEffects() {
+        return Maps.filterValues(effects, num -> num < 0).keySet();
+    }
+
+    public void setEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
-        HashMap<PotionEffectType, Short> map = whitelist ? new HashMap<>() : new HashMap<>(effects);
+        HashMap<PotionEffectType, Integer> map = whitelist ? new HashMap<>() : new HashMap<>(effects);
         for (BeaconEffectsFilter filter : filters) {
             if (filter.contains(effects)) {
                 if (whitelist)
@@ -82,7 +97,8 @@ public class BeaconEffects implements Cloneable {
     public PotionEffect[] toEffects() {
         PotionEffect[] arr = new PotionEffect[effects.size()];
         int i = 0;
-        for (Map.Entry<PotionEffectType, Short> entry : effects.entrySet()) {
+        for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
+            if (entry.getValue() < 0) continue; // ignore disabled effects
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
             arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles());
@@ -123,7 +139,7 @@ public class BeaconEffects implements Cloneable {
             return 0;
         double expMultiplier = Config.customEnchantExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) : 1;
-        return Math.max(0, effects.values().stream().mapToInt(Short::intValue).sum() * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
+        return Math.max(0, effects.values().stream().reduce(0, Integer::sum) * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
     }
 
     public boolean shouldUpdate() {
@@ -132,10 +148,10 @@ public class BeaconEffects implements Cloneable {
 
     public BeaconEffects fixOpEffects() {
         BeaconEffects ret = clone();
-        HashMap<PotionEffectType, Short> newEffects = new HashMap<>(effects);
-        Iterator<Map.Entry<PotionEffectType, Short>> iterator = newEffects.entrySet().iterator();
+        HashMap<PotionEffectType, Integer> newEffects = new HashMap<>(effects);
+        Iterator<Map.Entry<PotionEffectType, Integer>> iterator = newEffects.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<PotionEffectType, Short> entry = iterator.next();
+            Map.Entry<PotionEffectType, Integer> entry = iterator.next();
             PotionEffectType effect = entry.getKey();
             Config.PotionEffectInfo info = Config.getInfo(effect);
             int maxAmplifier = info.getMaxAmplifier();
@@ -143,7 +159,7 @@ public class BeaconEffects implements Cloneable {
                 if (maxAmplifier == 0) // disallowed effect
                     iterator.remove();
                 else
-                    entry.setValue((short) maxAmplifier);
+                    entry.setValue(maxAmplifier);
             }
         }
         // downgrade enchantments
@@ -186,7 +202,7 @@ public class BeaconEffects implements Cloneable {
             PersistentDataContainer effects = context.newPersistentDataContainer();
             complex.effects.forEach((type, level) -> {
                 NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName().toLowerCase(Locale.US));
-                effects.set(key, SHORT, level);
+                effects.set(key, SHORT, level.shortValue());
             });
             container.set(EFFECTS, TAG_CONTAINER, effects);
             // enchants
@@ -211,12 +227,12 @@ public class BeaconEffects implements Cloneable {
                 return parseLegacyV1(primitive);
             else if (dataVersion == 3) {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
-                HashMap<PotionEffectType, Short> effectsMap = new HashMap<>();
+                HashMap<PotionEffectType, Integer> effectsMap = new HashMap<>();
                 for (NamespacedKey key : getKeys(effects)) {
                     PotionEffectType type = PotionEffectType.getByName(key.getKey());
                     if (type == null) continue;
                     short level = effects.get(key, SHORT);
-                    effectsMap.put(type, level);
+                    effectsMap.put(type, (int) level);
                 }
                 BeaconEffects ret = new BeaconEffects(effectsMap);
                 ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, STRING);
@@ -290,11 +306,11 @@ public class BeaconEffects implements Cloneable {
             if (effectsCombined.isEmpty()) // empty string fix
                 return new BeaconEffects();
             String[] kvps = effectsCombined.split(",");
-            HashMap<PotionEffectType, Short> effects = Maps.newHashMap();
+            HashMap<PotionEffectType, Integer> effects = Maps.newHashMap();
             for (String kvp : kvps) {
                 String[] split = kvp.split(":");
                 PotionEffectType type;
-                short amplifier = (short)1;
+                int amplifier = 1;
                 if (split.length == 1) {
                     type = PotionEffectType.getByName(kvp);
                 } else {

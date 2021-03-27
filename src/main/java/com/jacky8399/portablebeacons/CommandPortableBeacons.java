@@ -153,30 +153,30 @@ public class CommandPortableBeacons implements TabExecutor {
         BeaconEffects beaconEffects = new BeaconEffects();
         beaconEffects.expReductionLevel = -1;
         beaconEffects.soulboundLevel = -1;
-        HashMap<PotionEffectType, Short> effects = new HashMap<>();
+        HashMap<PotionEffectType, Integer> effects = new HashMap<>();
         for (String s : input) {
             try {
                 String potionName = s;
                 PotionEffectType type;
-                int amplifier = 1;
+                int level = 1;
                 if (s.contains("*")) {
                     String[] split = s.split("\\*");
                     Preconditions.checkState(split.length == 2, "Invalid format, correct format is TYPE*AMPLIFIER");
                     potionName = split[0];
-                    amplifier = Integer.parseInt(split[1]);
+                    level = Integer.parseInt(split[1]);
                 }
 
                 if (potionName.equalsIgnoreCase("exp-reduction")) {
-                    beaconEffects.expReductionLevel = amplifier;
+                    beaconEffects.expReductionLevel = level;
                     continue;
                 } else if (potionName.equalsIgnoreCase("soulbound")) {
-                    beaconEffects.soulboundLevel = amplifier;
+                    beaconEffects.soulboundLevel = level;
                     continue;
                 }
                 type = PotionEffectUtils.parsePotion(potionName, false)
                         .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect or enchantment"));
-                Preconditions.checkArgument(amplifier >= (allowZeroAmplifier ? 0 : 1), "Amplifier is negative");
-                effects.put(type, (short) amplifier);
+                Preconditions.checkArgument(level >= (allowZeroAmplifier ? 0 : 1), "Level is negative");
+                effects.put(type, level);
             } catch (IllegalArgumentException e) {
                 sender.sendMessage(RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
             }
@@ -334,10 +334,10 @@ public class CommandPortableBeacons implements TabExecutor {
             canUseBeacons = WorldGuardHelper.canUseBeacons(target);
             effectiveEffects = WorldGuardHelper.filterBeaconEffects(target, effects);
         }
-        Map<PotionEffectType, Short> effectsMap = effects.getEffects();
-        Map<PotionEffectType, Short> effectiveEffectsMap = effectiveEffects.getEffects();
+        Map<PotionEffectType, Integer> effectsMap = effects.getEffects();
+        Map<PotionEffectType, Integer> effectiveEffectsMap = effectiveEffects.getEffects();
         sender.sendMessage(GREEN + "Potion effects:");
-        for (Map.Entry<PotionEffectType, Short> entry : effectsMap.entrySet()) {
+        for (Map.Entry<PotionEffectType, Integer> entry : effectsMap.entrySet()) {
             // format used in commands
             String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (entry.getValue() != 1 ? "*" + entry.getValue() : "");
             BaseComponent[] potionDisplay = new ComponentBuilder()
@@ -539,16 +539,12 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     default: throw new UnsupportedOperationException(operation); // to make java shut up
                 }
-                BiFunction<Short, Short, Short> shortMerger = (s1, s2) -> {
-                    Integer ret = merger.apply(s1.intValue(), s2.intValue());
-                    return ret != null ? ret.shortValue() : null;
-                };
 
                 BeaconEffects virtualEffects = parseEffects(sender, effectsString, true);
-                Map<PotionEffectType, Short> newEffects = virtualEffects.getEffects();
+                Map<PotionEffectType, Integer> newEffects = virtualEffects.getEffects();
                 Consumer<BeaconEffects> modifier = effects -> {
-                    HashMap<PotionEffectType, Short> map = new HashMap<>(effects.getEffects());
-                    newEffects.forEach((pot, lvl) -> map.merge(pot, lvl, shortMerger));
+                    HashMap<PotionEffectType, Integer> map = new HashMap<>(effects.getEffects());
+                    newEffects.forEach((pot, lvl) -> map.merge(pot, lvl, merger));
                     effects.setEffects(map);
 
                     if (virtualEffects.expReductionLevel != -1) {
