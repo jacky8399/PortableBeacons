@@ -1,11 +1,13 @@
 package com.jacky8399.portablebeacons.inventory;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -15,8 +17,9 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
 import java.util.*;
+import java.util.function.Consumer;
 
-public class InventoryTogglePotion implements IInventory {
+public class InventoryTogglePotion implements InventoryProvider {
 
     private ItemStack stack;
     private Map<PotionEffectType, Integer> effects;
@@ -25,7 +28,7 @@ public class InventoryTogglePotion implements IInventory {
         if (!ItemUtils.isPortableBeacon(stack)) {
             throw new IllegalArgumentException("stack is not beacon");
         }
-        this.stack = stack;
+        this.stack = stack.clone();
         BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
         effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR);
         effects.putAll(beaconEffects.getNormalizedEffects());
@@ -50,7 +53,7 @@ public class InventoryTogglePotion implements IInventory {
 
     @Override
     public String getTitle(Player player) {
-        return "";
+        return Config.effectsToggleTitle;
     }
 
     @Override
@@ -102,18 +105,25 @@ public class InventoryTogglePotion implements IInventory {
 
                 meta.setDisplayName(display);
                 stack.setItemMeta(meta);
-                inventory.set(row * 9 + column, stack, e -> {
-                    if (!disabledEffects.add(type))
-                        disabledEffects.remove(type);
-                    updateItem();
-                    inventory.requestRefresh(player);
-                });
+                Consumer<InventoryClickEvent> handler = null;
+                if (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)) {
+                    if (!Config.effectsToggleFineTunePerms ||
+                            player.hasPermission("portablebeacons.effect-toggle." + PotionEffectUtils.getName(type))) {
+                        handler = e -> {
+                            if (!disabledEffects.add(type))
+                                disabledEffects.remove(type);
+                            updateItem();
+                            inventory.requestRefresh(player);
+                        };
+                    }
+                }
+                inventory.set(row * 9 + column, stack, handler);
             }
         }
     }
 
     @Override
     public void close(Player player) {
-        IInventory.super.close(player);
+        InventoryProvider.super.close(player);
     }
 }

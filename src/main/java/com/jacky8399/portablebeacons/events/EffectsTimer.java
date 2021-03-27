@@ -30,7 +30,7 @@ public class EffectsTimer extends BukkitRunnable {
     public void applyEffects(Player player) {
         boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled;
         // world check
-        if (Config.itemNerfsDisabledWorlds.contains(player.getWorld().getName()))
+        if (Config.nerfDisabledWorlds.contains(player.getWorld().getName()))
             return;
 
         if (doWorldGuard && !player.hasPermission("portablebeacons.bypass.world-guard-limit") &&
@@ -41,7 +41,7 @@ public class EffectsTimer extends BukkitRunnable {
         while (iterator.hasNext()) {
             int nextIdx = iterator.nextIndex();
             ItemStack is = iterator.next(); // lol
-            if (nextIdx > 8 && Config.itemNerfsOnlyApplyInHotbar) {
+            if (nextIdx > 8 && Config.nerfOnlyApplyInHotbar) {
                 continue; // out of hotbar
             }
             if (!ItemUtils.isPortableBeacon(is))
@@ -50,7 +50,7 @@ public class EffectsTimer extends BukkitRunnable {
             // effects for calculation purposes
             BeaconEffects actualEffects = beaconEffects;
             // owner check
-            if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundOwnerUsageOnly &&
+            if (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly &&
                     beaconEffects.soulboundOwner != null && !player.getUniqueId().equals(beaconEffects.soulboundOwner)) {
                 continue;
             }
@@ -72,7 +72,7 @@ public class EffectsTimer extends BukkitRunnable {
             if (needsUpdate) {
                 BeaconEffects newEffects;
                 // force downgrade
-                if (Config.itemNerfsForceDowngrade)
+                if (Config.nerfForceDowngrade)
                     newEffects = beaconEffects.fixOpEffects();
                 else
                     newEffects = beaconEffects.clone();

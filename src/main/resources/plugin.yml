@@ -13,6 +13,9 @@ commands:
       - beacons
 
 permissions:
+  portablebeacons.effect-toggle:
+    default: true
+
   portablebeacons.admin:
     default: false
     children:

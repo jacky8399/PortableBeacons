@@ -9,7 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Consumer;
 
-public interface IInventory {
+public interface InventoryProvider {
     String getTitle(Player player);
     int getRows();
 

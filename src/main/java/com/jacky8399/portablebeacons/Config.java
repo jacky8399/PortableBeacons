@@ -73,31 +73,37 @@ public class Config {
         creationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
         creationReminderDisableIfOwned = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
+        // Effects Toggle GUI
+        effectsToggleEnabled = config.getBoolean("beacon-item.effects-toggle.enabled");
+        effectsToggleTitle = translateColor(config.getString("beacon-item.effects-toggle.title"));
+        effectsToggleCanDisableNegativeEffects = config.getBoolean("beacon-item.effects-toggle.allow-disabling-negative-effects");
+        effectsToggleFineTunePerms = config.getBoolean("beacon-item.effects-toggle.require-permission");
+
         // Custom enchantments
 
         // Exp-reduction
 
-        customEnchantExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
-        customEnchantExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
-        customEnchantExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
-        customEnchantExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
-        customEnchantExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
+        enchExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
+        enchExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
+        enchExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
+        enchExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
+        enchExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
 
         // Soulbound
 
-        customEnchantSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
-        customEnchantSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
-        customEnchantSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
-        customEnchantSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
-        customEnchantSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
-        customEnchantSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
+        enchSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
+        enchSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
+        enchSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
+        enchSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
+        enchSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
+        enchSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
 
         // Nerfs
 
-        itemNerfsExpPercentagePerCycle = Math.max(0, config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle"));
-        itemNerfsOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
-        itemNerfsDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
-        itemNerfsForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
+        nerfExpPercentagePerCycle = Math.max(0, config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle"));
+        nerfOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
+        nerfDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
+        nerfForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         readEffects(config);
 
@@ -117,36 +123,40 @@ public class Config {
 
         worldGuard = config.getBoolean("world-guard");
         if (debug) {
-            logger.info(() -> "Ritual/enabled: " + ritualEnabled);
-            logger.info(() -> "Ritual/item: " + ritualItem);
-            logger.info(() -> "Item custom version: " + itemCustomVersion);
-            logger.info(() -> "Beacon item/name: " + itemName);
-            logger.info(() -> "Beacon item/lore: " + String.join("\\n", itemLore));
-            logger.info(() -> "Beacon item/custom model data: " + itemCustomModelData);
-            logger.info(() -> "Creation reminder/enabled: " + creationReminder);
-            logger.info(() -> "Creation reminder/message: " + creationReminderMessage);
-            logger.info(() -> "Creation reminder/radius: " + creationReminderRadius);
-            logger.info(() -> "Creation reminder/disable if owned: " + creationReminderDisableIfOwned);
-            logger.info(() -> "Enchant/Exp-reduction/enabled: " + customEnchantExpReductionEnabled);
-            logger.info(() -> "Enchant/Exp-reduction/enchantment: " + customEnchantExpReductionEnchantment);
-            logger.info(() -> "Enchant/Exp-reduction/max level: " + customEnchantExpReductionMaxLevel);
-            logger.info(() -> "Enchant/Exp-reduction/name: " + customEnchantExpReductionName);
-            logger.info(() -> "Enchant/Exp-reduction/reduction per level: " + customEnchantExpReductionReductionPerLevel);
-            logger.info(() -> "Enchant/Soulbound/enabled: " + customEnchantSoulboundEnabled);
-            logger.info(() -> "Enchant/Soulbound/enchantment: " + customEnchantSoulboundEnchantment);
-            logger.info(() -> "Enchant/Soulbound/max level: " + customEnchantSoulboundMaxLevel);
-            logger.info(() -> "Enchant/Soulbound/name: " + customEnchantSoulboundName);
-            logger.info(() -> "Enchant/Soulbound/owner usage only: " + customEnchantSoulboundOwnerUsageOnly);
-            logger.info(() -> "Enchant/Soulbound/consume level on death: " + customEnchantSoulboundConsumeLevelOnDeath);
-            logger.info(() -> "Nerfs/exp % per cycle: " + itemNerfsExpPercentagePerCycle);
-            logger.info(() -> "Nerfs/only apply when in hotbar: " + itemNerfsOnlyApplyInHotbar);
-            logger.info(() -> "Nerfs/disabled worlds: " + String.join(", ", itemNerfsDisabledWorlds));
-            logger.info(() -> "Nerfs/force downgrade: " + itemNerfsForceDowngrade);
-            logger.info(() -> "Anvil combination/enabled: " + anvilCombinationEnabled);
-            logger.info(() -> "Anvil combination/max effects: " + anvilCombinationMaxEffects);
-            logger.info(() -> "Anvil combination/combine effects additively: " + anvilCombinationCombineEffectsAdditively);
-            logger.info(() -> "Anvil combination/enforce vanilla exp limit: " + anvilCombinationEnforceVanillaExpLimit);
-            logger.info(() -> "World guard: " + worldGuard);
+            logger.info("Ritual/enabled: " + ritualEnabled);
+            logger.info("Ritual/item: " + ritualItem);
+            logger.info("Item custom version: " + itemCustomVersion);
+            logger.info("Beacon item/name: " + itemName);
+            logger.info("Beacon item/lore: " + String.join("\\n", itemLore));
+            logger.info("Beacon item/custom model data: " + itemCustomModelData);
+            logger.info("Creation reminder/enabled: " + creationReminder);
+            logger.info("Creation reminder/message: " + creationReminderMessage);
+            logger.info("Creation reminder/radius: " + creationReminderRadius);
+            logger.info("Creation reminder/disable if owned: " + creationReminderDisableIfOwned);
+            logger.info("Effects toggle/enabled: " + effectsToggleEnabled);
+            logger.info("Effects toggle/title: " + effectsToggleTitle);
+            logger.info("Effects toggle/can disable negative effects: " + effectsToggleCanDisableNegativeEffects);
+            logger.info("Effects toggle/fine tune perms: " + effectsToggleFineTunePerms);
+            logger.info("Enchant/Exp-reduction/enabled: " + enchExpReductionEnabled);
+            logger.info("Enchant/Exp-reduction/enchantment: " + enchExpReductionEnchantment);
+            logger.info("Enchant/Exp-reduction/max level: " + enchExpReductionMaxLevel);
+            logger.info("Enchant/Exp-reduction/name: " + enchExpReductionName);
+            logger.info("Enchant/Exp-reduction/reduction per level: " + enchExpReductionReductionPerLevel);
+            logger.info("Enchant/Soulbound/enabled: " + enchSoulboundEnabled);
+            logger.info("Enchant/Soulbound/enchantment: " + enchSoulboundEnchantment);
+            logger.info("Enchant/Soulbound/max level: " + enchSoulboundMaxLevel);
+            logger.info("Enchant/Soulbound/name: " + enchSoulboundName);
+            logger.info("Enchant/Soulbound/owner usage only: " + enchSoulboundOwnerUsageOnly);
+            logger.info("Enchant/Soulbound/consume level on death: " + enchSoulboundConsumeLevelOnDeath);
+            logger.info("Nerfs/exp % per cycle: " + nerfExpPercentagePerCycle);
+            logger.info("Nerfs/only apply when in hotbar: " + nerfOnlyApplyInHotbar);
+            logger.info("Nerfs/disabled worlds: " + String.join(", ", nerfDisabledWorlds));
+            logger.info("Nerfs/force downgrade: " + nerfForceDowngrade);
+            logger.info("Anvil combination/enabled: " + anvilCombinationEnabled);
+            logger.info("Anvil combination/max effects: " + anvilCombinationMaxEffects);
+            logger.info("Anvil combination/combine effects additively: " + anvilCombinationCombineEffectsAdditively);
+            logger.info("Anvil combination/enforce vanilla exp limit: " + anvilCombinationEnforceVanillaExpLimit);
+            logger.info("World guard: " + worldGuard);
         }
 
         logger.info("Config loaded");
@@ -263,25 +273,31 @@ public class Config {
     public static double creationReminderRadius;
     public static boolean creationReminderDisableIfOwned;
 
-    // Custom Enchantments
-    public static boolean customEnchantExpReductionEnabled;
-    public static double customEnchantExpReductionReductionPerLevel;
-    public static int customEnchantExpReductionMaxLevel;
-    public static String customEnchantExpReductionName;
-    public static Enchantment customEnchantExpReductionEnchantment;
+    // Effects toggle GUI
+    public static boolean effectsToggleEnabled;
+    public static String effectsToggleTitle;
+    public static boolean effectsToggleCanDisableNegativeEffects;
+    public static boolean effectsToggleFineTunePerms;
 
-    public static boolean customEnchantSoulboundEnabled;
-    public static boolean customEnchantSoulboundOwnerUsageOnly;
-    public static boolean customEnchantSoulboundConsumeLevelOnDeath;
-    public static int customEnchantSoulboundMaxLevel;
-    public static String customEnchantSoulboundName;
-    public static Enchantment customEnchantSoulboundEnchantment;
+    // Custom Enchantments
+    public static boolean enchExpReductionEnabled;
+    public static double enchExpReductionReductionPerLevel;
+    public static int enchExpReductionMaxLevel;
+    public static String enchExpReductionName;
+    public static Enchantment enchExpReductionEnchantment;
+
+    public static boolean enchSoulboundEnabled;
+    public static boolean enchSoulboundOwnerUsageOnly;
+    public static boolean enchSoulboundConsumeLevelOnDeath;
+    public static int enchSoulboundMaxLevel;
+    public static String enchSoulboundName;
+    public static Enchantment enchSoulboundEnchantment;
 
     // Nerfs
-    public static double itemNerfsExpPercentagePerCycle;
-    public static boolean itemNerfsOnlyApplyInHotbar;
-    public static Set<String> itemNerfsDisabledWorlds;
-    public static boolean itemNerfsForceDowngrade;
+    public static double nerfExpPercentagePerCycle;
+    public static boolean nerfOnlyApplyInHotbar;
+    public static Set<String> nerfDisabledWorlds;
+    public static boolean nerfForceDowngrade;
 
     // Anvil crafting
     public static boolean anvilCombinationEnabled;

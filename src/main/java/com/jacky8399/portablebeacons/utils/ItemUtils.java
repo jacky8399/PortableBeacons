@@ -82,9 +82,9 @@ public class ItemUtils {
             BeaconEffects effects = getEffects(is1);
             Map<Enchantment, Integer> enchants = ((EnchantmentStorageMeta) is2.getItemMeta()).getStoredEnchants();
             int numOfEnchantsApplicable = 0;
-            if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundEnchantment != null && enchants.containsKey(Config.customEnchantSoulboundEnchantment))
+            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null && enchants.containsKey(Config.enchSoulboundEnchantment))
                 numOfEnchantsApplicable++;
-            if (Config.customEnchantExpReductionEnabled && Config.customEnchantExpReductionEnchantment != null && enchants.containsKey(Config.customEnchantExpReductionEnchantment))
+            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null && enchants.containsKey(Config.enchExpReductionEnchantment))
                 numOfEnchantsApplicable++;
 
             return getCost(effects) * numOfEnchantsApplicable;
@@ -112,7 +112,7 @@ public class ItemUtils {
             // soulbound owner check
             // check if both beacons are unclaimed/opwned
             UUID playerUuid = player.getUniqueId();
-            if (Config.customEnchantSoulboundOwnerUsageOnly && 
+            if (Config.enchSoulboundOwnerUsageOnly &&
                     ((e1.soulboundOwner != null && !playerUuid.equals(e1.soulboundOwner)) ||
                     (e2.soulboundOwner != null && !playerUuid.equals(e2.soulboundOwner)))) {
                 return visual ? createMessageStack("You do not own the portable beacons") : null;
@@ -133,16 +133,16 @@ public class ItemUtils {
             EnchantmentStorageMeta meta = (EnchantmentStorageMeta) is2.getItemMeta();
             Map<Enchantment, Integer> enchants = meta.getStoredEnchants();
             boolean allowCombination = false;
-            if (Config.customEnchantSoulboundEnabled && Config.customEnchantSoulboundEnchantment != null && enchants.containsKey(Config.customEnchantSoulboundEnchantment)) {
+            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null && enchants.containsKey(Config.enchSoulboundEnchantment)) {
                 allowCombination = true;
-                if (++effects.soulboundLevel > Config.customEnchantSoulboundMaxLevel) // level check
+                if (++effects.soulboundLevel > Config.enchSoulboundMaxLevel) // level check
                     return visual ? createMessageStack("Overpowered Soulbound") : null;
                 if (effects.soulboundOwner == null || effects.soulboundOwner.equals(player.getUniqueId()))
                     effects.soulboundOwner = player.getUniqueId();
             }
-            if (Config.customEnchantExpReductionEnabled && Config.customEnchantExpReductionEnchantment != null && enchants.containsKey(Config.customEnchantExpReductionEnchantment)) {
+            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null && enchants.containsKey(Config.enchExpReductionEnchantment)) {
                 allowCombination = true;
-                if (++effects.expReductionLevel > Config.customEnchantExpReductionMaxLevel) // level check
+                if (++effects.expReductionLevel > Config.enchExpReductionMaxLevel) // level check
                     return visual ? createMessageStack("Overpowered Experience Efficiency") : null;
             }
 

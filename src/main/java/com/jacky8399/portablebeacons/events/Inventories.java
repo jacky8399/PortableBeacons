@@ -1,7 +1,7 @@
 package com.jacky8399.portablebeacons.events;
 
 import com.jacky8399.portablebeacons.PortableBeacons;
-import com.jacky8399.portablebeacons.inventory.IInventory;
+import com.jacky8399.portablebeacons.inventory.InventoryProvider;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -10,6 +10,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -24,7 +25,7 @@ public class Inventories implements Listener {
     private static WeakHashMap<Player, Inventory> playerInventories = new WeakHashMap<>();
     private static WeakHashMap<Inventory, InventoryData> pluginInventories = new WeakHashMap<>();
 
-    public static void openInventory(Player player, IInventory provider) {
+    public static void openInventory(Player player, InventoryProvider provider) {
         String title = provider.getTitle(player);
         int size = 9 * provider.getRows();
         Inventory inv = Bukkit.createInventory(player, size, title);
@@ -32,7 +33,17 @@ public class Inventories implements Listener {
         pluginInventories.put(inv, data);
         playerInventories.put(player, inv);
         provider.populate(player, data);
-        player.openInventory(inv);
+        // just to be safe
+        Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> player.openInventory(inv));
+    }
+
+    @EventHandler
+    public void onCleanUp(PluginDisableEvent e) { // i'm lazy
+        if (e.getPlugin() instanceof PortableBeacons) {
+            playerInventories.keySet().forEach(Player::closeInventory);
+            playerInventories.clear();
+            pluginInventories.clear();
+        }
     }
 
     @EventHandler
@@ -73,15 +84,15 @@ public class Inventories implements Listener {
         }
     }
 
-    private static class InventoryData implements IInventory.InventoryAccessor {
-        private InventoryData(Inventory inv, IInventory provider) {
+    private static class InventoryData implements InventoryProvider.InventoryAccessor {
+        private InventoryData(Inventory inv, InventoryProvider provider) {
             this.inv = inv;
             this.provider = provider;
             this.eventHandlers = new ArrayList<>(Collections.nCopies(inv.getSize(), null));
         }
 
         private Inventory inv;
-        private IInventory provider;
+        private InventoryProvider provider;
         private ArrayList<Consumer<InventoryClickEvent>> eventHandlers;
 
         @Override

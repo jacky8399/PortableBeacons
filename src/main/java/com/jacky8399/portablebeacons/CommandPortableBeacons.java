@@ -73,7 +73,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         return Stream.of("soulbound");
                     }
                     case 5: { // levels
-                        int maxLevel = Config.customEnchantSoulboundMaxLevel;
+                        int maxLevel = Config.enchSoulboundMaxLevel;
                         return IntStream.rangeClosed(1, maxLevel)
                                 .mapToObj(Integer::toString);
                     }
@@ -121,9 +121,9 @@ public class CommandPortableBeacons implements TabExecutor {
                 Config.PotionEffectInfo info = Config.getInfo(optionalPotion.get());
                 maxAmplifier = info.getMaxAmplifier();
             } else if (input.equalsIgnoreCase("exp-reduction")) {
-                maxAmplifier = Config.customEnchantExpReductionMaxLevel;
+                maxAmplifier = Config.enchExpReductionMaxLevel;
             } else if (input.equalsIgnoreCase("soulbound")) {
-                maxAmplifier = Config.customEnchantSoulboundMaxLevel;
+                maxAmplifier = Config.enchSoulboundMaxLevel;
             }
             if (maxAmplifier != -1) {
                 String finalInput = input;
@@ -175,6 +175,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     for (PotionEffectType potionEffectType : PotionEffectType.values()) {
                         effects.put(potionEffectType, level);
                     }
+                    continue;
                 }
                 PotionEffectType type = PotionEffectUtils.parsePotion(potionName, false)
                         .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect or enchantment"));
@@ -330,7 +331,7 @@ public class CommandPortableBeacons implements TabExecutor {
         BeaconEffects effects = ItemUtils.getEffects(stack);
 
         // simulate nerfs
-        boolean isInDisabledWorld = Config.itemNerfsDisabledWorlds.contains(target.getWorld().getName());
+        boolean isInDisabledWorld = Config.nerfDisabledWorlds.contains(target.getWorld().getName());
         boolean canUseBeacons = true;
         BeaconEffects effectiveEffects = effects;
         if (PortableBeacons.INSTANCE.worldGuardInstalled && Config.worldGuard) {
@@ -405,12 +406,12 @@ public class CommandPortableBeacons implements TabExecutor {
             sender.sendMessage(GREEN + "Enchantments:");
             if (effects.expReductionLevel != 0)
                 sender.sendMessage("  " + YELLOW + "EXP_REDUCTION " + effects.expReductionLevel +
-                        String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) * 100));
+                        String.format(" (%.2f%% exp consumption)", Math.max(0, 1 - effects.expReductionLevel * Config.enchExpReductionReductionPerLevel) * 100));
             if (effects.soulboundLevel != 0)
                 sender.sendMessage("  " + YELLOW + "SOULBOUND " + effects.soulboundLevel + " (bound to " +
                         (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
         }
-        if (Config.itemNerfsExpPercentagePerCycle > 0) {
+        if (Config.nerfExpPercentagePerCycle > 0) {
             double xpPerCycle = effects.calcExpPerCycle();
             sender.sendMessage(GREEN + "Exp %: " + YELLOW +
                     String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
@@ -521,10 +522,6 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (failedPlayers.size() != 0)
                     sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
-                break;
-            }
-            case "update": {
-                editPlayers(sender, players, effects -> {}, silent, modifyAll);
                 break;
             }
             case "add":

@@ -18,7 +18,8 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.*;
 
 public class BeaconEffects implements Cloneable {
     private static final int DATA_VERSION = 3;
@@ -32,8 +33,8 @@ public class BeaconEffects implements Cloneable {
     @Deprecated
     public BeaconEffects(PotionEffectType... effects) {
         this.effects = Arrays.stream(effects).filter(Objects::nonNull)
-                .collect(Collectors.collectingAndThen(
-                        Collectors.groupingBy(Function.identity(), Collectors.collectingAndThen(Collectors.counting(), Long::intValue)),
+                .collect(collectingAndThen(
+                        groupingBy(Function.identity(), collectingAndThen(counting(), Long::intValue)),
                         ImmutableMap::copyOf));
     }
 
@@ -117,21 +118,21 @@ public class BeaconEffects implements Cloneable {
                         display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
                     return display;
                 })
-                .collect(Collectors.toList());
+                .collect(toList());
 
         List<String> enchantsLore = new ArrayList<>();
-        if (Config.customEnchantExpReductionEnabled && expReductionLevel != 0) {
+        if (Config.enchExpReductionEnabled && expReductionLevel != 0) {
             enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
-                    Config.customEnchantExpReductionName, expReductionLevel));
+                    Config.enchExpReductionName, expReductionLevel));
         }
-        if (Config.customEnchantSoulboundEnabled && soulboundLevel != 0) {
+        if (Config.enchSoulboundEnabled && soulboundLevel != 0) {
             String owner = null;
             if (soulboundOwner != null) {
                 owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
                 if (owner == null) owner = "???"; // haven't seen player before?
             }
             enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
-                    Config.customEnchantSoulboundName, soulboundLevel, owner));
+                    Config.enchSoulboundName, soulboundLevel, owner));
         }
         // merge
         if (enchantsLore.size() != 0) {
@@ -142,11 +143,11 @@ public class BeaconEffects implements Cloneable {
     }
 
     public double calcExpPerCycle() {
-        if (Config.itemNerfsExpPercentagePerCycle <= 0)
+        if (Config.nerfExpPercentagePerCycle <= 0)
             return 0;
-        double expMultiplier = Config.customEnchantExpReductionEnabled ?
-                Math.max(0, 1 - expReductionLevel * Config.customEnchantExpReductionReductionPerLevel) : 1;
-        return Math.max(0, effects.values().stream().reduce(0, Integer::sum) * Config.itemNerfsExpPercentagePerCycle * expMultiplier);
+        double expMultiplier = Config.enchExpReductionEnabled ?
+                Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
+        return Math.max(0, effects.values().stream().reduce(0, Integer::sum) * Config.nerfExpPercentagePerCycle * expMultiplier);
     }
 
     public boolean shouldUpdate() {
@@ -170,8 +171,8 @@ public class BeaconEffects implements Cloneable {
             }
         }
         // downgrade enchantments
-        ret.expReductionLevel = Math.min(expReductionLevel, Config.customEnchantExpReductionMaxLevel);
-        ret.soulboundLevel = Math.min(soulboundLevel, Config.customEnchantSoulboundMaxLevel);
+        ret.expReductionLevel = Math.min(expReductionLevel, Config.enchExpReductionMaxLevel);
+        ret.soulboundLevel = Math.min(soulboundLevel, Config.enchSoulboundMaxLevel);
         ret.setEffects(newEffects);
         return ret;
     }
@@ -282,7 +283,7 @@ public class BeaconEffects implements Cloneable {
                     return keys.stream().map(key -> {
                         String[] keyData = key.split(":", 2);
                         return new NamespacedKey(keyData[0], keyData[1]);
-                    }).collect(Collectors.toSet());
+                    }).collect(toSet());
                 } catch (ReflectiveOperationException e) {
                     throw new Error("Failed to find keys for NBT tag!", e);
                 }

@@ -202,13 +202,14 @@ public class Events implements Listener {
         }
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler
     public void onBeaconUse(PlayerInteractEvent e) {
+        if (!Config.effectsToggleEnabled)
+            return;
         if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK) &&
-                e.getPlayer().isSneaking() &&
+                e.getPlayer().isSneaking() && (e.useItemInHand() == Event.Result.ALLOW || e.useItemInHand() == Event.Result.DEFAULT) &&
                 ItemUtils.isPortableBeacon(e.getItem())) {
             e.setUseInteractedBlock(Event.Result.DENY);
-            e.setUseItemInHand(Event.Result.ALLOW);
             Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem()));
         }
     }
@@ -238,7 +239,7 @@ public class Events implements Listener {
                     if (effects.soulboundLevel != 0 && player.getUniqueId().equals(effects.soulboundOwner)) {
                         iterator.remove();
                         List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
-                        if (Config.customEnchantSoulboundConsumeLevelOnDeath) {
+                        if (Config.enchSoulboundConsumeLevelOnDeath) {
                             effects.soulboundLevel--;
                             items.add(ItemUtils.createStackCopyItemData(effects, dropped));
                         } else {
