@@ -342,12 +342,13 @@ public class CommandPortableBeacons implements TabExecutor {
         Map<PotionEffectType, Integer> effectiveEffectsMap = effectiveEffects.getEffects();
         sender.sendMessage(GREEN + "Potion effects:");
         for (Map.Entry<PotionEffectType, Integer> entry : effectsMap.entrySet()) {
-            int absLevel = Math.abs(entry.getValue());
+            PotionEffectType type = entry.getKey();
+            int level = entry.getValue();
             // format used in commands
-            String internalFormat = PotionEffectUtils.getName(entry.getKey()) + (absLevel != 1 ? "*" + absLevel : "");
+            String internalFormat = PotionEffectUtils.getName(type) + (level != 1 ? "*" + level : "");
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
-                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(entry.getKey(), absLevel)))
+                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(type, level)))
                     .append(" ", ComponentBuilder.FormatRetention.NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
                     .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
@@ -368,12 +369,12 @@ public class CommandPortableBeacons implements TabExecutor {
                         "Check 'allow-portable-beacons' of the region.")
                         .color(RED)
                         .create();
-            } else if (!effectiveEffectsMap.containsKey(entry.getKey())) {
+            } else if (!effectiveEffectsMap.containsKey(type)) {
                 disabledDisplay = new ComponentBuilder("Target is in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
                         "Check 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.")
                         .color(RED)
                         .create();
-            } else if (entry.getValue() < 0) { // disabled
+            } else if (effects.getDisabledEffects().contains(type)) { // disabled
                 disabledDisplay = new ComponentBuilder("Target has disabled the effect!")
                         .color(RED)
                         .create();

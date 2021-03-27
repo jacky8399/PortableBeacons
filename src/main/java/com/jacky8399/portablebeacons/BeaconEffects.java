@@ -1,6 +1,7 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
@@ -22,7 +23,7 @@ import java.util.function.Function;
 import static java.util.stream.Collectors.*;
 
 public class BeaconEffects implements Cloneable {
-    private static final int DATA_VERSION = 3;
+    private static final int DATA_VERSION = 4;
     @Nullable
     public String customDataVersion = Config.itemCustomVersion;
 
@@ -44,6 +45,8 @@ public class BeaconEffects implements Cloneable {
 
     @NotNull
     private ImmutableMap<PotionEffectType, Integer> effects;
+    @NotNull
+    private ImmutableSet<PotionEffectType> disabledEffects = ImmutableSet.of();
     public int expReductionLevel = 0;
     @Nullable
     public UUID soulboundOwner = null;
@@ -66,21 +69,25 @@ public class BeaconEffects implements Cloneable {
 
     @NotNull
     public Map<PotionEffectType, Integer> getNormalizedEffects() {
-        return Maps.transformValues(effects, Math::abs);
+        return effects;
     }
 
     @NotNull
     public Map<PotionEffectType, Integer> getEnabledEffects() {
-        return Maps.filterValues(effects, num -> num >= 0);
+        return Maps.filterKeys(effects, potion -> !disabledEffects.contains(potion));
     }
 
     @NotNull
-    public Set<PotionEffectType> getDisabledEffects() {
-        return Maps.filterValues(effects, num -> num < 0).keySet();
+    public ImmutableSet<PotionEffectType> getDisabledEffects() {
+        return disabledEffects;
     }
 
     public void setEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
+    }
+
+    public void setDisabledEffects(Set<PotionEffectType> disabledEffects) {
+        this.disabledEffects = ImmutableSet.copyOf(disabledEffects);
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
@@ -97,11 +104,11 @@ public class BeaconEffects implements Cloneable {
     }
 
     public PotionEffect[] toEffects() {
-        Map<PotionEffectType, Integer> actualEffects = getEnabledEffects();
+        Map<PotionEffectType, Integer> actualEffects = effects;
         PotionEffect[] arr = new PotionEffect[actualEffects.size()];
         int i = 0;
         for (Map.Entry<PotionEffectType, Integer> entry : actualEffects.entrySet()) {
-            if (entry.getValue() < 0) continue; // ignore disabled effects
+            if (disabledEffects.contains(entry.getKey())) continue; // ignore disabled effects
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
             arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles());
@@ -113,8 +120,8 @@ public class BeaconEffects implements Cloneable {
         List<String> effectsLore = effects.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(PotionEffectUtils.POTION_COMPARATOR))
                 .map(entry -> {
-                    String display = PotionEffectUtils.getDisplayName(entry.getKey(), Math.abs(entry.getValue()));
-                    if (entry.getValue() < 0)
+                    String display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
+                    if (disabledEffects.contains(entry.getKey()))
                         display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
                     return display;
                 })
@@ -189,7 +196,7 @@ public class BeaconEffects implements Cloneable {
 
         private static final NamespacedKey
                 DATA_VERSION_KEY = key("data_version"), CUSTOM_DATA_VERSION_KEY = key("custom_data_version"),
-                EFFECTS = key("effects_v3"),
+                EFFECTS = key("effects_v3"), DISABLED_EFFECTS = key("disabled_effects"),
                 ENCHANT_EXP_REDUCTION = key("enchant_exp_reduction_level"),
                 ENCHANT_SOULBOUND = key("enchant_soulbound_level"),
                 ENCHANT_SOULBOUND_OWNER = key("enchant_soulbound_owner");
@@ -208,11 +215,19 @@ public class BeaconEffects implements Cloneable {
         public @NotNull PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
             PersistentDataContainer effects = context.newPersistentDataContainer();
-            complex.effects.forEach((type, level) -> {
+            PersistentDataContainer effectsDisabled = context.newPersistentDataContainer();
+            for (Map.Entry<PotionEffectType, Integer> entry : complex.effects.entrySet()) {
+                PotionEffectType type = entry.getKey();
+                Integer level = entry.getValue();
                 NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName().toLowerCase(Locale.US));
                 effects.set(key, SHORT, level.shortValue());
-            });
-            container.set(EFFECTS, TAG_CONTAINER, effects);
+                // disabled
+                if (complex.disabledEffects.contains(type))
+                    effectsDisabled.set(key, BYTE, (byte) 1);
+            }
+            container.set(EFFECTS, TAG_CONTAINER, effectsDisabled);
+            if (getKeys(effectsDisabled).size() != 0)
+                container.set(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER, effectsDisabled);
             // enchants
             if (complex.expReductionLevel != 0)
                 container.set(ENCHANT_EXP_REDUCTION, INTEGER, complex.expReductionLevel);
@@ -233,7 +248,7 @@ public class BeaconEffects implements Cloneable {
             Integer dataVersion = primitive.get(DATA_VERSION_KEY, INTEGER);
             if (dataVersion == null)
                 return parseLegacyV1(primitive);
-            else if (dataVersion == 3) {
+            else if (dataVersion == 3 || dataVersion == 4) {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
                 HashMap<PotionEffectType, Integer> effectsMap = new HashMap<>();
                 for (NamespacedKey key : getKeys(effects)) {
@@ -243,6 +258,17 @@ public class BeaconEffects implements Cloneable {
                     effectsMap.put(type, (int) level);
                 }
                 BeaconEffects ret = new BeaconEffects(effectsMap);
+                // disabled effects
+                if (dataVersion == 4) {
+                    PersistentDataContainer disabledEffects = primitive.get(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER);
+                    ImmutableSet<PotionEffectType> disabledEffectsSet = getKeys(disabledEffects).stream()
+                            .map(NamespacedKey::getKey)
+                            .map(PotionEffectType::getByName)
+                            .filter(Objects::nonNull)
+                            .collect(ImmutableSet.toImmutableSet());
+                    ret.setDisabledEffects(disabledEffectsSet);
+                }
+
                 ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, STRING);
                 // enchants
                 Integer enchantExpReduction = primitive.get(ENCHANT_EXP_REDUCTION, INTEGER);
@@ -260,7 +286,7 @@ public class BeaconEffects implements Cloneable {
             } else if (dataVersion == 2) {
                 return parseLegacyV2(primitive);
             } else {
-                throw new UnsupportedOperationException("Invalid data version " + dataVersion + ", only data versions null, 2 and 3 are supported");
+                throw new UnsupportedOperationException("Invalid data version " + dataVersion + ", only data versions 2-4 and null are supported");
             }
         }
 

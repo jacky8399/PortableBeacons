@@ -31,7 +31,7 @@ public class InventoryTogglePotion implements InventoryProvider {
         this.stack = stack.clone();
         BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
         effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR);
-        effects.putAll(beaconEffects.getNormalizedEffects());
+        effects.putAll(beaconEffects.getEffects());
         disabledEffects = new HashSet<>(beaconEffects.getDisabledEffects());
     }
 

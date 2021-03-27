@@ -1,6 +1,5 @@
 package com.jacky8399.portablebeacons.utils;
 
-import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import org.bukkit.Bukkit;
@@ -69,7 +68,7 @@ public class ItemUtils {
     }
 
     private static int getCost(BeaconEffects effects) {
-        return effects.getEffects().values().stream().mapToInt(level -> 1 << Math.abs(level)).sum();
+        return effects.getEffects().values().stream().mapToInt(level -> 1 << level).sum();
     }
 
     public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {
@@ -105,7 +104,7 @@ public class ItemUtils {
             return null;
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
-            HashMap<PotionEffectType, Integer> effects = Maps.newHashMap(e1.getEffects());
+            HashMap<PotionEffectType, Integer> effects = new HashMap<>(e1.getEffects());
             BinaryOperator<Integer> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
                     Integer::sum : ItemUtils::anvilAlgorithm;
             e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, algorithm));
