@@ -32,6 +32,21 @@ public class ItemUtils {
         stack.setItemMeta(meta);
     }
 
+    public static boolean isPyramid(ItemStack stack) {
+        return stack != null && stack.getType() == Material.BEACON && stack.hasItemMeta() &&
+                stack.getItemMeta().getPersistentDataContainer().has(BeaconPyramid.BeaconPyramidDataType.STORAGE_KEY, BeaconPyramid.BeaconPyramidDataType.STORAGE_TYPE);
+    }
+
+    public static BeaconPyramid getPyramid(ItemStack stack) {
+        return stack.getItemMeta().getPersistentDataContainer().get(BeaconPyramid.BeaconPyramidDataType.STORAGE_KEY, BeaconPyramid.BeaconPyramidDataType.STORAGE_TYPE);
+    }
+
+    public static void setPyramid(ItemStack stack, BeaconPyramid pyramid) {
+        ItemMeta meta = stack.getItemMeta();
+        meta.getPersistentDataContainer().set(BeaconPyramid.BeaconPyramidDataType.STORAGE_KEY, BeaconPyramid.BeaconPyramidDataType.STORAGE_TYPE, pyramid);
+        stack.setItemMeta(meta);
+    }
+
     public static ItemStack createStack(BeaconEffects effects) {
         ItemStack stack = new ItemStack(Material.BEACON);
         ItemMeta meta = Objects.requireNonNull(Bukkit.getItemFactory().getItemMeta(Material.BEACON));

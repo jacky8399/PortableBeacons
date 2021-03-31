@@ -194,7 +194,7 @@ public class BeaconEffects implements Cloneable {
     @SuppressWarnings({"deprecation", "unchecked", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
-        private static NamespacedKey key(String key) {
+        public static NamespacedKey key(String key) {
             return new NamespacedKey(plugin, key);
         }
 
@@ -232,9 +232,9 @@ public class BeaconEffects implements Cloneable {
                 if (complex.disabledEffects.contains(type))
                     effectsDisabled.set(key, BYTE, (byte) 1);
             }
-            container.set(EFFECTS, TAG_CONTAINER, effectsDisabled);
+            container.set(EFFECTS, TAG_CONTAINER, effects);
             if (getKeys(effectsDisabled).size() != 0)
-                container.set(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER, effectsDisabled);
+                container.set(DISABLED_EFFECTS, TAG_CONTAINER, effectsDisabled);
             // enchants
             if (complex.expReductionLevel != 0)
                 container.set(ENCHANT_EXP_REDUCTION, INTEGER, complex.expReductionLevel);
@@ -268,12 +268,14 @@ public class BeaconEffects implements Cloneable {
                 // disabled effects
                 if (dataVersion == 4) {
                     PersistentDataContainer disabledEffects = primitive.get(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER);
-                    ImmutableSet<PotionEffectType> disabledEffectsSet = getKeys(disabledEffects).stream()
-                            .map(NamespacedKey::getKey)
-                            .map(PotionEffectType::getByName)
-                            .filter(Objects::nonNull)
-                            .collect(ImmutableSet.toImmutableSet());
-                    ret.setDisabledEffects(disabledEffectsSet);
+                    if (disabledEffects != null) {
+                        ImmutableSet<PotionEffectType> disabledEffectsSet = getKeys(disabledEffects).stream()
+                                .map(NamespacedKey::getKey)
+                                .map(PotionEffectType::getByName)
+                                .filter(Objects::nonNull)
+                                .collect(ImmutableSet.toImmutableSet());
+                        ret.setDisabledEffects(disabledEffectsSet);
+                    }
                 }
 
                 ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, STRING);
@@ -304,7 +306,7 @@ public class BeaconEffects implements Cloneable {
                 GET_KEYS = PersistentDataContainer.class.getMethod("getKeys") != null;
             } catch (NoSuchMethodException ignored) {}
         }
-        private static Set<NamespacedKey> getKeys(PersistentDataContainer container) {
+        public static Set<NamespacedKey> getKeys(@NotNull PersistentDataContainer container) {
             if (GET_KEYS) {
                 return container.getKeys();
             } else {

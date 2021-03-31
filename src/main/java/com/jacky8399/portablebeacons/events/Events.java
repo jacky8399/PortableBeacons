@@ -4,6 +4,7 @@ import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.inventory.InventoryTogglePotion;
+import com.jacky8399.portablebeacons.utils.BeaconPyramid;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.*;
@@ -33,6 +34,8 @@ import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.BlockVector;
+import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -52,21 +55,16 @@ public class Events implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
     }
 
-    public static BeaconEffects checkBeaconTier(Beacon tileEntity) {
+    public static int checkBeaconTier(Beacon tileEntity) {
         if (tileEntity.getPrimaryEffect() == null || tileEntity.getTier() == 0) {
-            return null;
+            return -1;
         }
-        Map<PotionEffectType, Integer> effects = new HashMap<>();
-        PotionEffect primary = tileEntity.getPrimaryEffect();
-        effects.put(primary.getType(), primary.getAmplifier() + 1);
-        PotionEffect secondary = tileEntity.getSecondaryEffect();
+        PotionEffect primary = tileEntity.getPrimaryEffect(), secondary = tileEntity.getSecondaryEffect();
         int beaconTier = tileEntity.getTier();
         int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
-        if (beaconTier < requiredTier || requiredTier == -1)
-            return null;
-        if (secondary != null)
-            effects.put(secondary.getType(), secondary.getAmplifier() + 1);
-        return new BeaconEffects(effects);
+        if (beaconTier >= requiredTier && requiredTier != -1)
+            return requiredTier;
+        return -1;
     }
 
     public void doItemLocationCheck() {
@@ -86,7 +84,8 @@ public class Events implements Listener {
             if (blockBelow.getType() == Material.BEACON) {
                 // check if activated
                 Beacon tileEntity = (Beacon) blockBelow.getState();
-                if (tileEntity.getPrimaryEffect() == null || tileEntity.getTier() == 0) {
+                int tier = checkBeaconTier(tileEntity);
+                if (tier == -1) {
                     continue;
                 }
 
@@ -94,13 +93,9 @@ public class Events implements Listener {
                 PotionEffect primary = tileEntity.getPrimaryEffect();
                 effects.put(primary.getType(), primary.getAmplifier() + 1);
                 PotionEffect secondary = tileEntity.getSecondaryEffect();
-                int beaconTier = tileEntity.getTier();
-                int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
-                if (beaconTier < requiredTier || requiredTier == -1)
-                    continue;
                 if (secondary != null)
                     effects.put(secondary.getType(), secondary.getAmplifier() + 1);
-                if (removeBeacon(thrower, blockBelow, requiredTier, true) != null) {
+                if (removeBeacon(thrower, blockBelow, tier, true) == null) {
                     continue;
                 }
                 // play sound to complement block break effects
@@ -139,13 +134,9 @@ public class Events implements Listener {
     }
 
     // the beacon will definitely be removed if this method returns a non-null value
-    public static BlockData[][] removeBeacon(Player player, Block block, int tier, boolean modifyBeaconBlock) {
-//        HashMap<Integer, List<Block>> blocksToBreak = new HashMap<>();
+    public static Map<Vector, BlockData> removeBeacon(Player player, Block block, int tier, boolean modifyBeaconBlock) {
         Block[][] blocksToBreak = new Block[tier + 1][];
-//        ArrayList<Block> blocksToBreak = new ArrayList<>();
-//        blocksToBreak.add(block);
         // beacon block
-
         if (modifyBeaconBlock) {
             blocksToBreak[0] = new Block[] {block};
             if (block.getType() != Material.BEACON)
@@ -156,9 +147,11 @@ public class Events implements Listener {
             blocksToBreak[0] = new Block[] {};
         }
 
+        Map<Vector, BlockData> beaconBase = new HashMap<>();
         for (int currentTier = 1; currentTier <= tier; currentTier++) {
             int i = 0;
-            Block[] blockz = new Block[(int) Math.pow(currentTier * 2 + 1, 2)];
+            int currentTierSize = (int) Math.pow(currentTier * 2 + 1, 2);
+            Block[] blockz = new Block[currentTierSize];
             for (int x = -currentTier; x <= currentTier; x++) {
                 for (int z = -currentTier; z <= currentTier; z++) {
                     Block offset = block.getRelative(x, -currentTier, z);
@@ -168,19 +161,18 @@ public class Events implements Listener {
                     else if (checkBlockEventFail(player, offset))
                         return null;
                     blockz[i++] = offset;
+
+                    BlockVector vector = new BlockVector(x, -currentTier, z);
+                    beaconBase.put(vector, offset.getBlockData());
                 }
             }
             blocksToBreak[currentTier] = blockz;
         }
-        BlockData[][] ret = new BlockData[tier + 1][];
         World world = block.getWorld();
         for (int i = 0; i < blocksToBreak.length; i++) {
             Block[] blocks = blocksToBreak[i];
             // copy array
-            ret[i] = new BlockData[blocks.length];
-            for (int j = 0; j < blocks.length; j++) {
-                Block b = blocks[j];
-                ret[i][j] = b.getBlockData();
+            for (Block b : blocks) {
                 b.setType(Material.GLASS); // to prevent duping
             }
             // don't break that many blocks at once
@@ -193,7 +185,7 @@ public class Events implements Listener {
                 }
             }, (i + 1) * 10L);
         }
-        return ret;
+        return beaconBase;
     }
 
     public WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
@@ -230,7 +222,23 @@ public class Events implements Listener {
             return;
         BlockState state = e.getBlockState();
         if (state instanceof Beacon) {
+            Beacon beacon = (Beacon) state;
+            int tier = checkBeaconTier(beacon);
+            if (tier == -1)
+                return;
 
+            Map<PotionEffectType, Integer> effects = new HashMap<>();
+            PotionEffect primary = beacon.getPrimaryEffect();
+            effects.put(primary.getType(), primary.getAmplifier() + 1);
+            PotionEffect secondary = beacon.getSecondaryEffect();
+            if (secondary != null)
+                effects.put(secondary.getType(), secondary.getAmplifier() + 1);
+            Map<Vector, BlockData> beaconBase = removeBeacon(e.getPlayer(), e.getBlock(), tier, false);
+            if (beaconBase == null) {
+                return;
+            }
+
+            BeaconPyramid pyramid = new BeaconPyramid(tier, beaconBase);
         }
     }
 

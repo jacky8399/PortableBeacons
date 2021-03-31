@@ -267,9 +267,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (stack.getType() == Material.AIR) {
                         Config.ritualItem = new ItemStack(Material.AIR);
                         sender.sendMessage(RED + "Set ritual item to air");
-                        sender.sendMessage(RED + "This allows players to \n" +
-                                RED + "- create portable beacons by breaking existing beacons\n" +
-                                RED + "- place down picked up beacons later");
+                        sender.sendMessage(RED + "This allows players to create portable beacons by breaking existing beacons");
                         sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, do /" + label + " toggle ritual false");
                     } else {
                         Config.ritualItem = stack.clone();

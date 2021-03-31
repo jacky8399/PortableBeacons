@@ -16,7 +16,10 @@ import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 public class InventoryTogglePotion implements InventoryProvider {
@@ -30,11 +33,14 @@ public class InventoryTogglePotion implements InventoryProvider {
             throw new IllegalArgumentException("stack is not beacon");
         }
         this.stack = stack;
-        displayStack = stack.clone();
         BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
         effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR); // to maintain consistent order
         effects.putAll(beaconEffects.getEffects());
         disabledEffects = new HashSet<>(beaconEffects.getDisabledEffects());
+
+        // display stack
+        displayStack = stack.clone();
+        displayStack.setType(beaconEffects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
     }
 
     private void updateItem() {
@@ -67,7 +73,16 @@ public class InventoryTogglePotion implements InventoryProvider {
         border.setItemMeta(borderMeta);
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inventory.set(4, displayStack);
+                inventory.set(4, displayStack, e -> {
+                    if (effects.size() != disabledEffects.size()) {
+                        // disable all
+                        disabledEffects.addAll(effects.keySet());
+                    } else {
+                        disabledEffects.clear();
+                    }
+                    updateItem();
+                    inventory.requestRefresh(player);
+                });
             } else {
                 inventory.set(i, border);
             }
