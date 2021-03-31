@@ -9,6 +9,8 @@ import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -17,6 +19,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
@@ -49,8 +52,25 @@ public class Events implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
     }
 
+    public static BeaconEffects checkBeaconTier(Beacon tileEntity) {
+        if (tileEntity.getPrimaryEffect() == null || tileEntity.getTier() == 0) {
+            return null;
+        }
+        Map<PotionEffectType, Integer> effects = new HashMap<>();
+        PotionEffect primary = tileEntity.getPrimaryEffect();
+        effects.put(primary.getType(), primary.getAmplifier() + 1);
+        PotionEffect secondary = tileEntity.getSecondaryEffect();
+        int beaconTier = tileEntity.getTier();
+        int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
+        if (beaconTier < requiredTier || requiredTier == -1)
+            return null;
+        if (secondary != null)
+            effects.put(secondary.getType(), secondary.getAmplifier() + 1);
+        return new BeaconEffects(effects);
+    }
+
     public void doItemLocationCheck() {
-        if (!Config.ritualEnabled || ritualItems.size() == 0)
+        if (!Config.ritualEnabled)
             return;
         Iterator<Map.Entry<Item, Player>> iterator = ritualItems.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -80,7 +100,7 @@ public class Events implements Listener {
                     continue;
                 if (secondary != null)
                     effects.put(secondary.getType(), secondary.getAmplifier() + 1);
-                if (!removeBeacon(thrower, blockBelow, requiredTier)) {
+                if (removeBeacon(thrower, blockBelow, requiredTier, true) != null) {
                     continue;
                 }
                 // play sound to complement block break effects
@@ -118,19 +138,23 @@ public class Events implements Listener {
         return e.isCancelled();
     }
 
-    // the beacon will definitely be removed if this method returns true
-    public boolean removeBeacon(Player player, Block block, int tier) {
+    // the beacon will definitely be removed if this method returns a non-null value
+    public static BlockData[][] removeBeacon(Player player, Block block, int tier, boolean modifyBeaconBlock) {
 //        HashMap<Integer, List<Block>> blocksToBreak = new HashMap<>();
         Block[][] blocksToBreak = new Block[tier + 1][];
 //        ArrayList<Block> blocksToBreak = new ArrayList<>();
 //        blocksToBreak.add(block);
         // beacon block
 
-        blocksToBreak[0] = new Block[] {block};
-        if (block.getType() != Material.BEACON)
-            return false;
-        else if (checkBlockEventFail(player, block))
-            return false;
+        if (modifyBeaconBlock) {
+            blocksToBreak[0] = new Block[] {block};
+            if (block.getType() != Material.BEACON)
+                return null;
+            else if (checkBlockEventFail(player, block))
+                return null;
+        } else {
+            blocksToBreak[0] = new Block[] {};
+        }
 
         for (int currentTier = 1; currentTier <= tier; currentTier++) {
             int i = 0;
@@ -140,18 +164,23 @@ public class Events implements Listener {
                     Block offset = block.getRelative(x, -currentTier, z);
                     // validate block
                     if (!Tag.BEACON_BASE_BLOCKS.isTagged(offset.getType()))
-                        return false;
+                        return null;
                     else if (checkBlockEventFail(player, offset))
-                        return false;
+                        return null;
                     blockz[i++] = offset;
                 }
             }
             blocksToBreak[currentTier] = blockz;
         }
+        BlockData[][] ret = new BlockData[tier + 1][];
         World world = block.getWorld();
         for (int i = 0; i < blocksToBreak.length; i++) {
             Block[] blocks = blocksToBreak[i];
-            for (Block b : blocks) {
+            // copy array
+            ret[i] = new BlockData[blocks.length];
+            for (int j = 0; j < blocks.length; j++) {
+                Block b = blocks[j];
+                ret[i][j] = b.getBlockData();
                 b.setType(Material.GLASS); // to prevent duping
             }
             // don't break that many blocks at once
@@ -164,7 +193,7 @@ public class Events implements Listener {
                 }
             }, (i + 1) * 10L);
         }
-        return true;
+        return ret;
     }
 
     public WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
@@ -193,6 +222,16 @@ public class Events implements Listener {
     @EventHandler
     public void onPlayerLeave(PlayerQuitEvent e) {
         ritualItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBreakBlock(BlockDropItemEvent e) {
+        if (Config.ritualItem.getType() != Material.AIR)
+            return;
+        BlockState state = e.getBlockState();
+        if (state instanceof Beacon) {
+
+        }
     }
 
     @EventHandler(ignoreCancelled = true)

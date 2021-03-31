@@ -72,7 +72,11 @@ public class Inventories implements Listener {
             InventoryData data = pluginInventories.get(inv);
             Consumer<InventoryClickEvent> eventHandler = data.eventHandlers.get(e.getSlot());
             if (eventHandler != null) {
-                eventHandler.accept(e);
+                try {
+                    eventHandler.accept(e);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         }
     }

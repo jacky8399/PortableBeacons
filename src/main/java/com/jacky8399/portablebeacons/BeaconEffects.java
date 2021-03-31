@@ -28,23 +28,24 @@ public class BeaconEffects implements Cloneable {
     public String customDataVersion = Config.itemCustomVersion;
 
     public BeaconEffects() {
-        this.effects = ImmutableMap.of();
+        this(ImmutableMap.of());
     }
 
     @Deprecated
     public BeaconEffects(PotionEffectType... effects) {
-        this.effects = Arrays.stream(effects).filter(Objects::nonNull)
-                .collect(collectingAndThen(
-                        groupingBy(Function.identity(), collectingAndThen(counting(), Long::intValue)),
-                        ImmutableMap::copyOf));
+        this(Arrays.stream(effects).filter(Objects::nonNull)
+                .collect(groupingBy(Function.identity(), collectingAndThen(counting(), Long::intValue))));
     }
 
     public BeaconEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
+        this.enabledEffects = ImmutableMap.copyOf(effects);
     }
 
     @NotNull
     private ImmutableMap<PotionEffectType, Integer> effects;
+    @NotNull
+    private transient ImmutableMap<PotionEffectType, Integer> enabledEffects;
     @NotNull
     private ImmutableSet<PotionEffectType> disabledEffects = ImmutableSet.of();
     public int expReductionLevel = 0;
@@ -68,13 +69,8 @@ public class BeaconEffects implements Cloneable {
     }
 
     @NotNull
-    public Map<PotionEffectType, Integer> getNormalizedEffects() {
-        return effects;
-    }
-
-    @NotNull
     public Map<PotionEffectType, Integer> getEnabledEffects() {
-        return Maps.filterKeys(effects, potion -> !disabledEffects.contains(potion));
+        return enabledEffects;
     }
 
     @NotNull
@@ -84,10 +80,21 @@ public class BeaconEffects implements Cloneable {
 
     public void setEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
+        recalculateEnabledEffects();
     }
 
     public void setDisabledEffects(Set<PotionEffectType> disabledEffects) {
         this.disabledEffects = ImmutableSet.copyOf(disabledEffects);
+        recalculateEnabledEffects();
+    }
+
+    private void recalculateEnabledEffects() {
+        ImmutableMap.Builder<PotionEffectType, Integer> builder = ImmutableMap.builder();
+        for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
+            if (!disabledEffects.contains(entry.getKey()))
+                builder.put(entry);
+        }
+        enabledEffects = builder.build();
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
@@ -101,13 +108,13 @@ public class BeaconEffects implements Cloneable {
             }
         }
         this.effects = ImmutableMap.copyOf(map);
+        recalculateEnabledEffects();
     }
 
     public PotionEffect[] toEffects() {
-        Map<PotionEffectType, Integer> actualEffects = effects;
-        PotionEffect[] arr = new PotionEffect[actualEffects.size()];
+        PotionEffect[] arr = new PotionEffect[enabledEffects.size()];
         int i = 0;
-        for (Map.Entry<PotionEffectType, Integer> entry : actualEffects.entrySet()) {
+        for (Map.Entry<PotionEffectType, Integer> entry : enabledEffects.entrySet()) {
             if (disabledEffects.contains(entry.getKey())) continue; // ignore disabled effects
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
@@ -154,7 +161,7 @@ public class BeaconEffects implements Cloneable {
             return 0;
         double expMultiplier = Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
-        return Math.max(0, effects.values().stream().reduce(0, Integer::sum) * Config.nerfExpPercentagePerCycle * expMultiplier);
+        return Math.max(0, enabledEffects.values().stream().reduce(0, Integer::sum) * Config.nerfExpPercentagePerCycle * expMultiplier);
     }
 
     public boolean shouldUpdate() {

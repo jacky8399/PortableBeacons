@@ -22,33 +22,31 @@ import java.util.function.Consumer;
 public class InventoryTogglePotion implements InventoryProvider {
 
     private ItemStack stack;
+    private ItemStack displayStack;
     private Map<PotionEffectType, Integer> effects;
     private HashSet<PotionEffectType> disabledEffects;
     public InventoryTogglePotion(ItemStack stack) {
         if (!ItemUtils.isPortableBeacon(stack)) {
             throw new IllegalArgumentException("stack is not beacon");
         }
-        this.stack = stack.clone();
+        this.stack = stack;
+        displayStack = stack.clone();
         BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
-        effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR);
+        effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR); // to maintain consistent order
         effects.putAll(beaconEffects.getEffects());
         disabledEffects = new HashSet<>(beaconEffects.getDisabledEffects());
     }
 
     private void updateItem() {
         BeaconEffects effects = ItemUtils.getEffects(stack);
-        HashMap<PotionEffectType, Integer> effectsMap = new HashMap<>(effects.getEffects());
-        for (Map.Entry<PotionEffectType, Integer> entry : effectsMap.entrySet()) {
-            int level = Math.abs(entry.getValue());
-            if (disabledEffects.contains(entry.getKey()))
-                entry.setValue(-level);
-            else
-                entry.setValue(level);
-        }
-        effects.setEffects(effectsMap);
+        effects.setDisabledEffects(disabledEffects);
         // mildly inefficient
         ItemStack temp = ItemUtils.createStackCopyItemData(effects, stack);
-        stack.setItemMeta(temp.getItemMeta());
+        ItemMeta tempMeta = temp.getItemMeta();
+        stack.setItemMeta(tempMeta);
+        // all effects are disabled
+        displayStack.setType(effects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
+        displayStack.setItemMeta(tempMeta);
     }
 
     @Override
@@ -69,7 +67,7 @@ public class InventoryTogglePotion implements InventoryProvider {
         border.setItemMeta(borderMeta);
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inventory.set(4, stack);
+                inventory.set(4, displayStack);
             } else {
                 inventory.set(i, border);
             }

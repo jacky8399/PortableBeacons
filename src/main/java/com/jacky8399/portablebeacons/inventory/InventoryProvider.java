@@ -22,15 +22,6 @@ public interface InventoryProvider {
             set(slot, stack, null);
         }
 
-        default void fill(ItemStack stack, @Nullable Consumer<InventoryClickEvent> eventHandler) {
-            for (int i = 0, size = getInventory().getSize(); i < size; i++) {
-                set(i, stack, eventHandler);
-            }
-        }
-        default void fill(ItemStack stack) {
-            fill(stack, null);
-        }
-
         void requestRefresh(Player player);
 
         @NotNull
