@@ -112,7 +112,8 @@ public final class Events implements Listener {
                     currentStack.setAmount(newAmount);
                     // ConcurrentModificationException
                     Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, ()->{
-                        Item splitItem = item.getWorld().dropItem(item.getLocation(), currentStack);
+                        Item splitItem = item.getWorld().dropItem(item.getLocation().add(0, 1, 0), currentStack);
+                        splitItem.setVelocity(new Vector(0, 0, 0));
                         ritualItems.put(splitItem, thrower);
                     });
                 }

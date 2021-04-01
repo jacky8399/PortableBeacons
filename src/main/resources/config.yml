@@ -99,6 +99,11 @@ effects:
 
 ritual:
   enabled: true
+  # Allow players to place down portable beacons, rebuilding the original beacon pyramid
+  # (The ritual item will not be refunded)
+  # Regardless of this value, the pyramid will still be stored for later use
+  # Beware of dupe exploits allowing duplication of beacon base blocks!
+  allow-placing-pyramids: false
   __: ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used
   item:
 

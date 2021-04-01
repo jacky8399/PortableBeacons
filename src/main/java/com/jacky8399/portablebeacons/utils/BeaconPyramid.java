@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -12,12 +13,8 @@ import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static com.jacky8399.portablebeacons.BeaconEffects.BeaconEffectsDataType.key;
 import static java.util.stream.Collectors.*;
@@ -28,8 +25,9 @@ public class BeaconPyramid {
     public final ImmutableMap<Vector, BlockData> beaconBase;
 
     public BeaconPyramid(int tier, Map<Vector, BlockData> beaconBase) {
-        this.tier = tier;
+        Preconditions.checkState(tier > 0 && tier <= 4, "Tier is invalid");
         Preconditions.checkState(beaconBase.size() != 0, "Beacon base is empty");
+        this.tier = tier;
         this.beaconBase = ImmutableMap.copyOf(beaconBase);
     }
 
@@ -45,7 +43,7 @@ public class BeaconPyramid {
 
         public static final int DATA_VERSION = 1;
 
-        public static final NamespacedKey TIER = key("tier"), BEACON_BASE = key("beacon_base"), DATA_VERSION_KEY = key("data_version");
+        public static final NamespacedKey TIER = key("tier"), DATA_VERSION_KEY = key("data_version");
         @NotNull
         @Override
         public Class<PersistentDataContainer> getPrimitiveType() {
@@ -58,29 +56,47 @@ public class BeaconPyramid {
             return BeaconPyramid.class;
         }
 
-        static final NamespacedKey MAJORITY = key("majority"), BLOCKS = key("blocks"), BLOCK = key("block"), LOCATIONS = key("locations");
+        static final NamespacedKey MAJORITY = key("majority"), BLOCKS = key("blocks"),
+                BLOCK = key("block"), LOCATIONS = key("locations"), Y_OFFSET = key("y"), LAYERS = key("layers");
 
         @NotNull
         @Override
         public PersistentDataContainer toPrimitive(@NotNull BeaconPyramid complex, @NotNull PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
 
-            container.set(TIER, INTEGER, complex.tier);
+            container.set(TIER, BYTE, (byte) complex.tier);
             // save space by storing only the outliers
             BlockData majority = complex.getMajority();
             container.set(MAJORITY, STRING, majority.getAsString());
-            Map<BlockData, Set<Vector>> locations = complex.beaconBase.entrySet().stream()
+            // group by block data then by y offset
+            Map<BlockData, Map<Integer, List<Vector>>> layeredLocations = complex.beaconBase.entrySet().stream()
                     .filter(entry -> !entry.getValue().matches(majority))
-                    .collect(groupingBy(Map.Entry::getValue, mapping(Map.Entry::getKey, toSet())));
-            PersistentDataContainer[] tags = locations.entrySet().stream()
+                    .collect(groupingBy(Map.Entry::getValue, groupingBy(entry -> entry.getKey().getBlockY(), mapping(Map.Entry::getKey, toList()))));
+            PersistentDataContainer[] tags = layeredLocations.entrySet().stream()
                     .map(entry -> {
-                        PersistentDataContainer inner = context.newPersistentDataContainer();
-                        inner.set(BLOCK, STRING, entry.getKey().getAsString());
-                        int[] locationsFlattened = entry.getValue().stream()
-                                .flatMapToInt(vector -> IntStream.of(vector.getBlockX(), vector.getBlockY(), vector.getBlockZ()))
-                                .toArray();
-                        inner.set(LOCATIONS, INTEGER_ARRAY, locationsFlattened);
-                        return inner;
+                        PersistentDataContainer blockContainer = context.newPersistentDataContainer();
+                        blockContainer.set(BLOCK, STRING, entry.getKey().getAsString());
+                        Map<Integer, List<Vector>> layers = entry.getValue();
+                        PersistentDataContainer[] layerTags = layers.entrySet().stream()
+                                .map(layer -> {
+                                    PersistentDataContainer layerContainer = context.newPersistentDataContainer();
+                                    layerContainer.set(Y_OFFSET, BYTE, layer.getKey().byteValue());
+                                    // store x and z only
+                                    List<Vector> pos = layer.getValue();
+                                    byte[] bytes = new byte[pos.size() * 2];
+                                    ListIterator<Vector> iterator = pos.listIterator();
+                                    while (iterator.hasNext()) {
+                                        int idx = iterator.nextIndex();
+                                        Vector next = iterator.next();
+                                        bytes[idx * 2] = (byte) next.getBlockX();
+                                        bytes[idx * 2 + 1] = (byte) next.getBlockZ();
+                                    }
+                                    layerContainer.set(LOCATIONS, BYTE_ARRAY, bytes);
+                                    return layerContainer;
+                                })
+                                .toArray(PersistentDataContainer[]::new);
+                        blockContainer.set(LAYERS, TAG_CONTAINER_ARRAY, layerTags);
+                        return blockContainer;
                     })
                     .toArray(PersistentDataContainer[]::new);
             if (tags.length != 0)
@@ -96,8 +112,14 @@ public class BeaconPyramid {
         public BeaconPyramid fromPrimitive(@NotNull PersistentDataContainer primitive, @NotNull PersistentDataAdapterContext context) {
             int dataVersion = primitive.get(DATA_VERSION_KEY, INTEGER);
             if (dataVersion == 1) {
-                int tier = primitive.get(TIER, INTEGER);
+                int tier = primitive.get(TIER, BYTE);
+                if (tier > 4 || tier < 1) {
+                    throw new IllegalStateException(tier + " is not a valid tier");
+                }
                 BlockData majority = Bukkit.createBlockData(primitive.get(MAJORITY, STRING));
+                if (!Tag.BEACON_BASE_BLOCKS.isTagged(majority.getMaterial())) { // validate
+                    throw new IllegalStateException(majority.getAsString() + " is not a valid beacon base block");
+                }
                 Map<Vector, BlockData> beaconBase = new HashMap<>();
                 // fill beacon with majority
                 for (int currentTier = 1; currentTier <= tier; currentTier++) {
@@ -112,10 +134,20 @@ public class BeaconPyramid {
                 if (tags != null) {
                     for (PersistentDataContainer container : tags) {
                         BlockData data = Bukkit.createBlockData(container.get(BLOCK, STRING));
-                        int[] locations = container.get(LOCATIONS, INTEGER_ARRAY);
-                        for (int i = 0; i < locations.length; i += 3) {
-                            BlockVector vector = new BlockVector(locations[i], locations[i + 1], locations[i + 2]);
-                            beaconBase.put(vector, data);
+                        if (!Tag.BEACON_BASE_BLOCKS.isTagged(data.getMaterial())) { // validate
+                            throw new IllegalStateException(data.getAsString() + " is not a valid beacon base block");
+                        }
+                        PersistentDataContainer[] layersTags = container.get(LAYERS, TAG_CONTAINER_ARRAY);
+                        for (PersistentDataContainer layersTag : layersTags) {
+                            int yOffset = layersTag.get(Y_OFFSET, BYTE);
+                            if (yOffset >= 0) {
+                                throw new IllegalStateException(yOffset + " is an invalid offset");
+                            }
+                            byte[] locations = layersTag.get(LOCATIONS, BYTE_ARRAY);
+                            for (int i = 0; i < locations.length; i += 2) {
+                                BlockVector loc = new BlockVector(locations[i], yOffset, locations[i + 1]);
+                                beaconBase.put(loc, data);
+                            }
                         }
                     }
                 }

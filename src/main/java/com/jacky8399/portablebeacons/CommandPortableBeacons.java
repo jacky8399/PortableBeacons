@@ -2,14 +2,12 @@ package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
 import com.jacky8399.portablebeacons.events.Events;
-import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
-import com.jacky8399.portablebeacons.utils.ItemUtils;
-import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
-import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
+import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -22,6 +20,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -426,6 +425,18 @@ public class CommandPortableBeacons implements TabExecutor {
             double xpPerCycle = effects.calcExpPerCycle();
             sender.sendMessage(GREEN + "Exp %: " + YELLOW +
                     String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
+        }
+
+        // Pyramid
+        if (ItemUtils.isPyramid(stack)) {
+            BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
+            sender.sendMessage(GREEN + "Pyramid:");
+            sender.sendMessage("  " + GREEN + "Tier: " + YELLOW + pyramid.tier);
+            Map<BlockData, Long> blockCount = pyramid.beaconBase.values().stream()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            sender.sendMessage("  " + GREEN + "Blocks:");
+            blockCount.forEach((blockData, count) ->
+                    sender.sendMessage("    " + YELLOW + blockData.getAsString() + ": " + count));
         }
     }
 

@@ -33,17 +33,23 @@ public class AnvilRecipe implements Listener {
         ItemStack newIs = ItemUtils.combineStack((Player) e.getView().getPlayer(), is1, is2, false);
         int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
+            // pyramid warning
+            ItemMeta meta = newIs.getItemMeta();
+            @SuppressWarnings("ConstantConditions")
+            List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
+            if (ItemUtils.isPyramid(is1) || ItemUtils.isPyramid(is2)) {
+                lore.add("");
+                lore.add(""+ ChatColor.DARK_RED + ChatColor.BOLD + "The beacon pyramid(s) will not be preserved!");
+                meta.setLore(lore);
+            }
             if (!Config.anvilCombinationEnforceVanillaExpLimit && cost > inv.getMaximumRepairCost()) {
-                ItemMeta meta = newIs.getItemMeta();
-                @SuppressWarnings("ConstantConditions")
-                List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
                 lore.add("");
                 lore.add(""+ ChatColor.GREEN + ChatColor.BOLD + "Enchantment cost: " + cost);
                 meta.setLore(lore);
-                newIs.setItemMeta(meta);
             } else {
                 Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> e.getInventory().setRepairCost(cost));
             }
+            newIs.setItemMeta(meta);
             e.setResult(newIs);
         }
     }
