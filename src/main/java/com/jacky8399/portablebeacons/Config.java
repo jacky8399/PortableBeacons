@@ -106,6 +106,7 @@ public class Config {
         nerfForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         readEffects(config);
+        loadConfigLegacy(config);
 
         // Anvil combination
 
@@ -196,7 +197,10 @@ public class Config {
             }
         }
 
-        Preconditions.checkNotNull(effectsDefault, "default must be provided");
+        if (effectsDefault == null) {
+            PortableBeacons.INSTANCE.logger.severe("'effects.default' must be provided");
+            effectsDefault = new PotionEffectInfo(null, 140, 3, false);
+        }
     }
 
     public static void loadConfigLegacy(FileConfiguration config) {

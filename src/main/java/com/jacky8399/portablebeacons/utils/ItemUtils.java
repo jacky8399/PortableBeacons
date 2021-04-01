@@ -28,8 +28,12 @@ public class ItemUtils {
 
     public static void setEffects(ItemStack stack, BeaconEffects effects) {
         ItemMeta meta = stack.getItemMeta();
-        meta.getPersistentDataContainer().set(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE, effects);
+        setEffects(meta, effects);
         stack.setItemMeta(meta);
+    }
+
+    public static void setEffects(ItemMeta meta, BeaconEffects effects) {
+        meta.getPersistentDataContainer().set(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE, effects);
     }
 
     public static boolean isPyramid(ItemStack stack) {
@@ -47,8 +51,7 @@ public class ItemUtils {
         stack.setItemMeta(meta);
     }
 
-    public static ItemStack createStack(BeaconEffects effects) {
-        ItemStack stack = new ItemStack(Material.BEACON);
+    public static ItemMeta createMeta(BeaconEffects effects) {
         ItemMeta meta = Objects.requireNonNull(Bukkit.getItemFactory().getItemMeta(Material.BEACON));
         if (!Config.itemName.isEmpty()) {
             meta.setDisplayName(ChatColor.LIGHT_PURPLE + Config.itemName);
@@ -64,20 +67,36 @@ public class ItemUtils {
             lore.addAll(Config.itemLore);
         }
         meta.setLore(lore);
+        setEffects(meta, effects);
+        return meta;
+    }
+
+    public static ItemStack createStack(BeaconEffects effects) {
+        ItemStack stack = new ItemStack(Material.BEACON);
+        ItemMeta meta = createMeta(effects);
         stack.setItemMeta(meta);
-
-        setEffects(stack, effects);
-
         return stack;
     }
 
+    // preserves item name and things
     public static ItemStack createStackCopyItemData(BeaconEffects effects, ItemStack oldIs) {
-        ItemStack newIs = createStack(effects);
-        ItemMeta oldMeta = oldIs.getItemMeta(), newMeta = newIs.getItemMeta();
-        if (oldMeta.hasDisplayName()) {
-            newMeta.setDisplayName(oldMeta.getDisplayName());
+        ItemMeta newMeta = createMeta(effects);
+
+        ItemMeta oldMeta = oldIs.getItemMeta(), actualMeta = oldMeta.clone();
+
+        // copy lore, enchants and set effects
+        if (newMeta.hasLore())
+            actualMeta.setLore(newMeta.getLore());
+        for (Map.Entry<Enchantment, Integer> enchants : newMeta.getEnchants().entrySet()) {
+            actualMeta.addEnchant(enchants.getKey(), enchants.getValue(), true);
         }
-        newIs.setItemMeta(newMeta);
+        actualMeta.addItemFlags(newMeta.getItemFlags().toArray(new ItemFlag[0]));
+        if (newMeta.hasCustomModelData())
+            actualMeta.setCustomModelData(newMeta.getCustomModelData());
+        setEffects(actualMeta, effects);
+
+        ItemStack newIs = new ItemStack(Material.BEACON);
+        newIs.setItemMeta(actualMeta);
         newIs.setAmount(oldIs.getAmount());
         return newIs;
     }

@@ -83,7 +83,8 @@ public class BeaconPyramid {
                         return inner;
                     })
                     .toArray(PersistentDataContainer[]::new);
-            container.set(BLOCKS, TAG_CONTAINER_ARRAY, tags);
+            if (tags.length != 0)
+                container.set(BLOCKS, TAG_CONTAINER_ARRAY, tags);
             container.set(DATA_VERSION_KEY, INTEGER, DATA_VERSION);
 
             return container;
@@ -108,12 +109,14 @@ public class BeaconPyramid {
                 }
                 // overwrite individual outliers
                 PersistentDataContainer[] tags = primitive.get(BLOCKS, TAG_CONTAINER_ARRAY);
-                for (PersistentDataContainer container : tags) {
-                    BlockData data = Bukkit.createBlockData(container.get(BLOCK, STRING));
-                    int[] locations = container.get(LOCATIONS, INTEGER_ARRAY);
-                    for (int i = 0; i < locations.length; i += 3) {
-                        BlockVector vector = new BlockVector(locations[i], locations[i + 1], locations[i + 2]);
-                        beaconBase.put(vector, data);
+                if (tags != null) {
+                    for (PersistentDataContainer container : tags) {
+                        BlockData data = Bukkit.createBlockData(container.get(BLOCK, STRING));
+                        int[] locations = container.get(LOCATIONS, INTEGER_ARRAY);
+                        for (int i = 0; i < locations.length; i += 3) {
+                            BlockVector vector = new BlockVector(locations[i], locations[i + 1], locations[i + 2]);
+                            beaconBase.put(vector, data);
+                        }
                     }
                 }
 
