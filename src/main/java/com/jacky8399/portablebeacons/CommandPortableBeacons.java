@@ -18,7 +18,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.function.BiFunction;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -152,6 +153,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
     @NotNull
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowVirtual) {
+        boolean seenEqualsPrompt = false;
         int minLevel = allowVirtual ? 0 : 1;
         BeaconEffects beaconEffects = new BeaconEffects();
         beaconEffects.expReductionLevel = minLevel - 1; // to ensure no level -1 with item give
@@ -163,7 +165,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 int level = 1;
                 if (s.contains("=") || s.contains("*")) {
                     String splitChar = s.contains("=") ? "=" : "\\*";
-                    if (!"=".equals(splitChar)) {
+                    if (!"=".equals(splitChar) && !seenEqualsPrompt) {
+                        seenEqualsPrompt = true;
                         sender.sendMessage(YELLOW + "Consider using type=level for consistency with other formats.");
                     }
                     String[] split = s.split(splitChar);
@@ -267,7 +270,8 @@ public class CommandPortableBeacons implements TabExecutor {
                         Config.ritualItem = new ItemStack(Material.AIR);
                         sender.sendMessage(RED + "Set ritual item to air");
                         sender.sendMessage(RED + "This allows players to create portable beacons by breaking existing beacons");
-                        sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, do /" + label + " toggle ritual false");
+                        sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, " +
+                                "do /" + label + " toggle ritual false");
                     } else {
                         Config.ritualItem = stack.clone();
                         sender.sendMessage(GREEN + "Set ritual item to " +
@@ -285,7 +289,8 @@ public class CommandPortableBeacons implements TabExecutor {
             case "updateitems": {
                 if (!checkPermission(sender, "portablebeacons.command.updateitems"))
                     return true;
-                Config.itemCustomVersion = UUID.randomUUID().toString().replace("-", "");
+                // six characters
+                Config.itemCustomVersion = Integer.toString(ThreadLocalRandom.current().nextInt(0xFFFFFF + 1), 16);
                 PortableBeacons.INSTANCE.saveConfig();
                 sender.sendMessage(GREEN + "All portable beacon items will be forced to update soon.");
                 sender.sendMessage(GREEN + "Configuration saved to file.");
@@ -354,42 +359,33 @@ public class CommandPortableBeacons implements TabExecutor {
             PotionEffectType type = entry.getKey();
             int level = entry.getValue();
             // format used in commands
-            String internalFormat = PotionEffectUtils.getName(type) + (level != 1 ? "*" + level : "");
+            String internalFormat = PotionEffectUtils.getName(type) + (level != 1 ? "=" + level : "");
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
                     .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(type, level)))
                     .append(" ", ComponentBuilder.FormatRetention.NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
-                    .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(new ComponentBuilder("Used in commands\nClick to copy!")
-                            .color(YELLOW)
-                            .create()
-                    )))
-                    .event(new ClickEvent(getCopyToClipboard(), internalFormat))
+                    .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            new Text(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create())
+                    ))
+                    .event(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, internalFormat))
                     .create();
 
-            BaseComponent[] disabledDisplay = null; // hover event, null if not disabled
+            String disabledMsg = null; // hover event, null if not disabled
             if (isInDisabledWorld) {
-                disabledDisplay = new ComponentBuilder("Target is in a world where Portable Beacons are disabled!\n" +
-                        "Check config 'beacon-items.nerfs.disabled-worlds'.")
-                        .color(RED)
-                        .create();
+                disabledMsg = "Target is in a world where Portable Beacons are disabled!\n" +
+                        "Check config 'beacon-items.nerfs.disabled-worlds'.";
             } else if (!canUseBeacons) {
-                disabledDisplay = new ComponentBuilder("Target is in a WorldGuard region where Portable Beacons are disabled!\n" +
-                        "Check 'allow-portable-beacons' of the region.")
-                        .color(RED)
-                        .create();
+                disabledMsg = "Target is in a WorldGuard region where Portable Beacons are disabled!\n" +
+                        "Check 'allow-portable-beacons' of the region.";
             } else if (!effectiveEffectsMap.containsKey(type)) {
-                disabledDisplay = new ComponentBuilder("Target is in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) + " is disabled!\n" +
-                        "Check 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.")
-                        .color(RED)
-                        .create();
+                disabledMsg = "Target is in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) +
+                        " is disabled!\nCheck 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.";
             } else if (effects.getDisabledEffects().contains(type)) { // disabled
-                disabledDisplay = new ComponentBuilder("Target has disabled the effect!")
-                        .color(RED)
-                        .create();
+                disabledMsg = "Target has disabled the effect!";
             }
 
-            if (disabledDisplay != null) {
+            if (disabledMsg != null) {
                 // an interesting way to apply strikethrough to the entire component
                 TextComponent potionDisplayStrikethrough = new TextComponent();
                 potionDisplayStrikethrough.setExtra(Arrays.asList(potionDisplay));
@@ -399,12 +395,15 @@ public class CommandPortableBeacons implements TabExecutor {
                         .append(" DISABLED ", ComponentBuilder.FormatRetention.NONE)
                         .color(DARK_GRAY).italic(true)
                         .append("[?]", ComponentBuilder.FormatRetention.NONE)
-                        .color(DARK_GRAY).event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(disabledDisplay)))
+                        .color(DARK_GRAY)
+                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                new Text(new ComponentBuilder(disabledMsg).color(RED).create())
+                        ))
                         .create();
                 sender.spigot().sendMessage(actualDisplay);
                 if (!showHoverMessages) { // show consoles too
-                    TextComponent disabledDisplayIndent = new TextComponent("    ");
-                    disabledDisplayIndent.setExtra(Arrays.asList(disabledDisplay));
+                    TextComponent disabledDisplayIndent = new TextComponent("    " + disabledMsg);
+                    disabledDisplayIndent.setColor(RED);
                     sender.spigot().sendMessage(disabledDisplayIndent);
                 }
             } else {
@@ -422,9 +421,15 @@ public class CommandPortableBeacons implements TabExecutor {
                         (effects.soulboundOwner != null ? Bukkit.getOfflinePlayer(effects.soulboundOwner).getName() : "no-one") + ")");
         }
         if (Config.nerfExpPercentagePerCycle > 0) {
-            double xpPerCycle = effects.calcExpPerCycle();
-            sender.sendMessage(GREEN + "Exp %: " + YELLOW +
-                    String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour", xpPerCycle * 100, xpPerCycle * 8 * 100, xpPerCycle * 480 * 100));
+            double xpPercentagePerCycle = effects.calcExpPerCycle() * 100;
+            sender.sendMessage(GREEN + "% of experience level consumed: " + YELLOW +
+                            (xpPercentagePerCycle % 100 == 0 ?
+                                    String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour",
+                                            xpPercentagePerCycle, xpPercentagePerCycle * 8, xpPercentagePerCycle * 480) :
+                                    String.format("%f levels/7.5s, %f levels/min, %f levels/hour",
+                                            xpPercentagePerCycle / 100, xpPercentagePerCycle * 12.5, xpPercentagePerCycle * 48)
+                            )
+            );
         }
 
         // Pyramid
@@ -440,7 +445,8 @@ public class CommandPortableBeacons implements TabExecutor {
         }
     }
 
-    static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier, boolean silent, boolean modifyAll) {
+    static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier,
+                            boolean silent, boolean modifyAll) {
         ArrayList<Player> succeeded = new ArrayList<>(players);
         ArrayList<Player> failedPlayers = new ArrayList<>();
 
@@ -485,12 +491,14 @@ public class CommandPortableBeacons implements TabExecutor {
         succeeded.removeAll(failedPlayers);
 
         if (succeeded.size() != 0)
-            sender.sendMessage(GREEN + "Modified " + (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
+            sender.sendMessage(GREEN + "Modified " +
+                    (modifyAll ? "all instances of portable beacons on " : "held portable beacon of ") +
                     succeeded.stream().map(Player::getName).collect(Collectors.joining(", ")));
         if (failedPlayers.size() != 0)
             sender.sendMessage(RED + "Failed to apply the operation on " +
                     failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
-                    " because they " + (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon.")
+                    " because they " +
+                    (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon.")
             );
     }
 
@@ -546,14 +554,15 @@ public class CommandPortableBeacons implements TabExecutor {
                                 .collect(Collectors.joining(", "))
                         + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore()));
                 if (failedPlayers.size() != 0)
-                    sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
+                    sender.sendMessage(RED +
+                            failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
                 break;
             }
             case "add":
             case "set":
             case "remove": {
-                BiFunction<Integer, Integer, Integer> merger;
+                BinaryOperator<Integer> merger;
                 switch (operation) {
                     case "set": {
                         // remove if level is being set to 0
@@ -595,13 +604,13 @@ public class CommandPortableBeacons implements TabExecutor {
                 break;
             }
             case "setenchantment": {
-                if (args.length < 5) {
+                if (args.length < 6) {
                     sender.sendMessage(RED + "Usage: /" + label + " item setenchantment <players> soulbound <level> <soulboundOwner>");
                     return;
                 }
                 int newLevel = Integer.parseInt(args[4]);
                 Consumer<BeaconEffects> modifier;
-                if (args[3].equalsIgnoreCase("soulbound") && args.length >= 6) {
+                if (args[3].equalsIgnoreCase("soulbound")) {
                     UUID uuid;
                     try {
                         uuid = UUID.fromString(args[5]);
@@ -620,7 +629,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         effects.soulboundOwner = finalUuid;
                     };
                 } else {
-                    sender.sendMessage(RED + "Please use /" + label + " item set " + args[2] + " set " + args[3] + "*" + newLevel);
+                    sender.sendMessage(RED + "Please use /" + label + " item set " + args[2] + " set " + args[3] + "=" + newLevel);
                     sender.sendMessage(RED + "setenchantment is only retained for changing soulbound owner");
                     return;
                 }

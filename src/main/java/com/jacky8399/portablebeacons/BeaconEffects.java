@@ -16,7 +16,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Function;
 
@@ -39,20 +38,17 @@ public class BeaconEffects implements Cloneable {
 
     public BeaconEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
-        this.enabledEffects = ImmutableMap.copyOf(effects);
     }
 
     @NotNull
     private ImmutableMap<PotionEffectType, Integer> effects;
-    @NotNull
-    private transient ImmutableMap<PotionEffectType, Integer> enabledEffects;
     @NotNull
     private ImmutableSet<PotionEffectType> disabledEffects = ImmutableSet.of();
     public int expReductionLevel = 0;
     @Nullable
     public UUID soulboundOwner = null;
     public int soulboundLevel = 0;
-    public boolean needsUpdate = false;
+    public transient boolean needsUpdate = false;
 
     @Override
     public BeaconEffects clone() {
@@ -70,6 +66,8 @@ public class BeaconEffects implements Cloneable {
 
     @NotNull
     public Map<PotionEffectType, Integer> getEnabledEffects() {
+        HashMap<PotionEffectType, Integer> enabledEffects = new HashMap<>(effects);
+        enabledEffects.keySet().removeAll(disabledEffects);
         return enabledEffects;
     }
 
@@ -80,21 +78,10 @@ public class BeaconEffects implements Cloneable {
 
     public void setEffects(Map<PotionEffectType, Integer> effects) {
         this.effects = ImmutableMap.copyOf(effects);
-        recalculateEnabledEffects();
     }
 
     public void setDisabledEffects(Set<PotionEffectType> disabledEffects) {
         this.disabledEffects = ImmutableSet.copyOf(disabledEffects);
-        recalculateEnabledEffects();
-    }
-
-    private void recalculateEnabledEffects() {
-        ImmutableMap.Builder<PotionEffectType, Integer> builder = ImmutableMap.builder();
-        for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
-            if (!disabledEffects.contains(entry.getKey()))
-                builder.put(entry);
-        }
-        enabledEffects = builder.build();
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
@@ -108,10 +95,10 @@ public class BeaconEffects implements Cloneable {
             }
         }
         this.effects = ImmutableMap.copyOf(map);
-        recalculateEnabledEffects();
     }
 
     public PotionEffect[] toEffects() {
+        Map<PotionEffectType, Integer> enabledEffects = getEnabledEffects();
         PotionEffect[] arr = new PotionEffect[enabledEffects.size()];
         int i = 0;
         for (Map.Entry<PotionEffectType, Integer> entry : enabledEffects.entrySet()) {
@@ -159,9 +146,13 @@ public class BeaconEffects implements Cloneable {
     public double calcExpPerCycle() {
         if (Config.nerfExpPercentagePerCycle <= 0)
             return 0;
+        int totalEffects = effects.entrySet().stream()
+                .filter(entry -> !disabledEffects.contains(entry.getKey()))
+                .mapToInt(Map.Entry::getValue)
+                .sum();
         double expMultiplier = Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
-        return Math.max(0, enabledEffects.values().stream().reduce(0, Integer::sum) * Config.nerfExpPercentagePerCycle * expMultiplier);
+        return Math.max(0, totalEffects * Config.nerfExpPercentagePerCycle * expMultiplier);
     }
 
     public boolean shouldUpdate() {
@@ -191,7 +182,7 @@ public class BeaconEffects implements Cloneable {
         return ret;
     }
 
-    @SuppressWarnings({"deprecation", "unchecked", "ConstantConditions"})
+    @SuppressWarnings({"deprecation", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
         public static NamespacedKey key(String key) {
@@ -222,6 +213,8 @@ public class BeaconEffects implements Cloneable {
         public @NotNull PersistentDataContainer toPrimitive(BeaconEffects complex, PersistentDataAdapterContext context) {
             PersistentDataContainer container = context.newPersistentDataContainer();
             PersistentDataContainer effects = context.newPersistentDataContainer();
+            // too bad there's no string list
+            // use boolean map as a poor replacement
             PersistentDataContainer effectsDisabled = context.newPersistentDataContainer();
             for (Map.Entry<PotionEffectType, Integer> entry : complex.effects.entrySet()) {
                 PotionEffectType type = entry.getKey();
@@ -233,7 +226,7 @@ public class BeaconEffects implements Cloneable {
                     effectsDisabled.set(key, BYTE, (byte) 1);
             }
             container.set(EFFECTS, TAG_CONTAINER, effects);
-            if (getKeys(effectsDisabled).size() != 0)
+            if (effectsDisabled.getKeys().size() != 0)
                 container.set(DISABLED_EFFECTS, TAG_CONTAINER, effectsDisabled);
             // enchants
             if (complex.expReductionLevel != 0)
@@ -257,19 +250,19 @@ public class BeaconEffects implements Cloneable {
                 return parseLegacyV1(primitive);
             else if (dataVersion == 3 || dataVersion == 4) {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
-                HashMap<PotionEffectType, Integer> effectsMap = new HashMap<>();
-                for (NamespacedKey key : getKeys(effects)) {
+                ImmutableMap.Builder<PotionEffectType, Integer> effectsMap = ImmutableMap.builder();
+                for (NamespacedKey key : effects.getKeys()) {
                     PotionEffectType type = PotionEffectType.getByName(key.getKey());
                     if (type == null) continue;
                     short level = effects.get(key, SHORT);
                     effectsMap.put(type, (int) level);
                 }
-                BeaconEffects ret = new BeaconEffects(effectsMap);
+                BeaconEffects ret = new BeaconEffects(effectsMap.build());
                 // disabled effects
                 if (dataVersion == 4) {
                     PersistentDataContainer disabledEffects = primitive.get(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER);
                     if (disabledEffects != null) {
-                        ImmutableSet<PotionEffectType> disabledEffectsSet = getKeys(disabledEffects).stream()
+                        ImmutableSet<PotionEffectType> disabledEffectsSet = disabledEffects.getKeys().stream()
                                 .map(NamespacedKey::getKey)
                                 .map(PotionEffectType::getByName)
                                 .filter(Objects::nonNull)
@@ -299,38 +292,16 @@ public class BeaconEffects implements Cloneable {
             }
         }
 
-        //<editor-fold desc="Utilities" defaultstate="collapsed">
-        private static boolean GET_KEYS = false;
-        static {
-            try {
-                GET_KEYS = PersistentDataContainer.class.getMethod("getKeys") != null;
-            } catch (NoSuchMethodException ignored) {}
-        }
-        public static Set<NamespacedKey> getKeys(@NotNull PersistentDataContainer container) {
-            if (GET_KEYS) {
-                return container.getKeys();
-            } else {
-                try {
-                    Class<? extends PersistentDataContainer> clazz = container.getClass();
-                    Field internal = clazz.getDeclaredField("customDataTags");
-                    internal.setAccessible(true);
-                    Set<String> keys = ((Map<String, ?>) internal.get(container)).keySet();
-                    return keys.stream().map(key -> {
-                        String[] keyData = key.split(":", 2);
-                        return new NamespacedKey(keyData[0], keyData[1]);
-                    }).collect(toSet());
-                } catch (ReflectiveOperationException e) {
-                    throw new Error("Failed to find keys for NBT tag!", e);
-                }
-            }
-        }
-        //</editor-fold>
-
         //<editor-fold desc="Legacy code" defaultstate="collapsed">
         private static final NamespacedKey LEGACY_PRIMARY = key("primary_effect"), LEGACY_SECONDARY = key("secondary_effect"), EFFECTS_LEGACY_V1 = key("effects"), EFFECTS_LEGACY_V2 = key("effects_v2");
         BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
             if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) { // older
-                BeaconEffects ret = new BeaconEffects(Arrays.stream(primitive.get(EFFECTS_LEGACY_V1, PersistentDataType.STRING).split(",")).map(PotionEffectType::getByName).toArray(PotionEffectType[]::new));
+                BeaconEffects ret = new BeaconEffects(
+                        Arrays.stream(primitive.get(EFFECTS_LEGACY_V1, PersistentDataType.STRING).split(","))
+                                .map(PotionEffectType::getByName)
+                                .filter(Objects::nonNull)
+                                .toArray(PotionEffectType[]::new)
+                );
                 ret.needsUpdate = true;
                 ret.customDataVersion = primitive.get(CUSTOM_DATA_VERSION_KEY, PersistentDataType.STRING);
                 return ret;
@@ -360,6 +331,7 @@ public class BeaconEffects implements Cloneable {
                     type = PotionEffectType.getByName(split[0]);
                     amplifier = Short.parseShort(split[1]);
                 }
+                if (type == null) continue;
                 effects.put(type, amplifier);
             }
             BeaconEffects ret = new BeaconEffects(effects);
