@@ -37,7 +37,9 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 
 public final class Events implements Listener {
     public static void registerEvents() {
@@ -287,6 +289,10 @@ public final class Events implements Listener {
             for (Map.Entry<Vector, BlockData> entry : pyramid.beaconBase.entrySet()) {
                 Vector diff = entry.getKey();
                 BlockData data = entry.getValue();
+                // only place beacon base blocks!
+                if (!Tag.BEACON_BASE_BLOCKS.isTagged(data.getMaterial())) {
+                    continue; // don't check and filter later
+                }
                 Block relative = beaconLocation.getRelative(diff.getBlockX(), diff.getBlockY(), diff.getBlockZ());
                 if (checkBlockPlaceEventFail(e.getPlayer(), e.getHand(), e.getBlockAgainst(), relative, data)) {
                     return;
@@ -296,9 +302,8 @@ public final class Events implements Listener {
             World world = beaconLocation.getWorld();
             // group by Y level to stagger creation
             Map<Integer, Map<Vector, BlockData>> pyramidByLayer = pyramid.beaconBase.entrySet().stream()
-                    .collect(
-                            Collectors.groupingBy(entry -> entry.getKey().getBlockY(), Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                    );
+                    .filter(entry -> Tag.BEACON_BASE_BLOCKS.isTagged(entry.getValue().getMaterial())) // only place beacon base blocks
+                    .collect(groupingBy(entry -> entry.getKey().getBlockY(), toMap(Map.Entry::getKey, Map.Entry::getValue)));
             for (Map.Entry<Integer, Map<Vector, BlockData>> entry : pyramidByLayer.entrySet()) {
                 int delay = pyramid.tier + entry.getKey(); // key is negative
                 Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {

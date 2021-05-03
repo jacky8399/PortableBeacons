@@ -1,6 +1,7 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.*;
@@ -17,6 +18,7 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BinaryOperator;
@@ -72,20 +74,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 return Stream.concat(Stream.of("@a", "@s", "@p"), Bukkit.getOnlinePlayers().stream().map(Player::getName));
             }
             // Enchantment autocomplete
-            if (operationArg.startsWith("setenchantment")) {
-                switch (args.length) {
-                    case 4: {
-                        return Stream.of("soulbound");
-                    }
-                    case 5: { // levels
-                        int maxLevel = Config.enchSoulboundMaxLevel;
-                        return IntStream.rangeClosed(1, maxLevel)
-                                .mapToObj(Integer::toString);
-                    }
-                    case 6: { // show player names for soulbound owner
-                        return Bukkit.getOnlinePlayers().stream().map(Player::getName);
-                    }
-                }
+            if (operationArg.startsWith("setowner") && args.length == 4) {
+                return Bukkit.getOnlinePlayers().stream().map(Player::getName);
             } else if (operationArg.startsWith("filter")) { // filter autocomplete
                 if (args.length == 4) {
                     return Stream.of("allow", "block");
@@ -149,7 +139,8 @@ public class CommandPortableBeacons implements TabExecutor {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName);
         } else if (args[0].equalsIgnoreCase("toggle") && sender.hasPermission(COMMAND_PERM + "toggle")) {
             if (args.length == 2) {
-                return Stream.of("ritual", "anvil-combination");
+                return Stream.of("ritual", "anvil-combination", "toggle-gui", "creation-reminder")
+                        .filter(toggle -> sender.hasPermission(COMMAND_PERM + "toggle." + toggle));
             } else if (args.length == 3) {
                 return Stream.of("true", "false");
             }
@@ -217,6 +208,20 @@ public class CommandPortableBeacons implements TabExecutor {
         return true;
     }
 
+    private static final ImmutableMap<String, Field> TOGGLES;
+    static {
+        ImmutableMap.Builder<String, Field> builder = ImmutableMap.builder();
+        Class<Config> clazz = Config.class;
+        try {
+            builder.put("ritual", clazz.getField("ritualEnabled"));
+            builder.put("anvil-combination", clazz.getField("anvilCombinationEnabled"));
+            builder.put("toggle-gui", clazz.getField("effectsToggleEnabled"));
+            builder.put("creation-reminder", clazz.getField("creationReminder"));
+            TOGGLES = builder.build();
+        } catch (Exception e) {
+            throw new Error("Can't find toggleable field??", e);
+        }
+    }
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
@@ -246,25 +251,31 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (!checkPermission(sender, "toggle"))
                     return true;
                 if (args.length < 2)
-                    return promptUsage(sender, label, "toggle <ritual/anvil-combination> [true/false]");
-                Boolean value = args.length == 3 ? args[2].equalsIgnoreCase("true") : null;
+                    return promptUsage(sender, label,
+                            "toggle <ritual/anvil-combination/toggle-gui/creation-reminder> [true/false]");
+                Optional<Boolean> value = args.length == 3 ?
+                        Optional.of(args[2].equalsIgnoreCase("true")) : Optional.empty();
                 boolean newValue;
-                switch (args[1].toLowerCase(Locale.ROOT)) {
-                    case "ritual": {
-                        newValue = Config.ritualEnabled = value != null ? value : !Config.ritualEnabled;
-                        if (!Config.ritualEnabled) {
-                            Events.INSTANCE.ritualItems.clear();
+                String toToggle = args[1].toLowerCase(Locale.ROOT);
+                Field field = TOGGLES.get(toToggle);
+                if (field == null) {
+                    sender.sendMessage(RED + "Invalid toggle option!");
+                    return true;
+                }
+                if (!checkPermission(sender, "toggle." + toToggle))
+                    return true;
+                try {
+                    newValue = value.orElseGet(()-> {
+                        try {
+                            return field.getBoolean(null);
+                        } catch (Exception e) {
+                            throw new Error(e);
                         }
-                        break;
-                    }
-                    case "anvil-combination": {
-                        newValue = Config.anvilCombinationEnabled = value != null ? value : !Config.anvilCombinationEnabled;
-                        break;
-                    }
-                    default: {
-                        sender.sendMessage(RED + "Invalid toggle option!");
-                        return true;
-                    }
+                    });
+                    field.setBoolean(null, newValue);
+                } catch (Exception e) {
+                    sender.sendMessage(RED + "Couldn't toggle value");
+                    return true;
                 }
                 sender.sendMessage(GREEN + "Temporarily set " + args[1] + " to " + newValue);
                 sender.sendMessage(GREEN + "To make your change persist after a reload, do /" + label + " saveconfig");

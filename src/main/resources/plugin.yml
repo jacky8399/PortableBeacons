@@ -36,6 +36,7 @@ permissions:
       portablebeacons.command.reload: true
       portablebeacons.command.saveconfig: true
       portablebeacons.command.toggle: true
+      portablebeacons.command.toggle.*: true
       portablebeacons.command.item: true
       portablebeacons.command.item.*: true
       portablebeacons.command.inspect: true
