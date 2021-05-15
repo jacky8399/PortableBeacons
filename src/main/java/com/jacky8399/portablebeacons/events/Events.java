@@ -23,6 +23,7 @@ import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -30,6 +31,7 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BlockVector;
@@ -400,4 +402,44 @@ public final class Events implements Listener {
             player.getInventory().addItem(toGive.toArray(new ItemStack[0]));
         }
     }
+
+    // curse of binding
+    static boolean shouldApplyFunnyCurse(ItemStack stack) {
+        if (!Config.enchSoulboundCurseOfBinding || !ItemUtils.isPortableBeacon(stack))
+            return false;
+        BeaconEffects effects = ItemUtils.getEffects(stack);
+        if (effects.soulboundLevel == 0)
+            return false;
+        for (PotionEffectType type : effects.getEffects().keySet()) {
+            if (PotionEffectUtils.isNegative(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerDropCurseItem(PlayerDropItemEvent e) {
+        if (e.getPlayer().getGameMode() == GameMode.CREATIVE)
+            return;
+        if (shouldApplyFunnyCurse(e.getItemDrop().getItemStack())) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlayerClickCurseItem(InventoryClickEvent e) {
+        if (e.getWhoClicked().getGameMode() == GameMode.CREATIVE)
+            return;
+        if (e.getClickedInventory() instanceof PlayerInventory && e.getInventory().getType() != InventoryType.CRAFTING && e.getClick().isShiftClick()) {
+            if (shouldApplyFunnyCurse(e.getCurrentItem())) {
+                e.setCancelled(true);
+            }
+        } else if (!(e.getClickedInventory() instanceof PlayerInventory)) {
+            if (shouldApplyFunnyCurse(e.getCursor())) {
+                e.setCancelled(true);
+            }
+        }
+    }
+
 }

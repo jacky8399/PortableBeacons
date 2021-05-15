@@ -5,18 +5,14 @@ import com.google.common.collect.ImmutableSet;
 import com.jacky8399.portablebeacons.Config;
 import org.apache.commons.lang.WordUtils;
 import org.bukkit.ChatColor;
-import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class PotionEffectUtils {
     public static final Comparator<PotionEffectType> POTION_COMPARATOR = Comparator
@@ -124,39 +120,10 @@ public class PotionEffectUtils {
     public static String getDisplayName(PotionEffectType effect, int level) {
         Config.PotionEffectInfo info = Config.effects.get(effect);
         if (info != null && info.displayName != null) {
-            return replacePlaceholders(null, info.displayName, level);
+            return ItemUtils.replacePlaceholders(null, info.displayName, level);
         } else {
             return (isNegative(effect) ? ChatColor.RED : ChatColor.BLUE) +
                     WordUtils.capitalizeFully(getName(effect).replace('_', ' ')) + toRomanNumeral(level);
         }
-    }
-
-    // also capture preceding space to prevent awkward problems with level 1
-    private static Pattern LEVEL_PATTERN = Pattern.compile("\\s?\\{level}");
-    private static Pattern LEVEL_NUMBER_PATTERN = Pattern.compile("\\{level\\|number}");
-    private static Pattern SOULBOUND_PATTERN = Pattern.compile("\\{soulbound-player(?:\\|(.+?))?}");
-
-    public static String replacePlaceholders(@Nullable Player player, String input, int level, @Nullable String soulboundOwner) {
-        if (input.indexOf('{') == -1) {
-            return input + toRomanNumeral(level);
-        }
-        input = LEVEL_PATTERN.matcher(input).replaceAll(toRomanNumeral(level));
-        input = LEVEL_NUMBER_PATTERN.matcher(input).replaceAll(Integer.toString(level));
-        Matcher matcher = SOULBOUND_PATTERN.matcher(input);
-        if (matcher.find()) {
-            // thanks Java
-            StringBuffer buffer = new StringBuffer();
-            do {
-                String replacement = soulboundOwner != null ? soulboundOwner : matcher.group(1) != null ? matcher.group(1) : "no-one";
-                matcher.appendReplacement(buffer, replacement);
-            } while (matcher.find());
-            matcher.appendTail(buffer);
-            input = buffer.toString();
-        }
-        return input;
-    }
-
-    public static String replacePlaceholders(Player player, String input, int level) {
-        return replacePlaceholders(player, input, level, null);
     }
 }

@@ -13,7 +13,11 @@ beacon-item:
     exp-reduction:
       enabled: true
       # You can use placeholders detailed in effects
-      name: '&dExperience Efficiency'
+      # Additionally:
+      # Use {exp-reduction} to get experience reduction in percentage
+      # Use {exp-reduction|multiplier} to get experience *multiplier* in percentage
+      # Use {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction in decimal
+      name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
       # to disable set to empty string
       # enchantment: ''
       enchantment: mending
@@ -24,22 +28,24 @@ beacon-item:
       enabled: true
       # You can use placeholders detailed in effects
       # Additionally:
-      # Use {soulbound-player} to get player name of soulbound owner
-      # Use {soulbound-player|Your custom text} to change the displayed text when the owner's name cannot be found
-      # (This is usually unnecessary)
-      name: '&4Soulbound {level}&7 to {soulbound-player}'
+      # Use {soulbound-owner} to get player name of soulbound owner
+      # Use {soulbound-owner|uuid} to get player UUID of soulbound owner
+      # Use {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
+      name: '&4Soulbound {level}&8 to {soulbound-owner}'
       enchantment: binding_curse
       max-level: 5
       # whether a level will be deducted on death
       consume-level-on-death: true
-      # whether item will stop working for other players if it was soulbound to any player
+      # whether item will stop working for others if it was ever soulbound to any player
       owner-usage-only: false
+      # just for fun: players cannot remove the item from their inventories if the beacon has a negative effect and soulbound! (note: protection not comprehensive)
+      just-for-fun-curse-of-binding: false
 
   # Effects Toggle GUI
   effects-toggle:
     # Whether the Effects Toggle GUI is enabled; still checks for portablebeacons.effects-toggle
     enabled: true
-    title: "&6Toggle Potion Effects"
+    title: "&5Toggle Potion Effects"
     # Whether the player can disable negative effects
     allow-disabling-negative-effects: false
     # Require permission for individual effects (portablebeacons.effects-toggle.<effect name>)
@@ -75,7 +81,7 @@ effects:
     # Display name of the effect
     # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
     # Use {level} for Roman numeral
-    # The preceding space of {level} is removed to avoid extra space when level = 1
+    # (The preceding space of {level} is removed to avoid extra space when level = 1)
     # Use {level|number} for decimal
     name: '&cRegeneration'
     # name: '&cRegeneration {level}' will replicate default behavior

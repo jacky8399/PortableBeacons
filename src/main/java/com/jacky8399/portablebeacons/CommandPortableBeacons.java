@@ -582,7 +582,10 @@ public class CommandPortableBeacons implements TabExecutor {
                     // remove if level is being set to 0
                     merger = (oldLevel, newLevel) -> newLevel == 0 ? null : newLevel;
                 } else if ("add".equals(operation)) {
-                    merger = Integer::sum;
+                    merger = (oldLevel, newLevel) -> {
+                        int result = oldLevel + newLevel;
+                        return result <= 0 ? null : result;
+                    };
                 } else {
                     // remove if resultant level <= 0
                     merger = (oldLevel, newLevel) -> {

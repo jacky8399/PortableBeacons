@@ -4,8 +4,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
+import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataAdapterContext;
@@ -111,7 +111,7 @@ public class BeaconEffects implements Cloneable {
     }
 
     public List<String> toLore() {
-        List<String> effectsLore = effects.entrySet().stream()
+        String effectsLore = effects.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(PotionEffectUtils.POTION_COMPARATOR))
                 .map(entry -> {
                     String display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
@@ -119,28 +119,26 @@ public class BeaconEffects implements Cloneable {
                         display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
                     return display;
                 })
-                .collect(toList());
+                .collect(joining("\n"));
 
         List<String> enchantsLore = new ArrayList<>();
         if (Config.enchExpReductionEnabled && expReductionLevel != 0) {
-            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
-                    Config.enchExpReductionName, expReductionLevel));
+            enchantsLore.add(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
+                    new ItemUtils.ContextLevel(expReductionLevel),
+                    ImmutableMap.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
+            ));
         }
         if (Config.enchSoulboundEnabled && soulboundLevel != 0) {
-            String owner = null;
-            if (soulboundOwner != null) {
-                owner = Bukkit.getOfflinePlayer(soulboundOwner).getName();
-                if (owner == null) owner = "???"; // haven't seen player before?
-            }
-            enchantsLore.add(PotionEffectUtils.replacePlaceholders(null,
-                    Config.enchSoulboundName, soulboundLevel, owner));
+            enchantsLore.add(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
+                    new ItemUtils.ContextLevel(soulboundLevel),
+                    ImmutableMap.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
+            ));
         }
         // merge
         if (enchantsLore.size() != 0) {
-            effectsLore.add("");
-            effectsLore.addAll(enchantsLore);
+            effectsLore += "\n\n" + String.join("\n", enchantsLore);
         }
-        return effectsLore;
+        return Arrays.asList(effectsLore.split("\n"));
     }
 
     public double calcExpPerCycle() {

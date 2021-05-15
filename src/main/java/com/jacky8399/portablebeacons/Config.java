@@ -97,6 +97,7 @@ public class Config {
         enchSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
         enchSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
         enchSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
+        enchSoulboundCurseOfBinding = config.getBoolean("beacon-item.custom-enchantments.soulbound.just-for-fun-curse-of-binding");
 
         // Nerfs
 
@@ -149,6 +150,7 @@ public class Config {
             logger.info("Enchant/Soulbound/name: " + enchSoulboundName);
             logger.info("Enchant/Soulbound/owner usage only: " + enchSoulboundOwnerUsageOnly);
             logger.info("Enchant/Soulbound/consume level on death: " + enchSoulboundConsumeLevelOnDeath);
+            logger.info("Enchant/Soulbound/curse of binding: " + enchSoulboundCurseOfBinding);
             logger.info("Nerfs/exp % per cycle: " + nerfExpPercentagePerCycle);
             logger.info("Nerfs/only apply when in hotbar: " + nerfOnlyApplyInHotbar);
             logger.info("Nerfs/disabled worlds: " + String.join(", ", nerfDisabledWorlds));
@@ -293,6 +295,7 @@ public class Config {
     public static boolean enchSoulboundEnabled;
     public static boolean enchSoulboundOwnerUsageOnly;
     public static boolean enchSoulboundConsumeLevelOnDeath;
+    public static boolean enchSoulboundCurseOfBinding;
     public static int enchSoulboundMaxLevel;
     public static String enchSoulboundName;
     public static Enchantment enchSoulboundEnchantment;
