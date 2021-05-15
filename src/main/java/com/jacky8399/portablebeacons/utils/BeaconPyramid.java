@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Tag;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -27,6 +26,8 @@ public class BeaconPyramid {
     public BeaconPyramid(int tier, Map<Vector, BlockData> beaconBase) {
         Preconditions.checkState(tier > 0 && tier <= 4, "Tier is invalid");
         Preconditions.checkState(beaconBase.size() != 0, "Beacon base is empty");
+        // Minecraft wiki: 164 for tier 4
+        Preconditions.checkState(beaconBase.size() < 165, "Too many beacon base blocks!");
         this.tier = tier;
         this.beaconBase = ImmutableMap.copyOf(beaconBase);
     }
@@ -116,10 +117,8 @@ public class BeaconPyramid {
                 if (tier > 4 || tier < 1) {
                     throw new IllegalStateException(tier + " is not a valid tier");
                 }
+                // validation of beacon base is done when placed
                 BlockData majority = Bukkit.createBlockData(primitive.get(MAJORITY, STRING));
-                if (!Tag.BEACON_BASE_BLOCKS.isTagged(majority.getMaterial())) { // validate
-                    throw new IllegalStateException(majority.getAsString() + " is not a valid beacon base block");
-                }
                 Map<Vector, BlockData> beaconBase = new HashMap<>();
                 // fill beacon with majority
                 for (int currentTier = 1; currentTier <= tier; currentTier++) {
@@ -134,9 +133,6 @@ public class BeaconPyramid {
                 if (tags != null) {
                     for (PersistentDataContainer container : tags) {
                         BlockData data = Bukkit.createBlockData(container.get(BLOCK, STRING));
-                        if (!Tag.BEACON_BASE_BLOCKS.isTagged(data.getMaterial())) { // validate
-                            throw new IllegalStateException(data.getAsString() + " is not a valid beacon base block");
-                        }
                         PersistentDataContainer[] layersTags = container.get(LAYERS, TAG_CONTAINER_ARRAY);
                         for (PersistentDataContainer layersTag : layersTags) {
                             int yOffset = layersTag.get(Y_OFFSET, BYTE);

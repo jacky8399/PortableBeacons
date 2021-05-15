@@ -22,12 +22,21 @@ permissions:
       portablebeacons.bypass.*: true
       portablebeacons.command: true
       portablebeacons.command.*: true
+
+  portablebeacons.*:
+    default: op
+    children:
+      portablebeacons.bypass.*: true
+      portablebeacons.command: true
+      portablebeacons.command.*: true
+
   portablebeacons.command.*:
     default: op
     children:
       portablebeacons.command.reload: true
       portablebeacons.command.saveconfig: true
       portablebeacons.command.toggle: true
+      portablebeacons.command.toggle.*: true
       portablebeacons.command.item: true
       portablebeacons.command.item.*: true
       portablebeacons.command.inspect: true
