@@ -463,13 +463,13 @@ public class CommandPortableBeacons implements TabExecutor {
 
     static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier,
                             boolean silent, boolean modifyAll) {
-        ArrayList<Player> succeeded = new ArrayList<>(players);
+        ArrayList<Player> succeeded = new ArrayList<>();
         ArrayList<Player> failedPlayers = new ArrayList<>();
 
-        if (modifyAll) {// modify inventory or hand
-            players.forEach(player -> {
+        for (Player player : players) {
+            if (modifyAll) { // modify inventory
                 boolean success = false;
-                for (ListIterator<ItemStack> iterator = player.getInventory().iterator(); iterator.hasNext();) {
+                for (ListIterator<ItemStack> iterator = player.getInventory().iterator(); iterator.hasNext(); ) {
                     ItemStack stack = iterator.next();
                     if (!ItemUtils.isPortableBeacon(stack))
                         continue;
@@ -485,14 +485,12 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else {
                     failedPlayers.add(player);
                 }
-            });
-        } else {
-            players.forEach(player -> {
+            } else {
                 PlayerInventory inventory = player.getInventory();
                 ItemStack hand = inventory.getItemInMainHand();
                 if (!ItemUtils.isPortableBeacon(hand)) {
                     failedPlayers.add(player);
-                    return;
+                    continue;
                 }
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
@@ -501,7 +499,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 succeeded.add(player);
                 if (!silent)
                     player.sendMessage(GREEN + "Your portable beacon was modified!");
-            });
+            }
         }
 
         succeeded.removeAll(failedPlayers);
@@ -520,7 +518,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
     public void doItem(CommandSender sender, String[] args, String label) {
         String usage = "item <give/add/set/remove/setowner/filter>[-silently/-modify-all] <players> <...>";
-        if (args.length < 4) {
+        if (args.length < 3) {
             promptUsage(sender, label, usage);
             return;
         }
@@ -546,11 +544,18 @@ public class CommandPortableBeacons implements TabExecutor {
                 .filter(entity -> entity instanceof Player)
                 .map(player -> (Player) player)
                 .collect(Collectors.toList());
-        String[] effectsString = Arrays.copyOfRange(args, 3, args.length);
+
+        if (players.size() == 0) {
+            sender.sendMessage(RED + "No player selected");
+            return;
+        }
 
         switch (operation) {
             case "give": {
-                BeaconEffects beaconEffects = parseEffects(sender, effectsString, false);
+                if (args.length < 4) {
+                    promptUsage(sender, label, "item "  + args[1] + " <players> <effects...>");
+                }
+                BeaconEffects beaconEffects = parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), false);
                 ItemStack stack = ItemUtils.createStack(beaconEffects);
                 Set<Player> failedPlayers = new HashSet<>();
 
@@ -558,7 +563,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     Map<Integer, ItemStack> unfit = p.getInventory().addItem(stack);
                     if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
                         failedPlayers.add(p);
-                    else if (silent)
+                    else if (!silent)
                         p.sendMessage(GREEN + "You were given a portable beacon!");
                 }
 
@@ -577,6 +582,9 @@ public class CommandPortableBeacons implements TabExecutor {
             case "add":
             case "set":
             case "remove": {
+                if (args.length < 4) {
+                    promptUsage(sender, label, "item "  + args[1] + " <players> <effects...>");
+                }
                 BinaryOperator<Integer> merger;
                 if ("set".equals(operation)) {
                     // remove if level is being set to 0
@@ -594,7 +602,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     };
                 }
 
-                BeaconEffects virtual = parseEffects(sender, effectsString, true);
+                BeaconEffects virtual = parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), true);
                 Map<PotionEffectType, Integer> newEffects = virtual.getEffects();
                 Consumer<BeaconEffects> modifier = effects -> {
                     HashMap<PotionEffectType, Integer> map = new HashMap<>(effects.getEffects());
@@ -613,7 +621,13 @@ public class CommandPortableBeacons implements TabExecutor {
                 editPlayers(sender, players, modifier, silent, modifyAll);
                 break;
             }
+            case "update": {
+                editPlayers(sender, players, effects -> {}, silent, modifyAll);
+            }
             case "setowner": {
+                if (args.length < 4) {
+                    promptUsage(sender, label, "item "  + args[1] + " <players> <ownerUUID/ownerName>");
+                }
                 UUID uuid;
                 try {
                     uuid = UUID.fromString(args[3]);
@@ -623,7 +637,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         uuid = newOwner.getUniqueId();
                     } else {
                         sender.sendMessage(RED + "Couldn't find UUID or online player '" + args[3] + "'!");
-                        promptUsage(sender, label, "item setowner <players> <soulboundOwner>");
+                        promptUsage(sender, label, "item setowner <players> <ownerUUID/ownerName>");
                         return;
                     }
                 }
