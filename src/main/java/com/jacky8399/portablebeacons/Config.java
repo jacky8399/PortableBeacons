@@ -22,9 +22,12 @@ public class Config {
     public static void saveConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
         // things that can be changed by commands
-        config.set("ritual.enabled", Config.ritualEnabled);
         config.set("ritual.item", Config.ritualItem);
+        // toggles
+        config.set("ritual.enabled", Config.ritualEnabled);
         config.set("anvil-combination.enabled", Config.anvilCombinationEnabled);
+        config.set("beacon-item.effects-toggle.enabled", Config.effectsToggleEnabled);
+        config.set("beacon-item.creation-reminder.enabled", Config.creationReminder);
         // prompt
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         if (Config.itemCustomVersion != null)
@@ -56,6 +59,12 @@ public class Config {
                 ritualItem = new ItemStack(Material.NETHER_STAR, 32);
             }
         }
+
+        // World interactions
+        placementEnabled = config.getBoolean("world-interactions.placement-enabled");
+        pickupEnabled = config.getBoolean("world-interactions.pickup-enabled");
+        pickupRequireSilkTouch = config.getBoolean("world-interactions.pickup-requires-silk-touch");
+
 
         // Beacon item properties
 
@@ -122,6 +131,7 @@ public class Config {
         }
         anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
         anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
+        anvilDisplayFailurePrompt = config.getBoolean("anvil-combination.display-failure-prompt");
 
         worldGuard = config.getBoolean("world-guard");
         if (debug) {
@@ -131,6 +141,9 @@ public class Config {
             logger.info("Beacon item/name: " + itemName);
             logger.info("Beacon item/lore: " + String.join("\\n", itemLore));
             logger.info("Beacon item/custom model data: " + itemCustomModelData);
+            logger.info("Placement/enabled: " + placementEnabled);
+            logger.info("Pickup/enabled: " + pickupEnabled);
+            logger.info("Pickup/require silk touch: " + pickupRequireSilkTouch);
             logger.info("Creation reminder/enabled: " + creationReminder);
             logger.info("Creation reminder/message: " + creationReminderMessage);
             logger.info("Creation reminder/radius: " + creationReminderRadius);
@@ -159,6 +172,7 @@ public class Config {
             logger.info("Anvil combination/max effects: " + anvilCombinationMaxEffects);
             logger.info("Anvil combination/combine effects additively: " + anvilCombinationCombineEffectsAdditively);
             logger.info("Anvil combination/enforce vanilla exp limit: " + anvilCombinationEnforceVanillaExpLimit);
+            logger.info("Anvil combination/display failure prompt: " + anvilDisplayFailurePrompt);
             logger.info("World guard: " + worldGuard);
         }
 
@@ -273,6 +287,11 @@ public class Config {
     public static int itemCustomModelData;
     public static String itemCustomVersion = null;
 
+    // World interactions
+    public static boolean placementEnabled;
+    public static boolean pickupEnabled;
+    public static boolean pickupRequireSilkTouch;
+
     // Reminder
     public static boolean creationReminder;
     public static String creationReminderMessage;
@@ -311,6 +330,7 @@ public class Config {
     public static int anvilCombinationMaxEffects;
     public static boolean anvilCombinationCombineEffectsAdditively;
     public static boolean anvilCombinationEnforceVanillaExpLimit;
+    public static boolean anvilDisplayFailurePrompt;
 
     public static boolean worldGuard;
 

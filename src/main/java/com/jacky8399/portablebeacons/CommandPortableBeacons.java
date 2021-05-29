@@ -139,7 +139,7 @@ public class CommandPortableBeacons implements TabExecutor {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName);
         } else if (args[0].equalsIgnoreCase("toggle") && sender.hasPermission(COMMAND_PERM + "toggle")) {
             if (args.length == 2) {
-                return Stream.of("ritual", "anvil-combination", "toggle-gui", "creation-reminder")
+                return TOGGLES.keySet().stream()
                         .filter(toggle -> sender.hasPermission(COMMAND_PERM + "toggle." + toggle));
             } else if (args.length == 3) {
                 return Stream.of("true", "false");
@@ -217,6 +217,8 @@ public class CommandPortableBeacons implements TabExecutor {
             builder.put("anvil-combination", clazz.getField("anvilCombinationEnabled"));
             builder.put("toggle-gui", clazz.getField("effectsToggleEnabled"));
             builder.put("creation-reminder", clazz.getField("creationReminder"));
+            builder.put("world-placement", clazz.getField("placementEnabled"));
+            builder.put("world-pickup", clazz.getField("pickupEnabled"));
             TOGGLES = builder.build();
         } catch (Exception e) {
             throw new Error("Can't find toggleable field??", e);
@@ -252,7 +254,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     return true;
                 if (args.length < 2)
                     return promptUsage(sender, label,
-                            "toggle <ritual/anvil-combination/toggle-gui/creation-reminder> [true/false]");
+                            "toggle <toggleName> [true/false]");
                 Optional<Boolean> value = args.length == 3 ?
                         Optional.of(args[2].equalsIgnoreCase("true")) : Optional.empty();
                 boolean newValue;
@@ -267,7 +269,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 try {
                     newValue = value.orElseGet(()-> {
                         try {
-                            return field.getBoolean(null);
+                            return !field.getBoolean(null);
                         } catch (Exception e) {
                             throw new Error(e);
                         }
@@ -277,8 +279,8 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(RED + "Couldn't toggle value");
                     return true;
                 }
-                sender.sendMessage(GREEN + "Temporarily set " + args[1] + " to " + newValue);
-                sender.sendMessage(GREEN + "To make your change persist after a reload, do /" + label + " saveconfig");
+                sender.sendMessage(YELLOW + "Temporarily set " + GREEN + args[1] + YELLOW + " to " + (newValue ? GREEN : RED) + newValue);
+                sender.sendMessage(YELLOW + "To make your change persist after a reload, do " + GREEN + "/" + label + " saveconfig");
                 break;
             }
             case "setritualitem": {
@@ -289,7 +291,17 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (stack.getType() == Material.AIR) {
                         Config.ritualItem = new ItemStack(Material.AIR);
                         sender.sendMessage(RED + "Set ritual item to air");
-                        sender.sendMessage(RED + "This allows players to create portable beacons by breaking existing beacons");
+                        if (Config.pickupEnabled) {
+                            sender.sendMessage(RED + "This allows players to \"pick up\" portable beacons by breaking " +
+                                    "existing beacons" + (Config.pickupRequireSilkTouch ? " with silk touch tools" : ""));
+                            sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the pickup feature, " +
+                                    "do /" + label + " toggle world-pickup false");
+                        } else {
+                            sender.sendMessage(RED + "This would have allowed players to create portable beacons " +
+                                    "by breaking existing beacons" + (Config.pickupRequireSilkTouch ? " with silk touch\n" : "\n")
+                                    + DARK_RED + BOLD + "HOWEVER, " + RESET + RED + "the config option is " +
+                                    "currently disabled. \n" + RED + "To turn on this feature, do /" + label + "toggle world-placement true");
+                        }
                         sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, " +
                                 "do /" + label + " toggle ritual false");
                     } else {

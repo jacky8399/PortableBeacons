@@ -12,6 +12,7 @@ import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -139,6 +140,7 @@ public final class Events implements Listener {
         return e.isCancelled();
     }
 
+    public static HashSet<Location> ritualTempBlocks = new HashSet<>();
     // the beacon will definitely be removed if this method returns a non-null value
     public static Map<Vector, BlockData> removeBeacon(Player player, Block block, int tier, boolean modifyBeaconBlock) {
         Block[][] blocksToBreak = new Block[tier + 1][];
@@ -180,14 +182,15 @@ public final class Events implements Listener {
             // copy array
             for (Block b : blocks) {
                 b.setType(Material.GLASS); // to prevent duping
+                ritualTempBlocks.add(b.getLocation());
             }
             // don't break that many blocks at once
             Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
                 for (Block b : blocks) {
                     Location location = b.getLocation();
                     world.playEffect(location, Effect.STEP_SOUND, b.getType());
-                    //world.spawnParticle(Particle.EXPLOSION_LARGE, location.add(Math.random(), Math.random(), Math.random()), 1);
                     b.setType(Material.AIR);
+                    ritualTempBlocks.remove(location);
                 }
             }, (i + 1) * 4L);
         }
@@ -222,9 +225,33 @@ public final class Events implements Listener {
         ritualItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
     }
 
+    @EventHandler
+    public void onPistonExtend(BlockPistonExtendEvent e) {
+        List<Block> blocks = e.getBlocks();
+        for (Block block : blocks) {
+            if (ritualTempBlocks.contains(block.getLocation())) {
+                e.setCancelled(true);
+                break;
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPistonRetract(BlockPistonRetractEvent e) {
+        List<Block> blocks = e.getBlocks();
+        for (Block block : blocks) {
+            if (ritualTempBlocks.contains(block.getLocation())) {
+                e.setCancelled(true);
+                break;
+            }
+        }
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onBreakBlock(BlockDropItemEvent e) {
         if (!Config.ritualEnabled || Config.ritualItem.getType() != Material.AIR)
+            return;
+        if (!Config.pickupEnabled)
             return;
         BlockState state = e.getBlockState();
         if (state instanceof Beacon) {
@@ -232,6 +259,13 @@ public final class Events implements Listener {
             int tier = checkBeaconTier(beacon);
             if (tier == -1)
                 return;
+
+            // check silk touch
+            if (Config.pickupRequireSilkTouch) {
+                ItemStack stack = e.getPlayer().getInventory().getItemInMainHand();
+                if (!stack.containsEnchantment(Enchantment.SILK_TOUCH))
+                    return;
+            }
 
             Map<PotionEffectType, Integer> effects = new HashMap<>();
             PotionEffect primary = beacon.getPrimaryEffect();

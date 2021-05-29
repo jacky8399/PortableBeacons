@@ -30,7 +30,7 @@ public class AnvilRecipe implements Listener {
         ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1);
         if (is1 == null || is1.getAmount() != 1 || is2 == null || is2.getAmount() != 1)
             return;
-        ItemStack newIs = ItemUtils.combineStack((Player) e.getView().getPlayer(), is1, is2, false);
+        ItemStack newIs = ItemUtils.combineStack((Player) e.getView().getPlayer(), is1, is2, Config.anvilDisplayFailurePrompt);
         int cost = ItemUtils.calculateCombinationCost(is1, is2);
         if (newIs != null) {
             // pyramid warning

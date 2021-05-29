@@ -51,6 +51,8 @@ public class InventoryTogglePotion implements InventoryProvider {
         ItemMeta tempMeta = temp.getItemMeta();
         stack.setItemMeta(tempMeta);
         // all effects are disabled
+        // why does this need to call setItemMeta twice
+        displayStack.setItemMeta(tempMeta);
         displayStack.setType(effects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
         displayStack.setItemMeta(tempMeta);
     }

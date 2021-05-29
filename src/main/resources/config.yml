@@ -12,22 +12,19 @@ beacon-item:
   custom-enchantments:
     exp-reduction:
       enabled: true
-      # You can use placeholders detailed in effects
-      # Additionally:
+      # You can use placeholders detailed in effects section. Additionally,
       # Use {exp-reduction} to get experience reduction in percentage
       # Use {exp-reduction|multiplier} to get experience *multiplier* in percentage
       # Use {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction in decimal
       name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
-      # to disable set to empty string
+      # to disallow anvil combination set to empty string
       # enchantment: ''
       enchantment: mending
-      # Reduction in experience consumption per enchantment level
-      reduction-per-level: 0.2
+      reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
     soulbound:
       enabled: true
-      # You can use placeholders detailed in effects
-      # Additionally:
+      # You can use placeholders detailed in effects section. Additionally,
       # Use {soulbound-owner} to get player name of soulbound owner
       # Use {soulbound-owner|uuid} to get player UUID of soulbound owner
       # Use {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
@@ -60,7 +57,8 @@ beacon-item:
     # Whether the effects should only be applied when the item is in hotbar
     only-apply-in-hotbar: false
     # Force downgrade all effects stronger than its max-amplifier
-    # Note: requires an item update to take effect
+    # Useful if you have changed max-amplifier of effects to clamp down on OP beacons
+    # Note: requires an item update (/pb updateitems) to take effect
     force-downgrade: false
     # Portable beacons will be disabled in these worlds
     # For finer control, use WorldGuard
@@ -97,21 +95,26 @@ effects:
     name: '&4Strength'
   # You can add more potion effects, the key must match vanilla names
   # Specifying duration & max-amplifier overrides default section
-  # For example,
+  # For example, to prevent night vision blinking:
 # NIGHT_VISION:
 #   name: '&1Night Vision'
 #   duration: 400
 
-
+# Ritual to create portable beacons by dropping an item stack onto an existing beacon
 ritual:
   enabled: true
-  # Allow players to place down portable beacons, rebuilding the original beacon pyramid
-  # (The ritual item will not be refunded)
-  # Regardless of this value, the pyramid will still be stored for later use
-  # Beware of dupe exploits allowing duplication of beacon base blocks!
-  allow-placing-pyramids: false
   __: ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used
   item:
+
+world-interactions:
+  # Allow players to place down portable beacons, rebuilding the original beacon pyramid
+  # (The ritual item will not be refunded)
+  # Beware of dupe exploits allowing duplication of beacon base blocks!
+  placement-enabled: false
+  # Allow beacons to be picked up ONLY WHEN ritual item is AIR (/pb setritualitem with empty hand)
+  pickup-enabled: true
+  # Require a silk touch tool to pick up
+  pickup-requires-silk-touch: true
 
 anvil-combination:
   enabled: true # Enable combining portable beacons in anvil
@@ -121,6 +124,7 @@ anvil-combination:
   combine-effects-additively: true
   # enforce the vanilla repair cost limit (max. 39 levels)
   enforce-vanilla-exp-limit: true
+  display-failure-prompt: false
 
 # Enable WorldGuard integration
 world-guard: true

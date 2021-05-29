@@ -36,7 +36,9 @@ public final class PortableBeacons extends JavaPlugin {
     @Override
     public void onEnable() {
         INSTANCE = this;
-        Metrics metrics = new Metrics(this, 10409);
+        try {
+            Metrics metrics = new Metrics(this, 10409);
+        } catch (Exception ignored) {}
 
         getCommand("portablebeacons").setExecutor(new CommandPortableBeacons());
 
