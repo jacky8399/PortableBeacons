@@ -247,8 +247,15 @@ public final class Events implements Listener {
         }
     }
 
+    @EventHandler
+    public void onTempBlockBroken(BlockBreakEvent e) {
+        if (ritualTempBlocks.contains(e.getBlock().getLocation())) {
+            e.setCancelled(true);
+        }
+    }
+
     @EventHandler(ignoreCancelled = true)
-    public void onBreakBlock(BlockDropItemEvent e) {
+    public void onBeaconBroken(BlockDropItemEvent e) {
         if (!Config.ritualEnabled || Config.ritualItem.getType() != Material.AIR)
             return;
         if (!Config.pickupEnabled)
