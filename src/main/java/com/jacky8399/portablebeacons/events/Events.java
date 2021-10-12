@@ -388,13 +388,15 @@ public final class Events implements Listener {
 
     @EventHandler
     public void onBeaconUse(PlayerInteractEvent e) {
-        if (!Config.effectsToggleEnabled)
-            return;
         if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK) &&
-                e.getPlayer().isSneaking() && (e.useItemInHand() == Event.Result.ALLOW || e.useItemInHand() == Event.Result.DEFAULT) &&
                 ItemUtils.isPortableBeacon(e.getItem())) {
-            e.setUseInteractedBlock(Event.Result.DENY);
-            Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem()));
+            if (e.getPlayer().isSneaking() && e.useItemInHand() != Event.Result.DENY) {
+                e.setUseInteractedBlock(Event.Result.DENY);
+                e.setUseItemInHand(Event.Result.ALLOW);
+                Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem(), !Config.effectsToggleEnabled));
+            } else {
+                e.setUseItemInHand(Event.Result.DENY);
+            }
         }
     }
 

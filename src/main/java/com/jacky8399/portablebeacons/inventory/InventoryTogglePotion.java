@@ -21,14 +21,18 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class InventoryTogglePotion implements InventoryProvider {
 
+    private final boolean readOnly;
     private ItemStack stack;
     private ItemStack displayStack;
     private Map<PotionEffectType, Integer> effects;
     private HashSet<PotionEffectType> disabledEffects;
-    public InventoryTogglePotion(ItemStack stack) {
+
+    public InventoryTogglePotion(ItemStack stack, boolean readOnly) {
+        this.readOnly = readOnly;
         if (!ItemUtils.isPortableBeacon(stack)) {
             throw new IllegalArgumentException("stack is not beacon");
         }
@@ -75,12 +79,18 @@ public class InventoryTogglePotion implements InventoryProvider {
         border.setItemMeta(borderMeta);
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
-                inventory.set(4, displayStack, e -> {
-                    if (effects.size() != disabledEffects.size()) {
+                inventory.set(4, displayStack, readOnly ? null : e -> {
+                    // simple check to see if all toggleable effects have been disabled
+                    if (!disabledEffects.containsAll(effects.keySet().stream()
+                            .filter(type -> Config.effectsToggleEnabled &&
+                                    (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)))
+                            .collect(Collectors.toList()))) {
                         // disable all
-                        disabledEffects.addAll(effects.keySet());
+                        effects.keySet().stream()
+                                .filter(type -> checkToggleable(player, type))
+                                .forEach(disabledEffects::add);
                     } else {
-                        disabledEffects.clear();
+                        disabledEffects.removeIf(type -> checkToggleable(player, type));
                     }
                     updateItem();
                     inventory.requestRefresh(player);
@@ -120,25 +130,26 @@ public class InventoryTogglePotion implements InventoryProvider {
 
                 meta.setDisplayName(display);
                 stack.setItemMeta(meta);
-                Consumer<InventoryClickEvent> handler = null;
-                if (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)) {
-                    if (!Config.effectsToggleFineTunePerms ||
-                            player.hasPermission("portablebeacons.effect-toggle." + PotionEffectUtils.getName(type))) {
-                        handler = e -> {
-                            if (!disabledEffects.add(type))
-                                disabledEffects.remove(type);
-                            updateItem();
-                            inventory.requestRefresh(player);
-                        };
-                    }
-                }
+                Consumer<InventoryClickEvent> handler = readOnly ? null : e -> {
+                    // check permissions and config if they changed
+                    if (!checkToggleable(player, type))
+                        return;
+
+                    if (!disabledEffects.add(type))
+                        disabledEffects.remove(type);
+                    updateItem();
+                    inventory.requestRefresh(player);
+                };
                 inventory.set(row * 9 + column, stack, handler);
             }
         }
     }
 
-    @Override
-    public void close(Player player) {
-        InventoryProvider.super.close(player);
+    private static boolean checkToggleable(Player player, PotionEffectType type) {
+        return Config.effectsToggleEnabled &&
+                (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)) &&
+                (!Config.effectsToggleFineTunePerms || player.hasPermission(
+                        "portablebeacons.effect-toggle." + PotionEffectUtils.getName(type)
+                ));
     }
 }

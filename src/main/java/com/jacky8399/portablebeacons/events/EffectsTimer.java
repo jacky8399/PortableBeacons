@@ -6,6 +6,7 @@ import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -86,6 +87,10 @@ public class EffectsTimer extends BukkitRunnable {
 
 //    private static final BigDecimal CYCLE_TIME_MULTIPLIER_PRECISION = BigDecimal.valueOf(CYCLE_TIME_MULTIPLIER);
     boolean tryDeductExp(Player player, BeaconEffects effects) {
+        // don't deduct xp from creative players
+        if (player.getGameMode() == GameMode.CREATIVE)
+            return true;
+
         double expPerCycle = effects.calcExpPerCycle() * CYCLE_TIME_MULTIPLIER;
         if (expPerCycle != 0) {
             double xp = player.getExp() - expPerCycle;
