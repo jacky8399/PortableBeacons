@@ -43,17 +43,19 @@ beacon-item:
     # Whether the Effects Toggle GUI is enabled; still checks for portablebeacons.effects-toggle
     enabled: true
     title: "&5Toggle Potion Effects"
+    exp-usage-message: "&eUses 1 experience level every &6{0,number,0.##} seconds"
     # Whether the player can disable negative effects
     allow-disabling-negative-effects: false
     # Require permission for individual effects (portablebeacons.effects-toggle.<effect name>)
     require-permission: false
 
-  nerfs: # One cycle is every 7.5s
-    # The percentage of a experience level to deduct every cycle
+  nerfs:
+    # The percentage of experience level to deduct every cycle
     # Multiplied by effect levels; total = this value * sum of effect level
-    # The default value deducts 1 level every 7.5s for a beacon with 6 Level III effects
-    # To disable this mechanic, set this to 0.
-    exp-percentage-per-cycle: 0.05555555555
+    # With the default value, 1 XP level is deducted every 60s for a beacon with 6 Level III effects
+    # One "cycle" is 7.5 seconds (but the correct amount of experience is deducted every 3.75 seconds)
+    # To disable experience consumption set to 0.
+    exp-percentage-per-cycle: 0.0069444444
     # Whether the effects should only be applied when the item is in hotbar
     only-apply-in-hotbar: false
     # Force downgrade all effects stronger than its max-amplifier

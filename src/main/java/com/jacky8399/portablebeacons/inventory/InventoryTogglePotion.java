@@ -16,6 +16,7 @@ import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 
+import java.text.MessageFormat;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -28,6 +29,8 @@ public class InventoryTogglePotion implements InventoryProvider {
     private final boolean readOnly;
     private ItemStack stack;
     private ItemStack displayStack;
+    private MessageFormat expUsageMessage = new MessageFormat(Config.effectsToggleExpUsageMessage);
+    private ItemStack expStack;
     private Map<PotionEffectType, Integer> effects;
     private HashSet<PotionEffectType> disabledEffects;
 
@@ -45,6 +48,11 @@ public class InventoryTogglePotion implements InventoryProvider {
         // display stack
         displayStack = stack.clone();
         displayStack.setType(beaconEffects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
+
+        expStack = new ItemStack(Material.EXPERIENCE_BOTTLE);
+        ItemMeta expMeta = expStack.getItemMeta();
+        expMeta.setDisplayName(expUsageMessage.format(new Object[]{7.5 / beaconEffects.calcExpPerCycle()}));
+        expStack.setItemMeta(expMeta);
     }
 
     private void updateItem() {
@@ -59,6 +67,10 @@ public class InventoryTogglePotion implements InventoryProvider {
         displayStack.setItemMeta(tempMeta);
         displayStack.setType(effects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
         displayStack.setItemMeta(tempMeta);
+
+        ItemMeta expMeta = expStack.getItemMeta();
+        expMeta.setDisplayName(expUsageMessage.format(new Object[]{7.5 / effects.calcExpPerCycle()}));
+        expStack.setItemMeta(expMeta);
     }
 
     @Override
@@ -95,6 +107,8 @@ public class InventoryTogglePotion implements InventoryProvider {
                     updateItem();
                     inventory.requestRefresh(player);
                 });
+            } else if (i == 8 && Config.nerfExpPercentagePerCycle != 0) {
+                inventory.set(8, expStack);
             } else {
                 inventory.set(i, border);
             }

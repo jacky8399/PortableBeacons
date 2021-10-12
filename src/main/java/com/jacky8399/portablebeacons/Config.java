@@ -83,6 +83,7 @@ public class Config {
         // Effects Toggle GUI
         effectsToggleEnabled = config.getBoolean("beacon-item.effects-toggle.enabled");
         effectsToggleTitle = translateColor(config.getString("beacon-item.effects-toggle.title"));
+        effectsToggleExpUsageMessage = translateColor(config.getString("beacon-item.effects-toggle.exp-usage-message"));
         effectsToggleCanDisableNegativeEffects = config.getBoolean("beacon-item.effects-toggle.allow-disabling-negative-effects");
         effectsToggleFineTunePerms = config.getBoolean("beacon-item.effects-toggle.require-permission");
 
@@ -274,6 +275,7 @@ public class Config {
     // Effects toggle GUI
     public static boolean effectsToggleEnabled;
     public static String effectsToggleTitle;
+    public static String effectsToggleExpUsageMessage;
     public static boolean effectsToggleCanDisableNegativeEffects;
     public static boolean effectsToggleFineTunePerms;
 

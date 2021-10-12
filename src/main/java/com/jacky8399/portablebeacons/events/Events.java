@@ -394,8 +394,6 @@ public final class Events implements Listener {
                 e.setUseInteractedBlock(Event.Result.DENY);
                 e.setUseItemInHand(Event.Result.ALLOW);
                 Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem(), !Config.effectsToggleEnabled));
-            } else {
-                e.setUseItemInHand(Event.Result.DENY);
             }
         }
     }

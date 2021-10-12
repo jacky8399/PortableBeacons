@@ -463,7 +463,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 String consumptionHoverText = YELLOW + "Consumes " +
                         String.format(GREEN + "%.1f%3$s" + YELLOW + " / " + AQUA + "%.1f%3$s", perCycle * 8, perCycle * 480, expUnit) +
                         YELLOW + " per " + GREEN + "minute" + YELLOW + " / " + AQUA + "hour\n" +
-                        YELLOW + "Consumes 1 exp level every " + GOLD + String.format("%.2fs", 1 / rawPerCycle * 7.5);
+                        YELLOW + "Consumes 1 exp level every " + GOLD + String.format("%.2fs", 7.5 / rawPerCycle);
                 sender.spigot().sendMessage(new ComponentBuilder("% of experience level consumed: ").color(GREEN)
                         .append(consumptionText)
                         .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(consumptionHoverText)))
