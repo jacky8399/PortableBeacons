@@ -41,9 +41,7 @@ public class Config {
 
         // debug
         Logger logger = PortableBeacons.INSTANCE.logger;
-        if ((debug = config.getBoolean("debug"))) {
-            logger.info("Debug enabled");
-        }
+        debug = config.getBoolean("debug");
 
         // Ritual item
         ritualEnabled = config.getBoolean("ritual.enabled");
@@ -134,46 +132,21 @@ public class Config {
         anvilDisplayFailurePrompt = config.getBoolean("anvil-combination.display-failure-prompt");
 
         worldGuard = config.getBoolean("world-guard");
+
         if (debug) {
-            logger.info("Ritual/enabled: " + ritualEnabled);
-            logger.info("Ritual/item: " + ritualItem);
-            logger.info("Item custom version: " + itemCustomVersion);
-            logger.info("Beacon item/name: " + itemName);
-            logger.info("Beacon item/lore: " + String.join("\\n", itemLore));
-            logger.info("Beacon item/custom model data: " + itemCustomModelData);
-            logger.info("Placement/enabled: " + placementEnabled);
-            logger.info("Pickup/enabled: " + pickupEnabled);
-            logger.info("Pickup/require silk touch: " + pickupRequireSilkTouch);
-            logger.info("Creation reminder/enabled: " + creationReminder);
-            logger.info("Creation reminder/message: " + creationReminderMessage);
-            logger.info("Creation reminder/radius: " + creationReminderRadius);
-            logger.info("Creation reminder/disable if owned: " + creationReminderDisableIfOwned);
-            logger.info("Effects toggle/enabled: " + effectsToggleEnabled);
-            logger.info("Effects toggle/title: " + effectsToggleTitle);
-            logger.info("Effects toggle/can disable negative effects: " + effectsToggleCanDisableNegativeEffects);
-            logger.info("Effects toggle/fine tune perms: " + effectsToggleFineTunePerms);
-            logger.info("Enchant/Exp-reduction/enabled: " + enchExpReductionEnabled);
-            logger.info("Enchant/Exp-reduction/enchantment: " + enchExpReductionEnchantment);
-            logger.info("Enchant/Exp-reduction/max level: " + enchExpReductionMaxLevel);
-            logger.info("Enchant/Exp-reduction/name: " + enchExpReductionName);
-            logger.info("Enchant/Exp-reduction/reduction per level: " + enchExpReductionReductionPerLevel);
-            logger.info("Enchant/Soulbound/enabled: " + enchSoulboundEnabled);
-            logger.info("Enchant/Soulbound/enchantment: " + enchSoulboundEnchantment);
-            logger.info("Enchant/Soulbound/max level: " + enchSoulboundMaxLevel);
-            logger.info("Enchant/Soulbound/name: " + enchSoulboundName);
-            logger.info("Enchant/Soulbound/owner usage only: " + enchSoulboundOwnerUsageOnly);
-            logger.info("Enchant/Soulbound/consume level on death: " + enchSoulboundConsumeLevelOnDeath);
-            logger.info("Enchant/Soulbound/curse of binding: " + enchSoulboundCurseOfBinding);
-            logger.info("Nerfs/exp % per cycle: " + nerfExpPercentagePerCycle);
-            logger.info("Nerfs/only apply when in hotbar: " + nerfOnlyApplyInHotbar);
-            logger.info("Nerfs/disabled worlds: " + String.join(", ", nerfDisabledWorlds));
-            logger.info("Nerfs/force downgrade: " + nerfForceDowngrade);
-            logger.info("Anvil combination/enabled: " + anvilCombinationEnabled);
-            logger.info("Anvil combination/max effects: " + anvilCombinationMaxEffects);
-            logger.info("Anvil combination/combine effects additively: " + anvilCombinationCombineEffectsAdditively);
-            logger.info("Anvil combination/enforce vanilla exp limit: " + anvilCombinationEnforceVanillaExpLimit);
-            logger.info("Anvil combination/display failure prompt: " + anvilDisplayFailurePrompt);
-            logger.info("World guard: " + worldGuard);
+            logger.info("[Debug] Configuration:");
+            Map<String, Object> values = config.getValues(true);
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+                    logger.info(key + ": " + value);
+                } else if (value instanceof List<?>) {
+                    logger.info(key + ": " + ((List<?>) value).stream()
+                            .map(Objects::toString)
+                            .collect(Collectors.joining(", ", "[", "]")));
+                }
+            }
         }
 
         logger.info("Config loaded");

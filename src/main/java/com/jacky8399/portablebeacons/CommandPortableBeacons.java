@@ -449,15 +449,30 @@ public class CommandPortableBeacons implements TabExecutor {
                 );
         }
         if (Config.nerfExpPercentagePerCycle > 0) {
-            double perCycle = effects.calcExpPerCycle() * 100;
-            sender.sendMessage(GREEN + "% of experience level consumed: " + YELLOW +
-                            (perCycle >= 100 ?
-                                    String.format("%.2f%%/7.5s, %.1f%%/min, %.1f%%/hour",
-                                            perCycle, perCycle * 8, perCycle * 480) :
-                                    String.format("%.2f levels/7.5s, %.2f levels/min, %.2f levels/hour",
-                                            perCycle / 100, perCycle * 12.5, perCycle * 48)
-                            )
-            );
+            double rawPerCycle = effects.calcExpPerCycle(), perCycle = rawPerCycle;
+            String expUnit = rawPerCycle < 1 ? "%" : " levels";
+            if (rawPerCycle < 1) // <1 level per cycle
+                perCycle *= 100;
+            if (sender instanceof Player) {
+                TextComponent consumptionText = new TextComponent();
+                consumptionText.setExtra(Arrays.asList(
+                        new ComponentBuilder(String.format("%.2f%s/7.5s", perCycle, expUnit)).color(YELLOW)
+                                .append(" [...]").color(GRAY)
+                                .create()
+                ));
+                String consumptionHoverText = YELLOW + "Consumes " +
+                        String.format(GREEN + "%.1f%3$s" + YELLOW + " / " + AQUA + "%.1f%3$s", perCycle * 8, perCycle * 480, expUnit) +
+                        YELLOW + " per " + GREEN + "minute" + YELLOW + " / " + AQUA + "hour\n" +
+                        YELLOW + "Consumes 1 exp level every " + GOLD + String.format("%.2fs", 1 / rawPerCycle * 7.5);
+                sender.spigot().sendMessage(new ComponentBuilder("% of experience level consumed: ").color(GREEN)
+                        .append(consumptionText)
+                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(consumptionHoverText)))
+                        .create());
+            } else {
+                sender.sendMessage(GREEN + "% of experience level consumed: " + YELLOW +
+                        String.format("%.2f%4$s/7.5s, %.1f%4$s/min, %.1f%4$s/hour", perCycle, perCycle * 8, perCycle * 480, expUnit)
+                );
+            }
         }
 
         // Pyramid

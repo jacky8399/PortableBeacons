@@ -96,8 +96,8 @@ public class EffectsTimer extends BukkitRunnable {
                     return false;
                 xp += required;
                 player.setLevel(newLevel);
-                player.setExp((float) xp);
             }
+            player.setExp((float) xp);
         }
         return true;
 //        BigDecimal expPerCycle = BigDecimal.valueOf(effects.calcExpPerCycle());
