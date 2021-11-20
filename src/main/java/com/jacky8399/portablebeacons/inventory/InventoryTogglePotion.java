@@ -51,7 +51,7 @@ public class InventoryTogglePotion implements InventoryProvider {
 
         expStack = new ItemStack(Material.EXPERIENCE_BOTTLE);
         ItemMeta expMeta = expStack.getItemMeta();
-        expMeta.setDisplayName(expUsageMessage.format(new Object[]{7.5 / beaconEffects.calcExpPerCycle()}));
+        expMeta.setDisplayName(expUsageMessage.format(new Object[]{60 / beaconEffects.calcExpPerMinute()}));
         expStack.setItemMeta(expMeta);
     }
 
@@ -69,7 +69,7 @@ public class InventoryTogglePotion implements InventoryProvider {
         displayStack.setItemMeta(tempMeta);
 
         ItemMeta expMeta = expStack.getItemMeta();
-        expMeta.setDisplayName(expUsageMessage.format(new Object[]{7.5 / effects.calcExpPerCycle()}));
+        expMeta.setDisplayName(expUsageMessage.format(new Object[]{60 / effects.calcExpPerMinute()}));
         expStack.setItemMeta(expMeta);
     }
 
@@ -107,7 +107,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                     updateItem();
                     inventory.requestRefresh(player);
                 });
-            } else if (i == 8 && Config.nerfExpPercentagePerCycle != 0) {
+            } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
                 inventory.set(8, expStack);
             } else {
                 inventory.set(i, border);

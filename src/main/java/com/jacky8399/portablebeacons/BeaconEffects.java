@@ -154,8 +154,8 @@ public class BeaconEffects implements Cloneable {
         return Arrays.asList(effectsLore.split("\n"));
     }
 
-    public double calcExpPerCycle() {
-        if (Config.nerfExpPercentagePerCycle <= 0)
+    public double calcExpPerMinute() {
+        if (Config.nerfExpLevelsPerMinute == 0)
             return 0;
         int totalEffects = effects.entrySet().stream()
                 .filter(entry -> !disabledEffects.contains(entry.getKey()))
@@ -163,7 +163,7 @@ public class BeaconEffects implements Cloneable {
                 .sum();
         double expMultiplier = Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
-        return Math.max(0, totalEffects * Config.nerfExpPercentagePerCycle * expMultiplier);
+        return Math.max(0, totalEffects * Config.nerfExpLevelsPerMinute * expMultiplier);
     }
 
     public boolean shouldUpdate() {

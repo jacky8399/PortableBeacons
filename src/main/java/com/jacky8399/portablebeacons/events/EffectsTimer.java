@@ -91,7 +91,7 @@ public class EffectsTimer extends BukkitRunnable {
         if (player.getGameMode() == GameMode.CREATIVE)
             return true;
 
-        double expPerCycle = effects.calcExpPerCycle() * CYCLE_TIME_MULTIPLIER;
+        double expPerCycle = effects.calcExpPerMinute() * CYCLE_TIME_MULTIPLIER * (1/16d);
         if (expPerCycle != 0) {
             double xp = player.getExp() - expPerCycle;
             if (xp < 0) { // deduct levels
@@ -105,18 +105,5 @@ public class EffectsTimer extends BukkitRunnable {
             player.setExp((float) xp);
         }
         return true;
-//        BigDecimal expPerCycle = BigDecimal.valueOf(effects.calcExpPerCycle());
-//        BigDecimal xp = expPerCycle.multiply(CYCLE_TIME_MULTIPLIER_PRECISION);
-//        if (xp.doubleValue() != 0) {
-//            BigDecimal combined = BigDecimal.valueOf(player.getLevel() + player.getExp());
-//            BigDecimal result = combined.subtract(xp);
-//            if (result.doubleValue() < 0)
-//                return false;
-//            int newLevel = result.intValue();
-//            player.setLevel(newLevel);
-//            BigDecimal resultDecimal = result.subtract(BigDecimal.valueOf(result.intValue()));
-//            player.setExp(resultDecimal.floatValue());
-//        }
-//        return true;
     }
 }

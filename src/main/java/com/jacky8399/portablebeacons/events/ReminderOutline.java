@@ -85,7 +85,7 @@ public class ReminderOutline implements Listener {
                         // spawn or ensure there is a falling block
                         FallingBlock oldEnt = entities.get(vector);
                         if (oldEnt == null) {
-                            if (entities.size() == 0) // if first outline for player
+                            if (entities.size() == 0 && !Config.creationReminderMessage.isEmpty()) // if first outline for player
                                 player.sendMessage(Config.creationReminderMessage);
                             entities.put(vector, spawnFallingBlock(nearbyBeacon.getBlockData(), location));
                         } else {

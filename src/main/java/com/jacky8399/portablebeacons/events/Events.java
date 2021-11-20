@@ -390,10 +390,15 @@ public final class Events implements Listener {
     public void onBeaconUse(PlayerInteractEvent e) {
         if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK) &&
                 ItemUtils.isPortableBeacon(e.getItem())) {
-            if (e.getPlayer().isSneaking() && e.useItemInHand() != Event.Result.DENY) {
+            Player player = e.getPlayer();
+            if (player.isSneaking() && e.useItemInHand() != Event.Result.DENY) {
                 e.setUseInteractedBlock(Event.Result.DENY);
                 e.setUseItemInHand(Event.Result.ALLOW);
-                Inventories.openInventory(e.getPlayer(), new InventoryTogglePotion(e.getItem(), !Config.effectsToggleEnabled));
+                ItemStack stack = e.getItem();
+                BeaconEffects effects = ItemUtils.getEffects(stack);
+                boolean isReadOnly = !Config.effectsToggleEnabled ||
+                        (Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
+                Inventories.openInventory(player, new InventoryTogglePotion(stack, isReadOnly));
             }
         }
     }

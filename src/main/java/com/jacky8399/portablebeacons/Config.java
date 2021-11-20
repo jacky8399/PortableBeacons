@@ -36,8 +36,45 @@ public class Config {
                 "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml");
     }
 
+    public static void doMigrations(FileConfiguration config) {
+        List<String> migrated = new ArrayList<>();
+        // ritual.item
+        ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
+        if (legacy != null && !config.contains("ritual.item", true)) {
+            config.set("ritual.item", legacy);
+            config.set("item-used", null);
+            config.set("item_used", null);
+            migrated.add("item-used/item_used -> ritual.item");
+        }
+
+        // beacon-item.nerfs.exp-percentage-per-cycle
+        if (config.contains("beacon-item.nerfs.exp-percentage-per-cycle") &&
+                !config.contains("beacon-item.nerfs.exp-levels-per-minute", true)) {
+            double expPerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
+            config.set("beacon-item.nerfs.exp-levels-per-minute", expPerCycle * 8);
+            config.set("beacon-item.nerfs.exp-percentage-per-cycle", null);
+            migrated.add("beacon-item.nerfs: exp-percentage-per-cycle -> exp-levels-per-minute");
+        }
+
+        // legacy effects
+        if (loadConfigLegacy(config)) {
+            migrated.add("beacon-item.effects -> effects");
+        }
+
+        if (migrated.size() != 0) {
+            Logger logger = PortableBeacons.INSTANCE.logger;
+            logger.warning("The following legacy config values have been migrated (in memory):");
+            migrated.forEach(message -> logger.warning(" - " + message));
+            logger.warning("Confirm that the features still work correctly, then run " +
+                    "'/portablebeacons saveconfig' to save these changes to disk.");
+            logger.warning("Consult documentation and migrate manually by deleting old values if necessary.");
+        }
+    }
+
     public static void loadConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
+
+        doMigrations(config);
 
         // debug
         Logger logger = PortableBeacons.INSTANCE.logger;
@@ -47,15 +84,7 @@ public class Config {
         ritualEnabled = config.getBoolean("ritual.enabled");
         ritualItem = config.getItemStack("ritual.item");
         if (ritualItem == null) {
-            ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
-            if (legacy != null) {
-                config.set("item-used", null);
-                config.set("item_used", null);
-                ritualItem = legacy;
-                logger.info("Old config (item-used) has been migrated successfully. Use '/pb saveconfig' to save to file.");
-            } else {
-                ritualItem = new ItemStack(Material.NETHER_STAR, 32);
-            }
+            ritualItem = new ItemStack(Material.NETHER_STAR, 32);
         }
 
         // World interactions
@@ -109,13 +138,12 @@ public class Config {
 
         // Nerfs
 
-        nerfExpPercentagePerCycle = Math.max(0, config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle"));
+        nerfExpLevelsPerMinute = Math.max(0, config.getDouble("beacon-item.nerfs.exp-levels-per-minute"));
         nerfOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
         nerfDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
         nerfForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         readEffects(config);
-        loadConfigLegacy(config);
 
         // Anvil combination
 
@@ -193,7 +221,7 @@ public class Config {
         }
     }
 
-    public static void loadConfigLegacy(FileConfiguration config) {
+    public static boolean loadConfigLegacy(FileConfiguration config) {
         ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
         if (section != null) {
             section.getValues(false).forEach((effect, name) -> {
@@ -210,8 +238,9 @@ public class Config {
             });
             // delete section
             config.set("beacon-item.effects", null);
-            PortableBeacons.INSTANCE.logger.info("Old config (beacon-item.effects) has been migrated automatically. Use '/pb saveconfig' to save to file.");
+            return true;
         }
+        return false;
     }
 
     private static final boolean canUseRGB;
@@ -295,7 +324,7 @@ public class Config {
     public static Enchantment enchSoulboundEnchantment;
 
     // Nerfs
-    public static double nerfExpPercentagePerCycle;
+    public static double nerfExpLevelsPerMinute;
     public static boolean nerfOnlyApplyInHotbar;
     public static Set<String> nerfDisabledWorlds;
     public static boolean nerfForceDowngrade;

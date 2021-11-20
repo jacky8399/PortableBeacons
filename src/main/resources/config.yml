@@ -1,14 +1,22 @@
 # To see descriptions of different options:
 # https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml
 beacon-item:
-  name: Portable Beacon # Item name for portable beacon
-  lore: [] # Item lore for portable beacon
-  custom-model-data: -1 # Custom model data for portable beacon
+
+  # How the portable beacon appears in players' inventories
+  # Update preexisting items with /pb updateitems
+  name: Portable Beacon # Note: players can of course rename the item in anvils
+  lore:
+    - '&7Shift+right click to configure potion effects'
+  custom-model-data: -1 # Custom model data; Set to -1 to disable
+
+  # A glowing block outline will be shown when players can perform a ritual
   creation-reminder:
     enabled: true
-    message: '&aYou feel that something is resonating with the beacon...' # Message to send to player when such reminder is active
+    message: '&aYou feel that something is resonating with the beacon...' # Message in chat, set to empty string to disable
     radius: 8 # Scan radius
     disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
+
+  # Enchantments to further enhance the effects of a portable beacon
   custom-enchantments:
     exp-reduction:
       enabled: true
@@ -17,8 +25,8 @@ beacon-item:
       # Use {exp-reduction|multiplier} to get experience *multiplier* in percentage
       # Use {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction in decimal
       name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
-      # to disallow anvil combination set to empty string
-      # enchantment: ''
+      # to disallow crafting in anvil but still allow preexisting enchantments to work,
+      # set enchantment to an empty string ('')
       enchantment: mending
       reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
@@ -49,17 +57,16 @@ beacon-item:
     # Require permission for individual effects (portablebeacons.effects-toggle.<effect name>)
     require-permission: false
 
+  # My futile attempts to balance portable beacons
   nerfs:
-    # The percentage of experience level to deduct every cycle
-    # Multiplied by effect levels; total = this value * sum of effect level
-    # With the default value, 1 XP level is deducted every 60s for a beacon with 6 Level III effects
-    # One "cycle" is 7.5 seconds (but the correct amount of experience is deducted every 3.75 seconds)
-    # To disable experience consumption set to 0.
-    exp-percentage-per-cycle: 0.0069444444
-    # Whether the effects should only be applied when the item is in hotbar
+    # Experience levels consumed per minute (set to 0 to disable)
+    # upkeep per minute = value * (levels of every effect + levels of custom enchantments)
+    # With the default value, the upkeep is 1 level/minute for a beacon with 6 Level III effects
+    # The correct amount of experience is checked and deducted every 3.75 seconds
+    exp-levels-per-minute: 0.0555555552
+    # Whether the effects should only be applied when the item is in players' hotbars
     only-apply-in-hotbar: false
-    # Force downgrade all effects stronger than its max-amplifier
-    # Useful if you have changed max-amplifier of effects to clamp down on OP beacons
+    # Downgrade all effects stronger than its max-amplifier
     # Note: requires an item update (/pb updateitems) to take effect
     force-downgrade: false
     # Portable beacons will be disabled in these worlds
@@ -96,7 +103,7 @@ effects:
   STRENGTH:
     name: '&4Strength'
   # You can add more potion effects, the key must match vanilla names
-  # Specifying duration & max-amplifier overrides default section
+  # Specifying duration & max-amplifier overrides values from the default section
   # For example, to prevent night vision blinking:
 # NIGHT_VISION:
 #   name: '&1Night Vision'
