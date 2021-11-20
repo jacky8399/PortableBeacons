@@ -8,6 +8,7 @@ import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -82,6 +83,18 @@ public class BeaconEffects implements Cloneable {
 
     public void setDisabledEffects(Set<PotionEffectType> disabledEffects) {
         this.disabledEffects = ImmutableSet.copyOf(disabledEffects);
+    }
+
+    public boolean hasOwner() {
+        return soulboundOwner != null;
+    }
+
+    public boolean isOwner(UUID uuid) {
+        return soulboundOwner == null || soulboundOwner.equals(uuid);
+    }
+
+    public boolean isOwner(OfflinePlayer player) {
+        return isOwner(player.getUniqueId());
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {

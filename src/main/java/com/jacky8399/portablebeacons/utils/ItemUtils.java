@@ -139,51 +139,59 @@ public class ItemUtils {
     public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2, boolean visual) {
         if (!isPortableBeacon(is1) || is2 == null)
             return null;
+        BeaconEffects original = getEffects(is1);
+        // soulbound owner check
+        if (Config.enchSoulboundOwnerUsageOnly && !original.isOwner(player)) {
+            return visual ? createMessageStack("You do not own the original item") : null;
+        }
+
         if (isPortableBeacon(is2)) {
-            BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
-            HashMap<PotionEffectType, Integer> effects = new HashMap<>(e1.getEffects());
+            BeaconEffects e2 = getEffects(is2);
+            HashMap<PotionEffectType, Integer> potions = new HashMap<>(original.getEffects());
             BinaryOperator<Integer> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
                     Integer::sum : ItemUtils::anvilAlgorithm;
-            e2.getEffects().forEach((pot, count) -> effects.merge(pot, count, algorithm));
-            // soulbound owner check
-            // check if both beacons are unclaimed/opwned
-            UUID playerUuid = player.getUniqueId();
-            if (Config.enchSoulboundOwnerUsageOnly &&
-                    ((e1.soulboundOwner != null && !playerUuid.equals(e1.soulboundOwner)) ||
-                    (e2.soulboundOwner != null && !playerUuid.equals(e2.soulboundOwner)))) {
+            e2.getEffects().forEach((pot, count) -> potions.merge(pot, count, algorithm));
+            // owner check for other beacon
+            if (Config.enchSoulboundOwnerUsageOnly && !e2.isOwner(player)) {
                 return visual ? createMessageStack("You do not own the portable beacons") : null;
             }
 
             // check max effects count / overpowered effects
-            if (effects.size() > Config.anvilCombinationMaxEffects ||
-                    effects.entrySet().stream().anyMatch(entry -> {
-                        Config.PotionEffectInfo info = Config.effects.get(entry.getKey());
-                        return entry.getValue() > (info != null ? info.getMaxAmplifier() : Config.effectsDefault.maxAmplifier);
+            if (potions.size() > Config.anvilCombinationMaxEffects ||
+                    potions.entrySet().stream().anyMatch(entry -> {
+                        Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
+                        return entry.getValue() > info.getMaxAmplifier();
                     })) {
                 return visual ? createMessageStack("Overpowered effects") : null;
             }
 
-            return createStack(new BeaconEffects(effects));
+            BeaconEffects newEffects = new BeaconEffects(potions);
+            // copy additional attributes
+            newEffects.setDisabledEffects(original.getDisabledEffects());
+            newEffects.expReductionLevel = Math.max(original.expReductionLevel, e2.expReductionLevel);
+            newEffects.soulboundLevel = Math.max(original.soulboundLevel, e2.soulboundLevel);
+            newEffects.soulboundOwner = original.soulboundOwner;
+
+            return createStack(newEffects);
         } else if (is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
-            BeaconEffects effects = getEffects(is1);
             EnchantmentStorageMeta meta = (EnchantmentStorageMeta) is2.getItemMeta();
             Map<Enchantment, Integer> enchants = meta.getStoredEnchants();
             boolean allowCombination = false;
             if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null && enchants.containsKey(Config.enchSoulboundEnchantment)) {
                 allowCombination = true;
-                if (++effects.soulboundLevel > Config.enchSoulboundMaxLevel) // level check
+                if (++original.soulboundLevel > Config.enchSoulboundMaxLevel) // level check
                     return visual ? createMessageStack("Overpowered Soulbound") : null;
-                if (effects.soulboundOwner == null || effects.soulboundOwner.equals(player.getUniqueId()))
-                    effects.soulboundOwner = player.getUniqueId();
+                if (original.soulboundOwner == null || original.soulboundOwner.equals(player.getUniqueId()))
+                    original.soulboundOwner = player.getUniqueId();
             }
             if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null && enchants.containsKey(Config.enchExpReductionEnchantment)) {
                 allowCombination = true;
-                if (++effects.expReductionLevel > Config.enchExpReductionMaxLevel) // level check
+                if (++original.expReductionLevel > Config.enchExpReductionMaxLevel) // level check
                     return visual ? createMessageStack("Overpowered Experience Efficiency") : null;
             }
 
             return allowCombination ?
-                    createStackCopyItemData(effects, is1) :
+                    createStackCopyItemData(original, is1) :
                     visual ? createMessageStack("Incompatible enchantments") : null;
         }
         return visual ? createMessageStack("Invalid combination") : null;
@@ -203,7 +211,8 @@ public class ItemUtils {
             return input + level.doReplacement();
         }
         Matcher matcher = PLACEHOLDER.matcher(input);
-        // thanks Java
+        // thanks, Java
+        // ^ thanks, LanguageTools
         StringBuffer buffer = new StringBuffer();
         while (matcher.find()) {
             String[] args = matcher.group(2).split("\\|");
