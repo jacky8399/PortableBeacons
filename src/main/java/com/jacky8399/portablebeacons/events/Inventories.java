@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -30,8 +31,18 @@ public class Inventories implements Listener {
         int size = 9 * provider.getRows();
         Inventory inv = Bukkit.createInventory(player, size, title);
         InventoryData data = new InventoryData(inv, provider);
+        Inventory oldInv = playerInventories.put(player, inv);
+        if (oldInv != null) {
+            InventoryData old = pluginInventories.remove(oldInv);
+            if (old != null) {
+                try {
+                    old.provider.close(player);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
         pluginInventories.put(inv, data);
-        playerInventories.put(player, inv);
         provider.populate(player, data);
         // just to be safe
         Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> player.openInventory(inv));
@@ -49,42 +60,58 @@ public class Inventories implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent e) {
         Player player = (Player) e.getPlayer();
-        Inventory inv = playerInventories.remove(player);
-        if (inv != null) {
-            InventoryData data = pluginInventories.remove(inv);
-            data.provider.close(player);
+        Inventory inv = playerInventories.get(player);
+        if (e.getInventory() == inv) {
+            playerInventories.remove(player);
+        }
+        InventoryData data = pluginInventories.remove(e.getInventory());
+        if (data != null) {
+            try {
+                data.provider.close(player);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         }
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent e) {
-        if (pluginInventories.containsKey(e.getInventory())) {
-            Inventory inv = e.getInventory();
-            if (inv != e.getClickedInventory()) {
-                if (e.getClick().isKeyboardClick() || e.getClick().isShiftClick()) {
-                    // clicking into the inventory
-                    e.setResult(Event.Result.DENY);
-                }
-                return;
-            }
-            e.setResult(Event.Result.DENY);
+        Inventory inv = e.getInventory();
+        InventoryData data = pluginInventories.get(inv);
+        if (data == null) // not our inventory
+            return;
+        if (inv != e.getClickedInventory()) {
+            InventoryAction action = e.getAction();
+            // actions that might influence our inventory
+            if (action == InventoryAction.MOVE_TO_OTHER_INVENTORY || action == InventoryAction.COLLECT_TO_CURSOR ||
+                    action == InventoryAction.NOTHING || action == InventoryAction.UNKNOWN)
+                e.setResult(Event.Result.DENY);
+            return;
+        }
+        e.setResult(Event.Result.DENY);
 
-            InventoryData data = pluginInventories.get(inv);
-            Consumer<InventoryClickEvent> eventHandler = data.eventHandlers.get(e.getSlot());
-            if (eventHandler != null) {
-                try {
-                    eventHandler.accept(e);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+        Consumer<InventoryClickEvent> eventHandler = data.eventHandlers.get(e.getSlot());
+        if (eventHandler != null) {
+            try {
+                eventHandler.accept(e);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         }
     }
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent e) {
-        if (pluginInventories.containsKey(e.getInventory())) {
-            e.setResult(Event.Result.DENY);
+        Inventory inventory = e.getInventory();
+        if (!pluginInventories.containsKey(e.getInventory()))
+            return;
+        int size = inventory.getSize();
+        // check if any of the slots involved is in the top inventory
+        for (int slotID : e.getRawSlots()) {
+            if (slotID < size) {
+                e.setResult(Event.Result.DENY);
+                return;
+            }
         }
     }
 
