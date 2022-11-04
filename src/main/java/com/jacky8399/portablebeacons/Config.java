@@ -32,7 +32,7 @@ public class Config {
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
-        config.options().copyDefaults(true).header("To see descriptions of different options: \n" +
+        config.options().copyDefaults(true).header("Documentation: \n" +
                 "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml");
     }
 

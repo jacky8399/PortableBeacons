@@ -1,5 +1,6 @@
-# To see descriptions of different options:
+# Documentation:
 # https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml
+
 beacon-item:
 
   # How the portable beacon appears in players' inventories

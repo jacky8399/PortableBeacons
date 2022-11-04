@@ -5,6 +5,7 @@ import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.inventory.InventoryTogglePotion;
 import com.jacky8399.portablebeacons.utils.BeaconPyramid;
+import com.jacky8399.portablebeacons.utils.BeaconUtils;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import org.bukkit.*;
@@ -27,7 +28,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.GrindstoneInventory;
@@ -35,14 +35,12 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 
 import java.util.*;
-import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toList;
 
 public final class Events implements Listener {
     public static void registerEvents() {
@@ -59,27 +57,18 @@ public final class Events implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::doItemLocationCheck, 0, 20);
     }
 
-    public static int checkBeaconTier(Beacon tileEntity) {
-        if (tileEntity.getPrimaryEffect() == null || tileEntity.getTier() == 0) {
-            return -1;
-        }
-        PotionEffect primary = tileEntity.getPrimaryEffect(), secondary = tileEntity.getSecondaryEffect();
-        int beaconTier = tileEntity.getTier();
-        int requiredTier = Math.max(PotionEffectUtils.getRequiredTier(primary), PotionEffectUtils.getRequiredTier(secondary));
-        if (beaconTier >= requiredTier && requiredTier != -1)
-            return requiredTier;
-        return -1;
-    }
-
     public void doItemLocationCheck() {
         if (!Config.ritualEnabled)
             return;
-        Iterator<Map.Entry<Item, Player>> iterator = ritualItems.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<Item, Player> entry = iterator.next();
-            Item item = entry.getKey();
-            Player thrower = entry.getValue();
-            if (item.isDead()) {
+        for (var iterator = ritualItems.iterator(); iterator.hasNext();) {
+            Item item = iterator.next();
+            UUID throwerUUID = item.getThrower();
+            if (throwerUUID == null) {
+                iterator.remove();
+                continue;
+            }
+            Player thrower = Bukkit.getPlayer(throwerUUID);
+            if (thrower == null || !thrower.isOnline() || item.isDead()) {
                 iterator.remove();
                 continue;
             }
@@ -88,7 +77,7 @@ public final class Events implements Listener {
             if (blockBelow.getType() == Material.BEACON) {
                 // check if activated
                 Beacon tileEntity = (Beacon) blockBelow.getState();
-                int tier = checkBeaconTier(tileEntity);
+                int tier = BeaconUtils.checkBeaconTier(tileEntity);
                 if (tier == -1) {
                     continue;
                 }
@@ -99,15 +88,15 @@ public final class Events implements Listener {
                 PotionEffect secondary = tileEntity.getSecondaryEffect();
                 if (secondary != null)
                     effects.put(secondary.getType(), secondary.getAmplifier() + 1);
-                Map<Vector, BlockData> beaconBase = removeBeacon(thrower, blockBelow, tier, true);
-                if (beaconBase == null) { // failed to remove beacon
+                BeaconPyramid pyramid = BeaconUtils.removeBeacon(thrower, blockBelow, tier, true);
+                if (pyramid == null) { // failed to remove beacon
                     continue;
                 }
                 // play sound to complement block break effects
                 item.getWorld().playSound(item.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1);
 
                 ItemStack stack = ItemUtils.createStack(new BeaconEffects(effects));
-                ItemUtils.setPyramid(stack, new BeaconPyramid(tier, beaconBase));
+                ItemUtils.setPyramid(stack, pyramid);
                 // check split amount
                 ItemStack currentStack = item.getItemStack();
                 int newAmount = currentStack.getAmount() - Config.ritualItem.getAmount();
@@ -116,10 +105,11 @@ public final class Events implements Listener {
                 } else if (newAmount > 0) {
                     currentStack.setAmount(newAmount);
                     // ConcurrentModificationException
-                    Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, ()->{
+                    Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> {
                         Item splitItem = item.getWorld().dropItem(item.getLocation().add(0, 1, 0), currentStack);
+                        splitItem.setThrower(throwerUUID);
                         splitItem.setVelocity(new Vector(0, 0, 0));
-                        ritualItems.put(splitItem, thrower);
+                        ritualItems.add(splitItem);
                     });
                 }
 
@@ -133,78 +123,16 @@ public final class Events implements Listener {
         }
     }
 
-    private static boolean checkBlockEventFail(Player player, Block block) {
-        BlockBreakEvent e = new BlockBreakEvent(block, player);
-        e.setDropItems(false);
-        Bukkit.getPluginManager().callEvent(e);
-        return e.isCancelled();
-    }
-
     public static HashSet<Location> ritualTempBlocks = new HashSet<>();
-    // the beacon will definitely be removed if this method returns a non-null value
-    public static Map<Vector, BlockData> removeBeacon(Player player, Block block, int tier, boolean modifyBeaconBlock) {
-        Block[][] blocksToBreak = new Block[tier + 1][];
-        // beacon block
-        if (modifyBeaconBlock) {
-            blocksToBreak[0] = new Block[] {block};
-            if (block.getType() != Material.BEACON)
-                return null;
-            else if (checkBlockEventFail(player, block))
-                return null;
-        } else {
-            blocksToBreak[0] = new Block[] {};
-        }
 
-        Map<Vector, BlockData> beaconBase = new HashMap<>();
-        for (int currentTier = 1; currentTier <= tier; currentTier++) {
-            int i = 0;
-            int currentTierSize = (int) Math.pow(currentTier * 2 + 1, 2);
-            Block[] blockz = new Block[currentTierSize];
-            for (int x = -currentTier; x <= currentTier; x++) {
-                for (int z = -currentTier; z <= currentTier; z++) {
-                    Block offset = block.getRelative(x, -currentTier, z);
-                    // validate block
-                    if (!Tag.BEACON_BASE_BLOCKS.isTagged(offset.getType()))
-                        return null;
-                    else if (checkBlockEventFail(player, offset))
-                        return null;
-                    blockz[i++] = offset;
-
-                    BlockVector vector = new BlockVector(x, -currentTier, z);
-                    beaconBase.put(vector, offset.getBlockData());
-                }
-            }
-            blocksToBreak[currentTier] = blockz;
-        }
-        World world = block.getWorld();
-        for (int i = 0; i < blocksToBreak.length; i++) {
-            Block[] blocks = blocksToBreak[i];
-            // copy array
-            for (Block b : blocks) {
-                b.setType(Material.GLASS); // to prevent duping
-                ritualTempBlocks.add(b.getLocation());
-            }
-            // don't break that many blocks at once
-            Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
-                for (Block b : blocks) {
-                    Location location = b.getLocation();
-                    world.playEffect(location, Effect.STEP_SOUND, b.getType());
-                    b.setType(Material.AIR);
-                    ritualTempBlocks.remove(location);
-                }
-            }, (i + 1) * 4L);
-        }
-        return beaconBase;
-    }
-
-    public WeakHashMap<Item, Player> ritualItems = new WeakHashMap<>();
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public Set<Item> ritualItems = new LinkedHashSet<>();
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         if (!Config.ritualEnabled)
             return;
         ItemStack is = e.getItemDrop().getItemStack();
         if (is.isSimilar(Config.ritualItem) && is.getAmount() >= Config.ritualItem.getAmount()) {
-            ritualItems.put(e.getItemDrop(), e.getPlayer());
+            ritualItems.add(e.getItemDrop());
         }
     }
 
@@ -215,14 +143,9 @@ public final class Events implements Listener {
 
     @EventHandler
     public void onItemMerge(ItemMergeEvent e) {
-        if (ritualItems.containsKey(e.getEntity()) || ritualItems.containsKey(e.getTarget())) {
+        if (ritualItems.contains(e.getEntity()) || ritualItems.contains(e.getTarget())) {
             e.setCancelled(true);
         }
-    }
-
-    @EventHandler
-    public void onPlayerLeave(PlayerQuitEvent e) {
-        ritualItems.values().removeIf(Predicate.isEqual(e.getPlayer()));
     }
 
     @EventHandler
@@ -261,9 +184,8 @@ public final class Events implements Listener {
         if (!Config.pickupEnabled)
             return;
         BlockState state = e.getBlockState();
-        if (state instanceof Beacon) {
-            Beacon beacon = (Beacon) state;
-            int tier = checkBeaconTier(beacon);
+        if (state instanceof Beacon beacon) {
+            int tier = BeaconUtils.checkBeaconTier(beacon);
             if (tier == -1)
                 return;
 
@@ -280,20 +202,20 @@ public final class Events implements Listener {
             PotionEffect secondary = beacon.getSecondaryEffect();
             if (secondary != null)
                 effects.put(secondary.getType(), secondary.getAmplifier() + 1);
-            Map<Vector, BlockData> beaconBase = removeBeacon(e.getPlayer(), e.getBlock(), tier, false);
-            if (beaconBase == null) {
+            BeaconPyramid pyramid = BeaconUtils.removeBeacon(e.getPlayer(), e.getBlock(), tier, false);
+            if (pyramid == null) {
                 return;
             }
 
             BeaconEffects beaconEffects = new BeaconEffects(effects);
-            BeaconPyramid pyramid = new BeaconPyramid(tier, beaconBase);
-            e.getItems().forEach(item -> {
+            for (Item item : e.getItems()) {
                 if (item.getItemStack().getType() == Material.BEACON) {
                     ItemStack stack = ItemUtils.createStack(beaconEffects);
                     ItemUtils.setPyramid(stack, pyramid);
                     item.setItemStack(stack);
+                    break;
                 }
-            });
+            }
         }
     }
 
@@ -316,74 +238,84 @@ public final class Events implements Listener {
         return !placeEvent.canBuild() || placeEvent.isCancelled();
     }
 
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+    private static final float HARDNESS_THRESHOLD = Material.OBSIDIAN.getHardness();
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onPlacePyramid(BlockPlaceEvent e) {
         ItemStack stack = e.getItemInHand();
-        if (ItemUtils.isPortableBeacon(stack) && ItemUtils.isPyramid(stack)) {
-            e.setCancelled(true);
-            BeaconEffects effects = ItemUtils.getEffects(stack);
-            BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
-            Block placeLocation = e.getBlockPlaced();
-            Block beaconLocation = placeLocation.getRelative(0, pyramid.tier, 0);
-            if (checkBlockPlaceEventFail(e.getPlayer(), e.getHand(), e.getBlockAgainst(), beaconLocation, Bukkit.createBlockData(Material.BEACON))) {
+        if (!ItemUtils.isPortableBeacon(stack)) {
+            return; // ignore non-beacon items
+        }
+        e.setCancelled(true);
+        if (!ItemUtils.isPyramid(stack)) {
+            return; // can't be placed
+        }
+        Player player = e.getPlayer();
+        EquipmentSlot hand = e.getHand();
+        Block placeLocation = e.getBlockPlaced();
+        Block placedAgainst = e.getBlockAgainst();
+        BeaconEffects effects = ItemUtils.getEffects(stack);
+        BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
+        Block beaconLocation = placeLocation.getRelative(0, pyramid.tier, 0);
+        // check block placement first
+        if (checkBlockPlaceEventFail(player, hand, placedAgainst, beaconLocation, Material.BEACON.createBlockData())) {
+            return;
+        }
+        for (var beaconBase : pyramid.beaconBaseBlocks) {
+            var blockData = beaconBase.data();
+            // only place beacon base blocks!
+            if (!Tag.BEACON_BASE_BLOCKS.isTagged(blockData.getMaterial())) {
+                continue; // don't check and filter later
+            }
+            Block relative = beaconBase.getLocation(beaconLocation);
+            float hardness = relative.getType().getHardness();
+            if (hardness < 0 || hardness >= HARDNESS_THRESHOLD) {
+                return; // don't break unbreakable or blocks like obsidian
+            }
+            if (checkBlockPlaceEventFail(player, hand, placedAgainst, relative, blockData)) {
                 return;
             }
-            // check block placement first
-            for (Map.Entry<Vector, BlockData> entry : pyramid.beaconBase.entrySet()) {
-                Vector diff = entry.getKey();
-                BlockData data = entry.getValue();
-                // only place beacon base blocks!
-                if (!Tag.BEACON_BASE_BLOCKS.isTagged(data.getMaterial())) {
-                    continue; // don't check and filter later
-                }
-                Block relative = beaconLocation.getRelative(diff.getBlockX(), diff.getBlockY(), diff.getBlockZ());
-                if (checkBlockPlaceEventFail(e.getPlayer(), e.getHand(), e.getBlockAgainst(), relative, data)) {
-                    return;
-                }
-            }
-            // then update blocks
-            World world = beaconLocation.getWorld();
-            // group by Y level to stagger creation
-            Map<Integer, Map<Vector, BlockData>> pyramidByLayer = pyramid.beaconBase.entrySet().stream()
-                    .filter(entry -> Tag.BEACON_BASE_BLOCKS.isTagged(entry.getValue().getMaterial())) // only place beacon base blocks
-                    .collect(groupingBy(entry -> entry.getKey().getBlockY(), toMap(Map.Entry::getKey, Map.Entry::getValue)));
-            for (Map.Entry<Integer, Map<Vector, BlockData>> entry : pyramidByLayer.entrySet()) {
-                int delay = pyramid.tier + entry.getKey(); // key is negative
-                Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
-                    for (Map.Entry<Vector, BlockData> entry1 : entry.getValue().entrySet()) {
-                        Vector diff = entry1.getKey();
-                        BlockData data = entry1.getValue();
-                        Block relative = beaconLocation.getRelative(diff.getBlockX(), diff.getBlockY(), diff.getBlockZ());
-                        Location relativeLocation = relative.getLocation();
-                        // set block
-                        relative.breakNaturally();
-                        relative.setBlockData(data);
-                        // try to move entities in the way
-                        world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5).forEach(entity -> entity.teleport(entity.getLocation().add(0, 1, 0)));
-                        world.playEffect(relativeLocation, Effect.STEP_SOUND, data.getMaterial());
-                    }
-                }, delay * 4L);
-            }
-            Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
-                beaconLocation.setType(Material.BEACON);
-                if (effects.getEffects().size() == 1 || effects.getEffects().size() == 2) {
-                    Beacon beacon = (Beacon) beaconLocation.getState();
-                    for (Map.Entry<PotionEffectType, Integer> entry : effects.getEffects().entrySet()) {
-                        if (entry.getKey().equals(PotionEffectType.REGENERATION)) {
-                            beacon.setSecondaryEffect(PotionEffectType.REGENERATION);
-                            continue;
-                        } else if (entry.getValue() == 2) {
-                            beacon.setSecondaryEffect(entry.getKey());
-                        }
-                        beacon.setPrimaryEffect(entry.getKey());
-                    }
-                    beacon.update(true);
-                }
-                world.playEffect(beaconLocation.getLocation(), Effect.STEP_SOUND, Material.BEACON);
-            }, (pyramid.tier - 1) * 4L);
-            // needs to cancel event to prevent error in console
-            stack.setAmount(stack.getAmount() - 1);
         }
+        // then update blocks
+        World world = beaconLocation.getWorld();
+        // group by Y level to stagger creation
+        Map<Integer, List<BeaconPyramid.BeaconBase>> pyramidByLayer = pyramid.beaconBaseBlocks.stream()
+                .filter(base -> Tag.BEACON_BASE_BLOCKS.isTagged(base.data().getMaterial())) // only place beacon base blocks
+                .collect(groupingBy(BeaconPyramid.BeaconBase::relativeY, toList()));
+        for (var layerEntry : pyramidByLayer.entrySet()) {
+            int delay = pyramid.tier + layerEntry.getKey(); // key is negative
+            Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
+                for (var beaconBlock : layerEntry.getValue()) {
+                    BlockData data = beaconBlock.data();
+                    Block relative = beaconBlock.getLocation(beaconLocation);
+                    Location relativeLocation = relative.getLocation();
+                    // set block
+                    relative.breakNaturally();
+                    relative.setBlockData(data);
+                    // try to move entities in the way
+                    world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5).forEach(entity -> entity.teleport(entity.getLocation().add(0, 1, 0)));
+                    world.playEffect(relativeLocation, Effect.STEP_SOUND, data.getMaterial());
+                }
+            }, delay * 4L);
+        }
+        Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
+            beaconLocation.setType(Material.BEACON);
+            if (effects.getEffects().size() == 1 || effects.getEffects().size() == 2) {
+                Beacon beacon = (Beacon) beaconLocation.getState();
+                for (Map.Entry<PotionEffectType, Integer> entry : effects.getEffects().entrySet()) {
+                    if (entry.getKey().equals(PotionEffectType.REGENERATION)) {
+                        beacon.setSecondaryEffect(PotionEffectType.REGENERATION);
+                        continue;
+                    } else if (entry.getValue() == 2) {
+                        beacon.setSecondaryEffect(entry.getKey());
+                    }
+                    beacon.setPrimaryEffect(entry.getKey());
+                }
+                beacon.update(true);
+            }
+            world.playEffect(beaconLocation.getLocation(), Effect.STEP_SOUND, Material.BEACON);
+        }, (pyramid.tier - 1) * 4L);
+        // needs to cancel event to prevent error in console
+        stack.setAmount(stack.getAmount() - 1);
     }
 
     @EventHandler

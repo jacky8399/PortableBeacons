@@ -195,9 +195,9 @@ public class BeaconEffects implements Cloneable {
 
     @SuppressWarnings({"deprecation", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
-        private static final PortableBeacons plugin = PortableBeacons.INSTANCE;
+        private static final PortableBeacons PLUGIN = PortableBeacons.INSTANCE;
         public static NamespacedKey key(String key) {
-            return new NamespacedKey(plugin, key);
+            return new NamespacedKey(PLUGIN, key);
         }
 
         public static final NamespacedKey STORAGE_KEY = key("beacon_effect");

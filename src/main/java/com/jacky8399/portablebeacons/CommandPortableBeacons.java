@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -478,8 +477,8 @@ public class CommandPortableBeacons implements TabExecutor {
             BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
             sender.sendMessage(GREEN + "Pyramid:");
             sender.sendMessage("  " + GREEN + "Tier: " + YELLOW + pyramid.tier);
-            Map<BlockData, Long> blockCount = pyramid.beaconBase.values().stream()
-                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            Map<BlockData, Long> blockCount = pyramid.beaconBaseBlocks.stream()
+                    .collect(Collectors.groupingBy(BeaconPyramid.BeaconBase::data, Collectors.counting()));
             sender.sendMessage("  " + GREEN + "Blocks:");
             blockCount.forEach((blockData, count) ->
                     sender.sendMessage("    " + YELLOW + blockData.getAsString() + ": " + count));
