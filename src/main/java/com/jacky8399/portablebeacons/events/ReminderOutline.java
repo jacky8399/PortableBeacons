@@ -68,7 +68,7 @@ public class ReminderOutline implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (Config.creationReminderDisableIfOwned) {
                 // check if already own beacon item
-                if (Arrays.stream(player.getInventory().getStorageContents()).anyMatch(ItemUtils::isPortableBeacon)) {
+                if (Arrays.stream(player.getInventory().getContents()).anyMatch(ItemUtils::isPortableBeacon)) {
                     // clear old entities
                     removeOutlines(player);
                     continue;

@@ -16,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.BinaryOperator;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ItemUtils {
@@ -210,31 +209,21 @@ public class ItemUtils {
         if (input.indexOf('{') == -1) {
             return input + level.doReplacement();
         }
-        Matcher matcher = PLACEHOLDER.matcher(input);
-        // thanks, Java
-        // ^ thanks, LanguageTools
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            String[] args = matcher.group(2).split("\\|");
+        return PLACEHOLDER.matcher(input).replaceAll(match -> {
+            String[] args = match.group(2).split("\\|");
             String contextName = args[0];
             Context context = contextName.equals("level") ? level : contexts.get(contextName);
-            if (context == null) {
-                // ignore
-                matcher.appendReplacement(buffer, "[UNKNOWN CONTEXT " + contextName + "]");
-                continue;
-            }
+            if (context == null)
+                return "[Unknown placeholder " + contextName + "]";
             args = Arrays.copyOfRange(args, 1, args.length);
-            boolean copySpace = matcher.group(1) != null && !context.shouldRemovePrecedingSpace(args);
+            boolean prependSpace = match.group(1) != null && !context.shouldRemovePrecedingSpace(args);
             String replacement = context.doReplacement(args);
             if (replacement == null) {
                 // ignore
-                matcher.appendReplacement(buffer, matcher.group());
-                continue;
+                return match.group();
             }
-            matcher.appendReplacement(buffer, (copySpace ? " " : "") + replacement);
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
+            return (prependSpace ? " " : "") + replacement;
+        });
     }
 
     public static String replacePlaceholders(@Nullable Player player, String input, ContextLevel level) {

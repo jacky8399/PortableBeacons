@@ -1,18 +1,14 @@
 package com.jacky8399.portablebeacons.utils;
 
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableSet;
 import com.jacky8399.portablebeacons.Config;
-import org.apache.commons.lang.WordUtils;
 import org.bukkit.ChatColor;
+import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class PotionEffectUtils {
     public static final Comparator<PotionEffectType> POTION_COMPARATOR = Comparator
@@ -22,25 +18,27 @@ public class PotionEffectUtils {
     /**
      * A bi-map of Bukkit effect names to vanilla names
      */
-    private static final ImmutableBiMap<String, String> VANILLA_EFFECT_NAMES = ImmutableBiMap.<String, String>builder()
-            .put("slow", "slowness")
-            .put("fast_digging", "haste")
-            .put("slow_digging", "mining_fatigue")
-            .put("increase_damage", "strength")
-            .put("heal", "instant_health")
-            .put("harm", "instant_damage")
-            .put("jump", "jump_boost")
-            .put("confusion", "nausea")
-            .put("damage_resistance", "resistance")
-            .build();
+    private static final Map<String, String> VANILLA_EFFECT_NAMES = Map.of(
+            "slow", "slowness",
+            "fast_digging", "haste",
+            "slow_digging", "mining_fatigue",
+            "increase_damage", "strength",
+            "heal", "instant_health",
+            "harm", "instant_damage",
+            "jump", "jump_boost",
+            "confusion", "nausea",
+            "damage_resistance", "resistance"
+    );
 
-    @NotNull
-    public static Optional<PotionEffectType> parsePotion(String input, boolean allowBukkitNames) {
-        input = input.toLowerCase(Locale.US);
-        String bukkitName = VANILLA_EFFECT_NAMES.inverse().get(input);
-        if (!allowBukkitNames && VANILLA_EFFECT_NAMES.containsKey(input)) // is a Bukkit name
-            return Optional.empty();
-        return Optional.ofNullable(PotionEffectType.getByName(bukkitName != null ? bukkitName : input));
+    public static Optional<PotionEffectType> parsePotion(@NotNull String input, boolean allowBukkitNames) {
+        if (allowBukkitNames) {
+            // convert Bukkit names to vanilla namespaced name
+            input = input.toLowerCase(Locale.ENGLISH);
+            input = VANILLA_EFFECT_NAMES.getOrDefault(input, input);
+            if (input == null)
+                return Optional.empty();
+        }
+        return Optional.ofNullable(PotionEffectType.getByKey(NamespacedKey.fromString(input)));
     }
 
     @NotNull
@@ -48,13 +46,15 @@ public class PotionEffectUtils {
         return parsePotion(input, false);
     }
 
-    private static final ImmutableSet<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values()).map(PotionEffectUtils::getName).collect(ImmutableSet.toImmutableSet());
-    public static ImmutableSet<String> getValidPotionNames() {
+    private static final Set<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values())
+            .map(PotionEffectUtils::getName)
+            .collect(Collectors.toUnmodifiableSet());
+    public static Set<String> getValidPotionNames() {
         return VALID_POTION_NAMES;
     }
 
-    private static final ImmutableSet<PotionEffectType> NEGATIVE_EFFECTS =
-            ImmutableSet.of(PotionEffectType.SLOW, PotionEffectType.SLOW_DIGGING, PotionEffectType.WEAKNESS, PotionEffectType.HARM,
+    private static final Set<PotionEffectType> NEGATIVE_EFFECTS =
+            Set.of(PotionEffectType.SLOW, PotionEffectType.SLOW_DIGGING, PotionEffectType.WEAKNESS, PotionEffectType.HARM,
                     PotionEffectType.CONFUSION, PotionEffectType.BLINDNESS, PotionEffectType.HUNGER, PotionEffectType.POISON,
                     PotionEffectType.WITHER, PotionEffectType.LEVITATION,
                     // neutral according to minecraft wiki
@@ -84,36 +84,28 @@ public class PotionEffectUtils {
 
     @NotNull
     public static String getName(@NotNull PotionEffectType potion) {
-        String name = potion.getName().toLowerCase(Locale.US);
-        return VANILLA_EFFECT_NAMES.getOrDefault(name, name);
+        var key = potion.getKey();
+        if (key.getNamespace().equals(NamespacedKey.MINECRAFT)) {
+            return key.getKey();
+        }
+        return key.toString();
     }
 
     @NotNull
     public static String toRomanNumeral(int i) {
-        switch (i) {
-            case 1:
-                return "";
-            case 2:
-                return " II";
-            case 3:
-                return " III";
-            case 4:
-                return " IV";
-            case 5:
-                return " V";
-            case 6:
-                return " VI";
-            case 7:
-                return " VII";
-            case 8:
-                return " VIII";
-            case 9:
-                return " IX";
-            case 10:
-                return " X";
-            default:
-                return " " + i;
-        }
+        return switch (i) {
+            case 1 -> "";
+            case 2 -> " II";
+            case 3 -> " III";
+            case 4 -> " IV";
+            case 5 -> " V";
+            case 6 -> " VI";
+            case 7 -> " VII";
+            case 8 -> " VIII";
+            case 9 -> " IX";
+            case 10 -> " X";
+            default -> " " + i;
+        };
     }
 
     @NotNull
@@ -122,8 +114,21 @@ public class PotionEffectUtils {
         if (info != null && info.displayName != null) {
             return ItemUtils.replacePlaceholders(null, info.displayName, level);
         } else {
-            return (isNegative(effect) ? ChatColor.RED : ChatColor.BLUE) +
-                    WordUtils.capitalizeFully(getName(effect).replace('_', ' ')) + toRomanNumeral(level);
+            String levelString = toRomanNumeral(level);
+
+            NamespacedKey key = effect.getKey();
+            StringBuilder name = new StringBuilder(key.getKey().length() + levelString.length() + 3);
+            name.append(key.getKey());
+
+            // capitalize string
+            name.setCharAt(0, Character.toUpperCase(name.charAt(0)));
+            for (int i = 1; i < name.length() - 1; i++) {
+                char chr = name.charAt(i);
+                if (chr == ' ')
+                    name.setCharAt(i + 1, Character.toUpperCase(name.charAt(i + 1)));
+            }
+            name.insert(0, isNegative(effect) ? ChatColor.RED : ChatColor.BLUE).append(' ').append(levelString);
+            return name.toString();
         }
     }
 }

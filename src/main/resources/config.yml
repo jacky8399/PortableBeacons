@@ -1,42 +1,45 @@
 # Documentation:
 # https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml
 
+# Configuration related to beacon items
+# Use /pb updateitems to mark preexisting items for update
+# Items will be updated when they are next ticked
 beacon-item:
 
-  # How the portable beacon appears in players' inventories
-  # Update preexisting items with /pb updateitems
   name: Portable Beacon # Note: players can of course rename the item in anvils
   lore:
     - '&7Shift+right click to configure potion effects'
   custom-model-data: -1 # Custom model data; Set to -1 to disable
 
-  # A glowing block outline will be shown when players can perform a ritual
+  # Show a glowing outline around nearby beacons to players who can perform a ritual
   creation-reminder:
     enabled: true
     message: '&aYou feel that something is resonating with the beacon...' # Message in chat, set to empty string to disable
     radius: 8 # Scan radius
-    disable-if-already-own-beacon-item: true # Don't remind player if they have a portable beacon in their inventory
+    disable-if-already-own-beacon-item: true # Don't remind player if they already have a beacon in their inventory
 
   # Enchantments to further enhance the effects of a portable beacon
   custom-enchantments:
+    # Reduces the experience upkeep
     exp-reduction:
       enabled: true
-      # You can use placeholders detailed in effects section. Additionally,
-      # Use {exp-reduction} to get experience reduction in percentage
-      # Use {exp-reduction|multiplier} to get experience *multiplier* in percentage
-      # Use {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction in decimal
+      # {level} can be used just like in the effects section. Additionally,
+      # {exp-reduction} to get experience reduction (e.g. 20%) in percentage
+      # {exp-reduction|multiplier} to get experience multiplier (e.g. 80%) in percentage
+      # {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction (e.g. 20% vs 0.2) in decimal
       name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
-      # to disallow crafting in anvil but still allow preexisting enchantments to work,
+      # to disallow enchanting in anvil but still allow preexisting enchantments to work,
       # set enchantment to an empty string ('')
       enchantment: mending
       reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
+    # Retain item on death
     soulbound:
       enabled: true
-      # You can use placeholders detailed in effects section. Additionally,
-      # Use {soulbound-owner} to get player name of soulbound owner
-      # Use {soulbound-owner|uuid} to get player UUID of soulbound owner
-      # Use {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
+      # {level} can be used just like in the effects section. Additionally,
+      # {soulbound-owner} to get name of soulbound owner
+      # {soulbound-owner|uuid} to get UUID of soulbound owner
+      # {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
       name: '&4Soulbound {level}&8 to {soulbound-owner}'
       enchantment: binding_curse
       max-level: 5
@@ -44,18 +47,20 @@ beacon-item:
       consume-level-on-death: true
       # whether item will stop working for others if it was ever soulbound to any player
       owner-usage-only: false
-      # just for fun: players cannot remove the item from their inventories if the beacon has a negative effect and soulbound! (note: protection not comprehensive)
+      # just for fun: the item cannot be dropped/moved if it contains soulbound and a negative effect!
+      # (note: protection not comprehensive)
       just-for-fun-curse-of-binding: false
 
   # Effects Toggle GUI
+  # Player must have permission portablebeacons.effects-toggle
   effects-toggle:
-    # Whether the Effects Toggle GUI is enabled; still checks for portablebeacons.effects-toggle
     enabled: true
     title: "&5Toggle Potion Effects"
+    # Format: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/MessageFormat.html
     exp-usage-message: "&eUses 1 experience level every &6{0,number,0.##} seconds"
     # Whether the player can disable negative effects
     allow-disabling-negative-effects: false
-    # Require permission for individual effects (portablebeacons.effects-toggle.<effect name>)
+    # Require individual permission for toggling effects (portablebeacons.effects-toggle.<effect name>)
     require-permission: false
 
   # My futile attempts to balance portable beacons
@@ -65,7 +70,7 @@ beacon-item:
     # With the default value, the upkeep is 1 level/minute for a beacon with 6 Level III effects
     # The correct amount of experience is checked and deducted every 3.75 seconds
     exp-levels-per-minute: 0.0555555552
-    # Whether the effects should only be applied when the item is in players' hotbars
+    # Whether the beacon should be active only when it is in the hotbar
     only-apply-in-hotbar: false
     # Downgrade all effects stronger than its max-amplifier
     # Note: requires an item update (/pb updateitems) to take effect
@@ -86,13 +91,13 @@ effects:
     # Set to true to hide particles for the effect, false to use beacon ambient effect
     hide-particles: false
   REGENERATION:
-    # Display name of the effect
+    # How the effect is displayed in the item lore
     # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
-    # Use {level} for Roman numeral
-    # (The preceding space of {level} is removed to avoid extra space when level = 1)
-    # Use {level|number} for decimal
-    name: '&cRegeneration'
+    # Use {level} for Roman numeral (Regeneration III)
+    # (The space before {level} is removed to avoid extra space when level = 1)
+    # Use {level|number} for decimal (Regeneration 3)
     # name: '&cRegeneration {level}' will replicate default behavior
+    name: '&cRegeneration'
   SPEED:
     name: '&fSpeed'
   RESISTANCE:
@@ -110,7 +115,7 @@ effects:
 #   name: '&1Night Vision'
 #   duration: 400
 
-# Ritual to create portable beacons by dropping an item stack onto an existing beacon
+# Ritual to create portable beacons by dropping an item onto an active beacon
 ritual:
   enabled: true
   __: ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used
@@ -121,16 +126,16 @@ world-interactions:
   # (The ritual item will not be refunded)
   # Beware of dupe exploits allowing duplication of beacon base blocks!
   placement-enabled: false
-  # Allow beacons to be picked up ONLY WHEN ritual item is AIR (/pb setritualitem with empty hand)
+  # Allow beacons to be picked up by mining when the ritual item is AIR (/pb setritualitem with empty hand)
   pickup-enabled: true
-  # Require a silk touch tool to pick up
+  # Require silk touch tool to pick up
   pickup-requires-silk-touch: true
 
 anvil-combination:
   enabled: true # Enable combining portable beacons in anvil
   max-effects: 6 # Max no. of effects the resultant item can have
-  # true for simple combination (e.g. Speed II + Speed I = Speed III)
-  # false for anvil-like combination (e.g. Speed II + Speed II = Speed III)
+  # true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)
+  # false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)
   combine-effects-additively: true
   # enforce the vanilla repair cost limit (max. 39 levels)
   enforce-vanilla-exp-limit: true

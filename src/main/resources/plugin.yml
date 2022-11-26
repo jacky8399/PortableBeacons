@@ -13,9 +13,13 @@ commands:
       - beacons
 
 permissions:
-  portablebeacons.effect-toggle:
+  portablebeacons.effects-toggle:
     default: true
+    description: "Allows toggling individual potions using Shift+Right Click"
+    children:
+      portablebeacons.effects-toggle.*: true
 
+  # Legacy
   portablebeacons.admin:
     default: false
     children:
@@ -29,9 +33,14 @@ permissions:
       portablebeacons.bypass.*: true
       portablebeacons.command: true
       portablebeacons.command.*: true
+      portablebeacons.effects-toggle: true
+
+  portablebeacons.command:
+    description: "Grants access to /portablebeacons"
 
   portablebeacons.command.*:
     default: op
+    description: "Grants access to all /portablebeacons subcommands"
     children:
       portablebeacons.command.reload: true
       portablebeacons.command.saveconfig: true
@@ -45,6 +54,7 @@ permissions:
       portablebeacons.command.info: true
   portablebeacons.command.item.*:
     default: op
+    description: "Grants access to all /portableacons item subcommands"
     children:
       portablebeacons.command.item.give: true
       portablebeacons.command.item.add: true
