@@ -1,7 +1,6 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
@@ -32,8 +31,8 @@ public class Config {
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
-        config.options().copyDefaults(true).header("Documentation: \n" +
-                "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml");
+        config.options().copyDefaults(true).setHeader(List.of("Documentation:",
+                "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml"));
     }
 
     public static void doMigrations(FileConfiguration config) {
@@ -54,6 +53,14 @@ public class Config {
             config.set("beacon-item.nerfs.exp-levels-per-minute", expPerCycle * 8);
             config.set("beacon-item.nerfs.exp-percentage-per-cycle", null);
             migrated.add("beacon-item.nerfs: exp-percentage-per-cycle -> exp-levels-per-minute");
+        }
+
+        // anvil-combination.max-effect-amplifier
+        if (config.contains("anvil-combination.max-effect-amplifier", true)) {
+            int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
+            config.set("effects.default.max-amplifier", maxAmplifier);
+            config.set("anvil-combination.max-effect-amplifier", null);
+            migrated.add("anvil-combination.max-effect-amplifier -> effects.default.max-amplifier");
         }
 
         // legacy effects
@@ -97,7 +104,7 @@ public class Config {
 
         itemCustomVersion = config.getString("item-custom-version-do-not-edit");
 
-        itemName = translateColor(config.getString("beacon-item.name", ""));
+        itemName = translateColor(config.getString("beacon-item.name"));
         itemLore = config.getStringList("beacon-item.lore").stream().map(Config::translateColor).collect(Collectors.toList());
 
         itemCustomModelData = config.getInt("beacon-item.custom-model-data");
@@ -106,7 +113,7 @@ public class Config {
 
         creationReminder = config.getBoolean("beacon-item.creation-reminder.enabled");
         creationReminderMessage = translateColor(config.getString("beacon-item.creation-reminder.message"));
-        creationReminderRadius = config.getDouble("beacon-item.creation-reminder.radius");
+        creationReminderRadius = getAndCheckDouble(0, config, "beacon-item.creation-reminder.radius");
         creationReminderDisableIfOwned = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
         // Effects Toggle GUI
@@ -121,16 +128,20 @@ public class Config {
         // Exp-reduction
 
         enchExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
-        enchExpReductionEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ROOT)));
-        enchExpReductionMaxLevel = config.getInt("beacon-item.custom-enchantments.exp-reduction.max-level");
+        var expReductionEnchName = config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ENGLISH);
+        enchExpReductionEnchantment = expReductionEnchName.isEmpty() ? null : Enchantment.getByKey(NamespacedKey.fromString(expReductionEnchName));
+        enchExpReductionEnchantmentLevel = getAndCheckEnchLevel(enchExpReductionEnchantment, config, "beacon-item.custom-enchantments.exp-reduction.enchantment-level");
+        enchExpReductionMaxLevel = getAndCheckInt(1, config, "beacon-item.custom-enchantments.exp-reduction.max-level");
         enchExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
         enchExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
 
         // Soulbound
 
         enchSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
-        enchSoulboundEnchantment = Enchantment.getByKey(NamespacedKey.minecraft(config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ROOT)));
-        enchSoulboundMaxLevel = config.getInt("beacon-item.custom-enchantments.soulbound.max-level");
+        var soulboundEnchName = config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ENGLISH);
+        enchSoulboundEnchantment = soulboundEnchName.isEmpty() ? null : Enchantment.getByKey(NamespacedKey.fromString(soulboundEnchName));
+        enchSoulboundEnchantmentLevel = getAndCheckEnchLevel(enchSoulboundEnchantment, config, "beacon-item.custom-enchantments.soulbound.enchantment-level");
+        enchSoulboundMaxLevel = getAndCheckInt(1, config, "beacon-item.custom-enchantments.soulbound.max-level");
         enchSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
         enchSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
         enchSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
@@ -138,9 +149,9 @@ public class Config {
 
         // Nerfs
 
-        nerfExpLevelsPerMinute = Math.max(0, config.getDouble("beacon-item.nerfs.exp-levels-per-minute"));
+        nerfExpLevelsPerMinute = getAndCheckDouble(0, config, "beacon-item.nerfs.exp-levels-per-minute");
         nerfOnlyApplyInHotbar = config.getBoolean("beacon-item.nerfs.only-apply-in-hotbar");
-        nerfDisabledWorlds = Sets.newHashSet(config.getStringList("beacon-item.nerfs.disabled-worlds"));
+        nerfDisabledWorlds = new HashSet<>(config.getStringList("beacon-item.nerfs.disabled-worlds"));
         nerfForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         readEffects(config);
@@ -148,14 +159,7 @@ public class Config {
         // Anvil combination
 
         anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
-        anvilCombinationMaxEffects = config.getInt("anvil-combination.max-effects");
-        if (config.contains("anvil-combination.max-effect-amplifier", true)) {
-            int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
-            Config.effectsDefault = new PotionEffectInfo(null, Config.effectsDefault.durationInTicks, maxAmplifier, Config.effectsDefault.hideParticles);
-            config.set("effects.default.max-amplifier", maxAmplifier);
-            config.set("anvil-combination.max-effect-amplifier", null);
-            PortableBeacons.INSTANCE.logger.info("Old config (anvil-combination.max-effect-amplifier) has been migrated automatically. Use '/pb saveconfig' to save to file.");
-        }
+        anvilCombinationMaxEffects = getAndCheckInt(1, config, "anvil-combination.max-effects");
         anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
         anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
         anvilDisplayFailurePrompt = config.getBoolean("anvil-combination.display-failure-prompt");
@@ -198,6 +202,13 @@ public class Config {
                 Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
                 Integer duration = (Integer) yaml.get("duration");
                 Boolean hideParticles = (Boolean) yaml.get("hide-particles");
+
+                // check range
+                if (maxAmplifier != null && (maxAmplifier < 0 || maxAmplifier > 255))
+                    throw new IllegalArgumentException("max-amplifier must be between 0 and 255");
+                if (duration != null && duration < 0)
+                    throw new IllegalArgumentException("duration must be greater than 0");
+
                 if (key.equals("default")) {
                     Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
                     Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
@@ -205,8 +216,9 @@ public class Config {
 
                     effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier, hideParticles);
                 } else {
-                    PotionEffectType type = PotionEffectUtils.parsePotion(key, true)
-                            .orElseThrow(()->new IllegalArgumentException(key + " is not a valid potion effect"));
+                    PotionEffectType type = PotionEffectUtils.parsePotion(key, true);
+                    if (type == null)
+                        throw new IllegalArgumentException(key + " is not a valid potion effect");
 
                     effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier, hideParticles));
                 }
@@ -226,8 +238,9 @@ public class Config {
         if (section != null) {
             section.getValues(false).forEach((effect, name) -> {
                 try {
-                    PotionEffectType type = PotionEffectUtils.parsePotion(effect, true)
-                            .orElseThrow(IllegalArgumentException::new); // for vanilla names
+                    PotionEffectType type = PotionEffectUtils.parsePotion(effect, true);
+                    if (type == null)
+                        throw new IllegalArgumentException(effect + " is not a valid potion effect");
                     String newName = Config.translateColor((String) name);
                     // override PotionEffectInfo
                     Config.PotionEffectInfo info = Config.effects.get(type);
@@ -280,6 +293,47 @@ public class Config {
         return raw;
     }
 
+    static int getAndCheckInt(int min, int max, FileConfiguration config, String path) {
+        int value = config.getInt(path);
+        if (value > max) {
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %d, got %d.".formatted(path, max, value));
+            return max;
+        } else if (value < min) {
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %d, got %d.".formatted(path, min, value));
+            return min;
+        } else {
+            return value;
+        }
+    }
+
+    static int getAndCheckInt(int min, FileConfiguration config, String path) {
+        return getAndCheckInt(min, Integer.MAX_VALUE, config, path);
+    }
+    static double getAndCheckDouble(double min, double max, FileConfiguration config, String path) {
+        double value = config.getDouble(path);
+        if (value > max) {
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %f, got %f.".formatted(path, max, value));
+            return max;
+        } else if (value < min) {
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %f, got %f.".formatted(path, min, value));
+            return min;
+        } else {
+            return value;
+        }
+    }
+
+    static double getAndCheckDouble(double min, FileConfiguration config, String path) {
+        return getAndCheckDouble(min, Double.MAX_VALUE, config, path);
+    }
+
+    static int getAndCheckEnchLevel(@Nullable Enchantment enchantment, FileConfiguration config, String path) {
+        if (enchantment == null)
+            return -1;
+        return getAndCheckInt(enchantment.getStartLevel(), enchantment.getMaxLevel(), config, path);
+    }
+
+    // Configuration values
+
     public static boolean debug;
 
     public static boolean ritualEnabled;
@@ -314,6 +368,7 @@ public class Config {
     public static int enchExpReductionMaxLevel;
     public static String enchExpReductionName;
     public static Enchantment enchExpReductionEnchantment;
+    public static int enchExpReductionEnchantmentLevel;
 
     public static boolean enchSoulboundEnabled;
     public static boolean enchSoulboundOwnerUsageOnly;
@@ -322,6 +377,7 @@ public class Config {
     public static int enchSoulboundMaxLevel;
     public static String enchSoulboundName;
     public static Enchantment enchSoulboundEnchantment;
+    public static int enchSoulboundEnchantmentLevel;
 
     // Nerfs
     public static double nerfExpLevelsPerMinute;

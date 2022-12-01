@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,13 +24,13 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
 
     public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_]+)(?:(=|<>|<|<=|>|>=)(\\d+))?$");
     public static BeaconEffectsFilter fromString(String input) {
-        Optional<PotionEffectType> simplePotion = PotionEffectUtils.parsePotion(input);
-        if (simplePotion.isPresent())
-            return new BeaconEffectsFilter(simplePotion.get(), null, -1);
+        PotionEffectType simplePotion = PotionEffectUtils.parsePotion(input);
+        if (simplePotion != null)
+            return new BeaconEffectsFilter(simplePotion, null, -1);
         Matcher matcher = FILTER_FORMAT.matcher(input);
         if (matcher.matches()) {
-            Optional<PotionEffectType> type = PotionEffectUtils.parsePotion(matcher.group(1));
-            if (!type.isPresent() || matcher.groupCount() != 3) {
+            PotionEffectType type = PotionEffectUtils.parsePotion(matcher.group(1));
+            if (type == null || matcher.groupCount() != 3) {
                 throw new IllegalArgumentException("Invalid potion effect " + matcher.group(1));
             }
             Operator op = Operator.getByString(matcher.group(2));
@@ -44,7 +43,7 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Invalid constraint " + matcher.group(3), e);
             }
-            return new BeaconEffectsFilter(type.get(), op, constraint);
+            return new BeaconEffectsFilter(type, op, constraint);
         }
         throw new IllegalArgumentException("Invalid format " + input);
     }

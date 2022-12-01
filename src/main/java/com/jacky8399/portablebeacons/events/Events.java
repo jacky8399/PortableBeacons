@@ -219,14 +219,6 @@ public final class Events implements Listener {
         }
     }
 
-    @EventHandler(ignoreCancelled = true)
-    public void onPlaceBlock(BlockPlaceEvent e) {
-        ItemStack stack = e.getItemInHand();
-        if (ItemUtils.isPortableBeacon(stack) && !ItemUtils.isPyramid(stack)) {
-            e.setCancelled(true); // don't place the beacon if it is not a pyramid
-        }
-    }
-
     public boolean checkBlockPlaceEventFail(Player player, EquipmentSlot hand, Block placedAgainst, Block toPlace, BlockData state) {
         BlockCanBuildEvent canBuildEvent = new BlockCanBuildEvent(placedAgainst, player, state, true);
         Bukkit.getPluginManager().callEvent(canBuildEvent);
@@ -239,7 +231,7 @@ public final class Events implements Listener {
     }
 
     private static final float HARDNESS_THRESHOLD = Material.OBSIDIAN.getHardness();
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    @EventHandler(ignoreCancelled = true)
     public void onPlacePyramid(BlockPlaceEvent e) {
         ItemStack stack = e.getItemInHand();
         if (!ItemUtils.isPortableBeacon(stack)) {

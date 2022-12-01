@@ -53,53 +53,40 @@ public class ItemUtils {
         stack.setItemMeta(meta);
     }
 
-    public static ItemMeta createMeta(BeaconEffects effects) {
-        ItemMeta meta = Objects.requireNonNull(Bukkit.getItemFactory().getItemMeta(Material.BEACON));
-        if (!Config.itemName.isEmpty()) {
+    public static ItemStack createStack(BeaconEffects effects) {
+        return createStackCopyItemData(effects, new ItemStack(Material.BEACON));
+    }
+
+    // preserves item name and things
+    public static ItemStack createStackCopyItemData(BeaconEffects effects, ItemStack stack) {
+        ItemMeta meta = Objects.requireNonNull(stack.getItemMeta());
+        boolean hideEffects = !meta.getItemFlags().contains(ItemFlag.HIDE_POTION_EFFECTS); // can't use HIDE_ENCHANTS
+
+        // copy lore, enchants and set effects
+        if (!meta.hasDisplayName() && !Config.itemName.isEmpty()) {
             meta.setDisplayName(ChatColor.LIGHT_PURPLE + Config.itemName);
         }
         if (Config.itemCustomModelData > -1) {
             meta.setCustomModelData(Config.itemCustomModelData);
         }
+
         meta.addEnchant(Enchantment.MENDING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        List<String> lore = new ArrayList<>(effects.toLore());
+        List<String> effectsLore = effects.toLore(hideEffects, hideEffects);
         if (Config.itemLore.size() != 0) {
+            List<String> lore = new ArrayList<>(effectsLore.size() + Config.itemLore.size() + 1);
+            lore.addAll(effectsLore);
             lore.add("");
             lore.addAll(Config.itemLore);
+            meta.setLore(lore);
+        } else {
+            meta.setLore(effectsLore);
         }
-        meta.setLore(lore);
         setEffects(meta, effects);
-        return meta;
-    }
-
-    public static ItemStack createStack(BeaconEffects effects) {
-        ItemStack stack = new ItemStack(Material.BEACON);
-        ItemMeta meta = createMeta(effects);
-        stack.setItemMeta(meta);
-        return stack;
-    }
-
-    // preserves item name and things
-    public static ItemStack createStackCopyItemData(BeaconEffects effects, ItemStack oldIs) {
-        ItemMeta newMeta = createMeta(effects);
-
-        ItemMeta oldMeta = oldIs.getItemMeta(), actualMeta = oldMeta.clone();
-
-        // copy lore, enchants and set effects
-        if (newMeta.hasLore())
-            actualMeta.setLore(newMeta.getLore());
-        for (Map.Entry<Enchantment, Integer> enchants : newMeta.getEnchants().entrySet()) {
-            actualMeta.addEnchant(enchants.getKey(), enchants.getValue(), true);
-        }
-        actualMeta.addItemFlags(newMeta.getItemFlags().toArray(new ItemFlag[0]));
-        if (newMeta.hasCustomModelData())
-            actualMeta.setCustomModelData(newMeta.getCustomModelData());
-        setEffects(actualMeta, effects);
 
         ItemStack newIs = new ItemStack(Material.BEACON);
-        newIs.setItemMeta(actualMeta);
-        newIs.setAmount(oldIs.getAmount());
+        newIs.setItemMeta(meta);
+        newIs.setAmount(stack.getAmount());
         return newIs;
     }
 
@@ -113,13 +100,20 @@ public class ItemUtils {
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
             return getCost(e1) + getCost(e2);
-        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
+        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK &&
+                is2.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
             BeaconEffects effects = getEffects(is1);
-            Map<Enchantment, Integer> enchants = ((EnchantmentStorageMeta) is2.getItemMeta()).getStoredEnchants();
+            Map<Enchantment, Integer> enchants = storageMeta.getStoredEnchants();
             int numOfEnchantsApplicable = 0;
-            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null && enchants.containsKey(Config.enchSoulboundEnchantment))
+
+            Integer enchLevel;
+            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null &&
+                    (enchLevel = enchants.get(Config.enchSoulboundEnchantment)) != null &&
+                    enchLevel >= Config.enchSoulboundEnchantmentLevel)
                 numOfEnchantsApplicable++;
-            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null && enchants.containsKey(Config.enchExpReductionEnchantment))
+            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null &&
+                    (enchLevel = enchants.get(Config.enchExpReductionEnchantment)) != null &&
+                    enchLevel >= Config.enchExpReductionEnchantmentLevel)
                 numOfEnchantsApplicable++;
 
             return getCost(effects) * numOfEnchantsApplicable;
@@ -127,7 +121,10 @@ public class ItemUtils {
         return 0;
     }
 
-    public static ItemStack createMessageStack(String message) {
+    @Nullable
+    public static ItemStack showFailure(String message, boolean show) {
+        if (!show)
+            return null;
         ItemStack messageStack = new ItemStack(Material.BARRIER);
         ItemMeta meta = messageStack.getItemMeta();
         meta.setDisplayName(ChatColor.RED + message);
@@ -135,65 +132,70 @@ public class ItemUtils {
         return messageStack;
     }
 
-    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2, boolean visual) {
+    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2, boolean shouldShowFailure) {
         if (!isPortableBeacon(is1) || is2 == null)
             return null;
         BeaconEffects original = getEffects(is1);
         // soulbound owner check
         if (Config.enchSoulboundOwnerUsageOnly && !original.isOwner(player)) {
-            return visual ? createMessageStack("You do not own the original item") : null;
+            return showFailure("You do not own the portable beacon", shouldShowFailure);
         }
 
         if (isPortableBeacon(is2)) {
             BeaconEffects e2 = getEffects(is2);
+            // owner check for other beacon
+            if (Config.enchSoulboundOwnerUsageOnly && !e2.isOwner(player)) {
+                return showFailure("You do not own the portable beacon", shouldShowFailure);
+            }
             HashMap<PotionEffectType, Integer> potions = new HashMap<>(original.getEffects());
             BinaryOperator<Integer> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
                     Integer::sum : ItemUtils::anvilAlgorithm;
-            e2.getEffects().forEach((pot, count) -> potions.merge(pot, count, algorithm));
-            // owner check for other beacon
-            if (Config.enchSoulboundOwnerUsageOnly && !e2.isOwner(player)) {
-                return visual ? createMessageStack("You do not own the portable beacons") : null;
+            for (var entry : e2.getEffects().entrySet()) {
+                var potionType = entry.getKey();
+                int potionLevel = entry.getValue();
+                int maxPotionLevel = Config.getInfo(potionType).getMaxAmplifier();
+                int newLevel = potions.merge(potionType, potionLevel, algorithm);
+                if (newLevel > maxPotionLevel) {
+                    return showFailure("Overpowered " + PotionEffectUtils.getName(potionType), shouldShowFailure);
+                }
             }
 
             // check max effects count / overpowered effects
-            if (potions.size() > Config.anvilCombinationMaxEffects ||
-                    potions.entrySet().stream().anyMatch(entry -> {
-                        Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
-                        return entry.getValue() > info.getMaxAmplifier();
-                    })) {
-                return visual ? createMessageStack("Overpowered effects") : null;
+            if (potions.size() > Config.anvilCombinationMaxEffects) {
+                return showFailure("Too many effects", shouldShowFailure);
             }
 
-            BeaconEffects newEffects = new BeaconEffects(potions);
-            // copy additional attributes
-            newEffects.setDisabledEffects(original.getDisabledEffects());
-            newEffects.expReductionLevel = Math.max(original.expReductionLevel, e2.expReductionLevel);
-            newEffects.soulboundLevel = Math.max(original.soulboundLevel, e2.soulboundLevel);
-            newEffects.soulboundOwner = original.soulboundOwner;
-
+            BeaconEffects newEffects = original.clone();
+            newEffects.setEffects(potions);
             return createStack(newEffects);
-        } else if (is2.getType() == Material.ENCHANTED_BOOK && is2.hasItemMeta()) {
-            EnchantmentStorageMeta meta = (EnchantmentStorageMeta) is2.getItemMeta();
-            Map<Enchantment, Integer> enchants = meta.getStoredEnchants();
-            boolean allowCombination = false;
-            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null && enchants.containsKey(Config.enchSoulboundEnchantment)) {
-                allowCombination = true;
+        } else if (is2.getType() == Material.ENCHANTED_BOOK &&
+                is2.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
+            Map<Enchantment, Integer> enchants = storageMeta.getStoredEnchants();
+            boolean hasCombination = false;
+
+            Integer enchLevel;
+            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null &&
+                    (enchLevel = enchants.get(Config.enchSoulboundEnchantment)) != null &&
+                    enchLevel >= Config.enchSoulboundEnchantmentLevel) {
+                hasCombination = true;
                 if (++original.soulboundLevel > Config.enchSoulboundMaxLevel) // level check
-                    return visual ? createMessageStack("Overpowered Soulbound") : null;
+                    return showFailure("Overpowered Soulbound", shouldShowFailure);
                 if (original.soulboundOwner == null || original.soulboundOwner.equals(player.getUniqueId()))
                     original.soulboundOwner = player.getUniqueId();
             }
-            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null && enchants.containsKey(Config.enchExpReductionEnchantment)) {
-                allowCombination = true;
+            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null &&
+                    (enchLevel = enchants.get(Config.enchExpReductionEnchantment)) != null &&
+                    enchLevel >= Config.enchExpReductionEnchantmentLevel) {
+                hasCombination = true;
                 if (++original.expReductionLevel > Config.enchExpReductionMaxLevel) // level check
-                    return visual ? createMessageStack("Overpowered Experience Efficiency") : null;
+                    return showFailure("Overpowered Experience Efficiency", shouldShowFailure);
             }
 
-            return allowCombination ?
+            return hasCombination ?
                     createStackCopyItemData(original, is1) :
-                    visual ? createMessageStack("Incompatible enchantments") : null;
+                    showFailure("Incompatible enchantments", shouldShowFailure);
         }
-        return visual ? createMessageStack("Invalid combination") : null;
+        return showFailure("Invalid combination", shouldShowFailure);
     }
 
     private static int anvilAlgorithm(int s1, int s2) {

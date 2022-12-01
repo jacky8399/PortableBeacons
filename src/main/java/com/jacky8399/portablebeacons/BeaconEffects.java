@@ -1,8 +1,6 @@
 package com.jacky8399.portablebeacons;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
@@ -28,7 +26,7 @@ public class BeaconEffects implements Cloneable {
     public String customDataVersion = Config.itemCustomVersion;
 
     public BeaconEffects() {
-        this(ImmutableMap.of());
+        this(ImmutableSortedMap.of());
     }
 
     @Deprecated
@@ -38,13 +36,13 @@ public class BeaconEffects implements Cloneable {
     }
 
     public BeaconEffects(Map<PotionEffectType, Integer> effects) {
-        this.effects = ImmutableMap.copyOf(effects);
+        this.effects = ImmutableSortedMap.copyOf(effects, PotionEffectUtils.POTION_COMPARATOR);
     }
 
     @NotNull
-    private ImmutableMap<PotionEffectType, Integer> effects;
+    private ImmutableSortedMap<PotionEffectType, Integer> effects;
     @NotNull
-    private ImmutableSet<PotionEffectType> disabledEffects = ImmutableSet.of();
+    private ImmutableSet<PotionEffectType> disabledEffects = ImmutableSortedSet.of();
     public int expReductionLevel = 0;
     @Nullable
     public UUID soulboundOwner = null;
@@ -61,24 +59,24 @@ public class BeaconEffects implements Cloneable {
     }
 
     @NotNull
-    public ImmutableMap<PotionEffectType, Integer> getEffects() {
+    public SortedMap<PotionEffectType, Integer> getEffects() {
         return effects;
     }
 
     @NotNull
-    public Map<PotionEffectType, Integer> getEnabledEffects() {
-        HashMap<PotionEffectType, Integer> enabledEffects = new HashMap<>(effects);
+    public SortedMap<PotionEffectType, Integer> getEnabledEffects() {
+        TreeMap<PotionEffectType, Integer> enabledEffects = new TreeMap<>(effects);
         enabledEffects.keySet().removeAll(disabledEffects);
         return enabledEffects;
     }
 
     @NotNull
-    public ImmutableSet<PotionEffectType> getDisabledEffects() {
+    public Set<PotionEffectType> getDisabledEffects() {
         return disabledEffects;
     }
 
     public void setEffects(Map<PotionEffectType, Integer> effects) {
-        this.effects = ImmutableMap.copyOf(effects);
+        this.effects = ImmutableSortedMap.copyOf(effects, PotionEffectUtils.POTION_COMPARATOR);
     }
 
     public void setDisabledEffects(Set<PotionEffectType> disabledEffects) {
@@ -107,51 +105,57 @@ public class BeaconEffects implements Cloneable {
                     map.remove(filter.type);
             }
         }
-        this.effects = ImmutableMap.copyOf(map);
+        setEffects(map);
     }
 
-    public PotionEffect[] toEffects() {
-        Map<PotionEffectType, Integer> enabledEffects = getEnabledEffects();
-        PotionEffect[] arr = new PotionEffect[enabledEffects.size()];
-        int i = 0;
-        for (Map.Entry<PotionEffectType, Integer> entry : enabledEffects.entrySet()) {
-            if (disabledEffects.contains(entry.getKey())) continue; // ignore disabled effects
+    public List<PotionEffect> toEffects() {
+        Map<PotionEffectType, Integer> allEffects = getEffects();
+        List<PotionEffect> enabledEffects = new ArrayList<>(allEffects.size() - disabledEffects.size());
+        for (Map.Entry<PotionEffectType, Integer> entry : allEffects.entrySet()) {
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
-            arr[i++] = new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles());
+            enabledEffects.add(new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles()));
         }
-        return arr;
+        return enabledEffects;
     }
 
     public List<String> toLore() {
-        String effectsLore = effects.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey(PotionEffectUtils.POTION_COMPARATOR))
-                .map(entry -> {
-                    String display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
-                    if (disabledEffects.contains(entry.getKey()))
-                        display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
-                    return display;
-                })
-                .collect(joining("\n"));
+        return toLore(true, true);
+    }
 
-        List<String> enchantsLore = new ArrayList<>();
-        if (Config.enchExpReductionEnabled && expReductionLevel != 0) {
-            enchantsLore.add(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
+    public List<String> toLore(boolean showEffects, boolean showEnchants) {
+        var loreBuilder = new StringBuilder();
+
+        if (showEffects)
+            loreBuilder.append(effects.entrySet().stream()
+                    .map(entry -> {
+                        String display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
+                        if (disabledEffects.contains(entry.getKey()))
+                            display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
+                        return display;
+                    })
+                    .collect(joining("\n")));
+
+        boolean showExpReduction = showEnchants && Config.enchExpReductionEnabled && expReductionLevel != 0;
+        boolean showSoulbound = showEnchants && Config.enchSoulboundEnabled && soulboundLevel != 0;
+
+        if (showEffects && (showExpReduction || showSoulbound)) {
+            loreBuilder.append('\n').append('\n');
+        }
+
+        if (showExpReduction) {
+            loreBuilder.append(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
                     new ItemUtils.ContextLevel(expReductionLevel),
-                    ImmutableMap.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
+                    Map.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
             ));
         }
-        if (Config.enchSoulboundEnabled && soulboundLevel != 0) {
-            enchantsLore.add(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
+        if (showSoulbound) {
+            loreBuilder.append(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
                     new ItemUtils.ContextLevel(soulboundLevel),
-                    ImmutableMap.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
+                    Map.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
             ));
         }
-        // merge
-        if (enchantsLore.size() != 0) {
-            effectsLore += "\n\n" + String.join("\n", enchantsLore);
-        }
-        return Arrays.asList(effectsLore.split("\n"));
+        return Arrays.asList(loreBuilder.toString().split("\n"));
     }
 
     public double calcExpPerMinute() {
@@ -196,6 +200,7 @@ public class BeaconEffects implements Cloneable {
     @SuppressWarnings({"deprecation", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons PLUGIN = PortableBeacons.INSTANCE;
+
         public static NamespacedKey key(String key) {
             return new NamespacedKey(PLUGIN, key);
         }
@@ -305,6 +310,7 @@ public class BeaconEffects implements Cloneable {
 
         //<editor-fold desc="Legacy code" defaultstate="collapsed">
         private static final NamespacedKey LEGACY_PRIMARY = key("primary_effect"), LEGACY_SECONDARY = key("secondary_effect"), EFFECTS_LEGACY_V1 = key("effects"), EFFECTS_LEGACY_V2 = key("effects_v2");
+
         BeaconEffects parseLegacyV1(PersistentDataContainer primitive) {
             if (primitive.has(EFFECTS_LEGACY_V1, PersistentDataType.STRING)) { // older
                 BeaconEffects ret = new BeaconEffects(

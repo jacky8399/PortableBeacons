@@ -6,6 +6,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,25 +31,27 @@ public class PotionEffectUtils {
             "damage_resistance", "resistance"
     );
 
-    public static Optional<PotionEffectType> parsePotion(@NotNull String input, boolean allowBukkitNames) {
+    @Nullable
+    public static PotionEffectType parsePotion(@NotNull String input, boolean allowBukkitNames) {
         if (allowBukkitNames) {
             // convert Bukkit names to vanilla namespaced name
             input = input.toLowerCase(Locale.ENGLISH);
             input = VANILLA_EFFECT_NAMES.getOrDefault(input, input);
             if (input == null)
-                return Optional.empty();
+                return null;
         }
-        return Optional.ofNullable(PotionEffectType.getByKey(NamespacedKey.fromString(input)));
+        return PotionEffectType.getByKey(NamespacedKey.fromString(input));
     }
 
-    @NotNull
-    public static Optional<PotionEffectType> parsePotion(String input) {
+    @Nullable
+    public static PotionEffectType parsePotion(String input) {
         return parsePotion(input, false);
     }
 
     private static final Set<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values())
             .map(PotionEffectUtils::getName)
             .collect(Collectors.toUnmodifiableSet());
+
     public static Set<String> getValidPotionNames() {
         return VALID_POTION_NAMES;
     }
@@ -59,6 +62,7 @@ public class PotionEffectUtils {
                     PotionEffectType.WITHER, PotionEffectType.LEVITATION,
                     // neutral according to minecraft wiki
                     PotionEffectType.GLOWING, PotionEffectType.BAD_OMEN, PotionEffectType.UNLUCK);
+
     public static boolean isNegative(PotionEffectType potion) {
         return NEGATIVE_EFFECTS.contains(potion);
     }
@@ -66,7 +70,8 @@ public class PotionEffectUtils {
     public static int getRequiredTier(PotionEffect potion) {
         if (potion == null) {
             return -1;
-        } if (potion.getAmplifier() == 1) { // Secondary Power
+        }
+        if (potion.getAmplifier() == 1) { // Secondary Power
             return 4;
         }
         PotionEffectType type = potion.getType();

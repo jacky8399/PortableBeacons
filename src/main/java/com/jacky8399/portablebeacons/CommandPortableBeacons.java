@@ -84,8 +84,8 @@ public class CommandPortableBeacons implements TabExecutor {
                     if (!matcher.matches()) {
                         return PotionEffectUtils.getValidPotionNames().stream();
                     }
-                    Optional<PotionEffectType> type = PotionEffectUtils.parsePotion(matcher.group(1));
-                    if (!type.isPresent()) {
+                    PotionEffectType type = PotionEffectUtils.parsePotion(matcher.group(1));
+                    if (type == null) {
                         return PotionEffectUtils.getValidPotionNames().stream();
                     }
                     if (matcher.groupCount() == 1) {
@@ -94,7 +94,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         // check if valid potion and operator
                         BeaconEffectsFilter.Operator operator = BeaconEffectsFilter.Operator.getByString(matcher.group(2));
                         if (operator != null) {
-                            return IntStream.rangeClosed(0, Config.getInfo(type.get()).getMaxAmplifier())
+                            return IntStream.rangeClosed(0, Config.getInfo(type).getMaxAmplifier())
                                     .mapToObj(num -> matcher.group(1) + matcher.group(2) + num);
                         }
                         return Arrays.stream(BeaconEffectsFilter.Operator.values()).map(op -> matcher.group(1) + op.operator);
@@ -111,10 +111,10 @@ public class CommandPortableBeacons implements TabExecutor {
             if (splitIdx != -1)
                 input = input.substring(0, splitIdx);
             int maxAmplifier = -1;
-            Optional<PotionEffectType> optionalPotion = PotionEffectUtils.parsePotion(input);
-            if (optionalPotion.isPresent()) {
+            PotionEffectType potion = PotionEffectUtils.parsePotion(input);
+            if (potion != null) {
                 // valid input, show amplifiers
-                Config.PotionEffectInfo info = Config.getInfo(optionalPotion.get());
+                Config.PotionEffectInfo info = Config.getInfo(potion);
                 maxAmplifier = info.getMaxAmplifier();
             } else if (input.equalsIgnoreCase("all")) {
                 maxAmplifier = 9;
@@ -183,8 +183,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                     continue;
                 }
-                PotionEffectType type = PotionEffectUtils.parsePotion(potionName)
-                        .orElseThrow(()->new IllegalArgumentException(s + " is not a valid potion effect or enchantment"));
+                PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
+                if (type == null)
+                    throw new IllegalArgumentException(s + " is not a valid potion effect or enchantment");
                 Preconditions.checkArgument(level >= minLevel, "Level is negative");
                 effects.put(type, level);
             } catch (IllegalArgumentException e) {

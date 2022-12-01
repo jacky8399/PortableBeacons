@@ -9,7 +9,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ListIterator;
@@ -64,10 +63,7 @@ public class EffectsTimer extends BukkitRunnable {
             if (!tryDeductExp(player, actualEffects))
                 continue;
 
-            PotionEffect[] effects = actualEffects.toEffects();
-            for (PotionEffect effect : effects) {
-                player.addPotionEffect(effect);
-            }
+            player.addPotionEffects(actualEffects.toEffects());
 
             boolean needsUpdate = beaconEffects.shouldUpdate();
             if (needsUpdate) {
@@ -85,7 +81,6 @@ public class EffectsTimer extends BukkitRunnable {
         }
     }
 
-//    private static final BigDecimal CYCLE_TIME_MULTIPLIER_PRECISION = BigDecimal.valueOf(CYCLE_TIME_MULTIPLIER);
     boolean tryDeductExp(Player player, BeaconEffects effects) {
         // don't deduct xp from creative players
         if (player.getGameMode() == GameMode.CREATIVE)

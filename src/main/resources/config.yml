@@ -10,6 +10,7 @@ beacon-item:
   lore:
     - '&7Shift+right click to configure potion effects'
   custom-model-data: -1 # Custom model data; Set to -1 to disable
+  #
 
   # Show a glowing outline around nearby beacons to players who can perform a ritual
   creation-reminder:
@@ -31,6 +32,8 @@ beacon-item:
       # to disallow enchanting in anvil but still allow preexisting enchantments to work,
       # set enchantment to an empty string ('')
       enchantment: mending
+      # the required enchantment level
+      enchantment-level: 1
       reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
     # Retain item on death
@@ -42,6 +45,7 @@ beacon-item:
       # {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
       name: '&4Soulbound {level}&8 to {soulbound-owner}'
       enchantment: binding_curse
+      enchantment-level: 1
       max-level: 5
       # whether a level will be deducted on death
       consume-level-on-death: true

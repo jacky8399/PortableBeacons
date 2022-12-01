@@ -22,7 +22,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class InventoryTogglePotion implements InventoryProvider {
 
@@ -92,11 +91,12 @@ public class InventoryTogglePotion implements InventoryProvider {
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
                 inventory.set(4, displayStack, readOnly ? null : e -> {
+                    if (!Config.effectsToggleEnabled)
+                        return;
                     // simple check to see if all toggleable effects have been disabled
-                    if (!disabledEffects.containsAll(effects.keySet().stream()
-                            .filter(type -> Config.effectsToggleEnabled &&
-                                    (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)))
-                            .collect(Collectors.toList()))) {
+                    if (effects.keySet().stream()
+                            .filter(type -> Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type))
+                            .anyMatch(effect -> !disabledEffects.contains(effect))) {
                         // disable all
                         effects.keySet().stream()
                                 .filter(type -> checkToggleable(player, type))
@@ -162,8 +162,7 @@ public class InventoryTogglePotion implements InventoryProvider {
     private static boolean checkToggleable(Player player, PotionEffectType type) {
         return Config.effectsToggleEnabled &&
                 (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)) &&
-                (!Config.effectsToggleFineTunePerms || player.hasPermission(
-                        "portablebeacons.effect-toggle." + PotionEffectUtils.getName(type)
-                ));
+                (!Config.effectsToggleFineTunePerms ||
+                        player.hasPermission("portablebeacons.effect-toggle." + PotionEffectUtils.getName(type)));
     }
 }
