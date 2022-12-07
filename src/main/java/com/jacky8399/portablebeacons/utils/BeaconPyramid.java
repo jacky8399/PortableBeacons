@@ -33,8 +33,23 @@ public final class BeaconPyramid {
      * @param relativeZ The z coordinate relative to the beacon block
      */
     public record BeaconBase(BlockData data, int relativeX, int relativeY, int relativeZ) {
-        public Block getLocation(Block beaconBlock) {
+        public Block getBlockRelativeTo(Block beaconBlock) {
             return beaconBlock.getRelative(relativeX, relativeY, relativeZ);
+        }
+
+        /* B = Beacon, T = Surface block, F = Other block
+                B
+               TFT
+              TFFFT
+             TFFFFFT
+            TFFFFFFFT
+         */
+        /**
+         * Return whether this block would be considered a surface of the beacon base
+         */
+        public boolean isSurfaceBlock() {
+            int positiveY = -relativeY;
+            return relativeX == relativeY || relativeZ == relativeY || relativeX == positiveY || relativeZ == positiveY;
         }
 
         public static List<BeaconBase> fromLegacyMap(Map<? extends Vector, ? extends BlockData> map) {

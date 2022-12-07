@@ -96,9 +96,10 @@ public class BeaconUtils {
                         return null;
                     else if (checkBlockEventFail(player, offset))
                         return null;
+                    var beaconBaseBlock = new BeaconPyramid.BeaconBase(offset.getBlockData(), x, -currentTier, z);
+                    beaconBase.add(beaconBaseBlock);
                     // only play block breaking effect for surface blocks
-                    blocks.add(new BlockToBreak(offset, Math.abs(x) == currentTier || Math.abs(z) == currentTier));
-                    beaconBase.add(new BeaconPyramid.BeaconBase(offset.getBlockData(), x, -currentTier, z));
+                    blocks.add(new BlockToBreak(offset, beaconBaseBlock.isSurfaceBlock()));
                 }
             }
             blocksToBreak.add(blocks);

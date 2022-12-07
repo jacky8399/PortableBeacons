@@ -12,6 +12,7 @@ import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.TileState;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Item;
@@ -230,7 +231,17 @@ public final class Events implements Listener {
         return !placeEvent.canBuild() || placeEvent.isCancelled();
     }
 
-    private static final float HARDNESS_THRESHOLD = Material.OBSIDIAN.getHardness();
+    private static final float HARDNESS_THRESHOLD = Material.BEACON.getHardness();
+    private static boolean canPyramidReplace(Block block) {
+        Material type = block.getType();
+        float hardness = type.getHardness();
+        // hard block and not beacon base
+        if ((hardness < 0 || hardness >= HARDNESS_THRESHOLD) && !Tag.BEACON_BASE_BLOCKS.isTagged(type))
+            return false;
+        // tile entities
+        return !(block.getState() instanceof TileState);
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onPlacePyramid(BlockPlaceEvent e) {
         ItemStack stack = e.getItemInHand();
@@ -258,9 +269,8 @@ public final class Events implements Listener {
             if (!Tag.BEACON_BASE_BLOCKS.isTagged(blockData.getMaterial())) {
                 continue; // don't check and filter later
             }
-            Block relative = beaconBase.getLocation(beaconLocation);
-            float hardness = relative.getType().getHardness();
-            if (hardness < 0 || hardness >= HARDNESS_THRESHOLD) {
+            Block relative = beaconBase.getBlockRelativeTo(beaconLocation);
+            if (!canPyramidReplace(relative)) {
                 return; // don't break unbreakable or blocks like obsidian
             }
             if (checkBlockPlaceEventFail(player, hand, placedAgainst, relative, blockData)) {
@@ -278,14 +288,15 @@ public final class Events implements Listener {
             Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
                 for (var beaconBlock : layerEntry.getValue()) {
                     BlockData data = beaconBlock.data();
-                    Block relative = beaconBlock.getLocation(beaconLocation);
+                    Block relative = beaconBlock.getBlockRelativeTo(beaconLocation);
                     Location relativeLocation = relative.getLocation();
                     // set block
-                    relative.breakNaturally();
                     relative.setBlockData(data);
                     // try to move entities in the way
-                    world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5).forEach(entity -> entity.teleport(entity.getLocation().add(0, 1, 0)));
-                    world.playEffect(relativeLocation, Effect.STEP_SOUND, data.getMaterial());
+                    world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5)
+                            .forEach(entity -> entity.teleport(entity.getLocation().add(0, 1, 0)));
+                    if (beaconBlock.isSurfaceBlock())
+                        world.playEffect(relativeLocation, Effect.STEP_SOUND, data.getMaterial());
                 }
             }, delay * 4L);
         }
