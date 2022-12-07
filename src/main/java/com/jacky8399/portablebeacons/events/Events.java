@@ -40,9 +40,6 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toList;
-
 public final class Events implements Listener {
     public static void registerEvents() {
         PortableBeacons plugin = PortableBeacons.INSTANCE;
@@ -220,7 +217,7 @@ public final class Events implements Listener {
         }
     }
 
-    public boolean checkBlockPlaceEventFail(Player player, EquipmentSlot hand, Block placedAgainst, Block toPlace, BlockData state) {
+    public boolean checkBlockPlaceEvent(Player player, EquipmentSlot hand, Block placedAgainst, Block toPlace, BlockData state) {
         BlockCanBuildEvent canBuildEvent = new BlockCanBuildEvent(placedAgainst, player, state, true);
         Bukkit.getPluginManager().callEvent(canBuildEvent);
         if (!canBuildEvent.isBuildable())
@@ -228,7 +225,7 @@ public final class Events implements Listener {
         ItemStack fakeStack = new ItemStack(state.getMaterial());
         BlockPlaceEvent placeEvent = new BlockPlaceEvent(toPlace, toPlace.getState(), placedAgainst, fakeStack, player, true, hand);
         Bukkit.getPluginManager().callEvent(placeEvent);
-        return !placeEvent.canBuild() || placeEvent.isCancelled();
+        return placeEvent.canBuild() && !placeEvent.isCancelled();
     }
 
     private static final float HARDNESS_THRESHOLD = Material.BEACON.getHardness();
@@ -259,41 +256,43 @@ public final class Events implements Listener {
         BeaconEffects effects = ItemUtils.getEffects(stack);
         BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
         Block beaconLocation = placeLocation.getRelative(0, pyramid.tier, 0);
-        // check block placement first
-        if (checkBlockPlaceEventFail(player, hand, placedAgainst, beaconLocation, Material.BEACON.createBlockData())) {
+        if (!checkBlockPlaceEvent(player, hand, placedAgainst, beaconLocation, Material.BEACON.createBlockData())) {
             return;
         }
+        // group by Y level to stagger creation
+        Map<Integer, List<BeaconPyramid.BeaconBase>> pyramidByLayer = new HashMap<>();
         for (var beaconBase : pyramid.beaconBaseBlocks) {
             var blockData = beaconBase.data();
             // only place beacon base blocks!
             if (!Tag.BEACON_BASE_BLOCKS.isTagged(blockData.getMaterial())) {
-                continue; // don't check and filter later
+                continue;
             }
             Block relative = beaconBase.getBlockRelativeTo(beaconLocation);
             if (!canPyramidReplace(relative)) {
                 return; // don't break unbreakable or blocks like obsidian
             }
-            if (checkBlockPlaceEventFail(player, hand, placedAgainst, relative, blockData)) {
+            if (!checkBlockPlaceEvent(player, hand, placedAgainst, relative, blockData)) {
                 return;
             }
+            // group by relative Y
+            pyramidByLayer.computeIfAbsent(beaconBase.relativeY(),
+                    relativeY -> new ArrayList<>(BeaconUtils.getBeaconTierSize(-relativeY))).add(beaconBase);
         }
         // then update blocks
         World world = beaconLocation.getWorld();
-        // group by Y level to stagger creation
-        Map<Integer, List<BeaconPyramid.BeaconBase>> pyramidByLayer = pyramid.beaconBaseBlocks.stream()
-                .filter(base -> Tag.BEACON_BASE_BLOCKS.isTagged(base.data().getMaterial())) // only place beacon base blocks
-                .collect(groupingBy(BeaconPyramid.BeaconBase::relativeY, toList()));
         for (var layerEntry : pyramidByLayer.entrySet()) {
-            int delay = pyramid.tier + layerEntry.getKey(); // key is negative
+            int relativeY = layerEntry.getKey();
+            var beaconBlocks = layerEntry.getValue();
+            int delay = pyramid.tier + relativeY; // key is negative
             Bukkit.getScheduler().runTaskLater(PortableBeacons.INSTANCE, () -> {
-                for (var beaconBlock : layerEntry.getValue()) {
+                for (var beaconBlock : beaconBlocks) {
                     BlockData data = beaconBlock.data();
                     Block relative = beaconBlock.getBlockRelativeTo(beaconLocation);
                     Location relativeLocation = relative.getLocation();
                     // set block
                     relative.setBlockData(data);
                     // try to move entities in the way
-                    world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5)
+                    world.getNearbyEntities(relativeLocation, 0.5, 0.5, 0.5, entity -> !entity.isInsideVehicle())
                             .forEach(entity -> entity.teleport(entity.getLocation().add(0, 1, 0)));
                     if (beaconBlock.isSurfaceBlock())
                         world.playEffect(relativeLocation, Effect.STEP_SOUND, data.getMaterial());

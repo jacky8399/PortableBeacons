@@ -1,6 +1,5 @@
 package com.jacky8399.portablebeacons.events;
 
-import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
@@ -12,6 +11,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
+import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -21,18 +21,24 @@ public class ReminderOutline implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::checkPlayerItem, 0, 40);
     }
 
-    private static Map<Player, HashMap<Vector, FallingBlock>> reminderOutline = new WeakHashMap<>();
+    private static Map<Player, Map<Vector, FallingBlock>> reminderOutline = new HashMap<>();
 
     private static List<Block> findBeaconInRadius(Player player, double radius) {
         int r = (int) Math.ceil(radius);
-        Block block = player.getLocation().getBlock();
+        Location location = player.getLocation();
         List<Block> blocks = new ArrayList<>();
-        for (int x = -r; x <= r; x++) {
-            for (int y = -r; y <= r; y++) {
-                for (int z = -r; z <= r; z++) {
-                    Block relative = block.getRelative(x, y, z);
-                    if (relative.getType() == Material.BEACON && ((Beacon) relative.getState()).getPrimaryEffect() != null) {
-                        blocks.add(relative);
+        World world = player.getWorld();
+        int x = location.getBlockX(), z = location.getBlockZ();
+        for (int i = Math.floorDiv(x - r, 16), maxX = Math.floorDiv(x + r, 16); i < maxX; i++) {
+            for (int j = Math.floorDiv(z - r, 16), maxZ = Math.floorDiv(z + r, 16); j < maxZ; j++) {
+                Chunk chunk = world.getChunkAt(i, j);
+                if (!chunk.isLoaded())
+                    continue;
+                for (var tileEntity : chunk.getTileEntities()) {
+                    if (!(tileEntity instanceof Beacon beacon))
+                        continue;
+                    if (beacon.getPrimaryEffect() != null && tileEntity.getLocation().distance(location) <= radius) {
+                        blocks.add(beacon.getBlock());
                     }
                 }
             }
@@ -50,12 +56,12 @@ public class ReminderOutline implements Listener {
         ent.setDropItem(false);
         ent.setGravity(false);
         ent.setTicksLived(1);
-        ent.teleport(location);
+//        ent.teleport(location);
         return ent;
     }
 
     private void removeOutlines(Player player) {
-        HashMap<Vector, FallingBlock> entities = reminderOutline.remove(player);
+        Map<Vector, FallingBlock> entities = reminderOutline.remove(player);
         if (entities != null)
             entities.values().forEach(Entity::remove);
     }
@@ -75,38 +81,42 @@ public class ReminderOutline implements Listener {
                 }
             }
 
-            if (player.getInventory().containsAtLeast(Config.ritualItem, Config.ritualItem.getAmount())) {
-                List<Block> nearbyBeacons = findBeaconInRadius(player, Config.creationReminderRadius);
-                if (nearbyBeacons.size() != 0) {
-                    HashMap<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored-> Maps.newHashMap());
-                    for (Block nearbyBeacon : nearbyBeacons) {
-                        Vector vector = nearbyBeacon.getLocation().toVector();
-                        Location location = nearbyBeacon.getLocation().add(0.5, -0.01, 0.5);
-                        // spawn or ensure there is a falling block
-                        FallingBlock oldEnt = entities.get(vector);
-                        if (oldEnt == null) {
-                            if (entities.size() == 0 && !Config.creationReminderMessage.isEmpty()) // if first outline for player
-                                player.sendMessage(Config.creationReminderMessage);
-                            entities.put(vector, spawnFallingBlock(nearbyBeacon.getBlockData(), location));
-                        } else {
-                            oldEnt.teleport(location);
-                        }
-                        // display particles
-                        nearbyBeacon.getWorld().spawnParticle(Particle.END_ROD, nearbyBeacon.getLocation().add(0.5, 1.5, 0.5), 20, 0, 0.5, 0, 0.4);
-                    }
-                    player.setCooldown(Config.ritualItem.getType(), 20);
-                } else {
-                    removeOutlines(player);
-                }
-            } else {
+            if (!player.getInventory().containsAtLeast(Config.ritualItem, Config.ritualItem.getAmount())) {
                 removeOutlines(player);
+                continue;
             }
+            List<Block> nearbyBeacons = findBeaconInRadius(player, Config.creationReminderRadius);
+            if (nearbyBeacons.size() == 0) {
+                removeOutlines(player);
+                continue;
+            }
+            Map<Vector, FallingBlock> entities = reminderOutline.computeIfAbsent(player, ignored -> new HashMap<>());
+            for (Block beacon : nearbyBeacons) {
+                var vector = new BlockVector(beacon.getX(), beacon.getY(), beacon.getZ());
+                // falling block doesn't render if it is in a block of the same type
+                Location location = beacon.getLocation().add(0.5, -0.01, 0.5);
+                // spawn falling block if none already spawned
+                entities.computeIfAbsent(vector, ignored -> {
+                    if (entities.size() == 0 && !Config.creationReminderMessage.isEmpty()) // if first outline for player
+                        player.sendMessage(Config.creationReminderMessage);
+                    var fallingBlock = spawnFallingBlock(beacon.getBlockData(), location);
+                    // hide from other players
+                    for (var otherPlayer : Bukkit.getOnlinePlayers()) {
+                        if (otherPlayer != player)
+                            otherPlayer.hideEntity(PortableBeacons.INSTANCE, fallingBlock);
+                    }
+                    return fallingBlock;
+                }).teleport(location);
+                // display particles
+                player.spawnParticle(Particle.END_ROD, beacon.getLocation().add(0.5, 1.5, 0.5), 20, 0, 0.5, 0, 0.4);
+            }
+            player.setCooldown(Config.ritualItem.getType(), 20);
         }
         // remove old entries
-        Iterator<Map.Entry<Player, HashMap<Vector, FallingBlock>>> iterator = reminderOutline.entrySet().iterator();
+        var iterator = reminderOutline.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<Player, HashMap<Vector, FallingBlock>> entry = iterator.next();
-            HashMap<Vector, FallingBlock> ents = entry.getValue();
+            var entry = iterator.next();
+            Map<Vector, FallingBlock> ents = entry.getValue();
             if (!entry.getKey().isOnline()) {
                 ents.values().forEach(Entity::remove);
                 iterator.remove();
