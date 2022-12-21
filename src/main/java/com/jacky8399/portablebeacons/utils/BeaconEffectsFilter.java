@@ -71,7 +71,7 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
     }
 
     public enum Operator {
-        EQ("=", Integer::equals), NEQ ("<>", EQ.predicate.negate()),
+        EQ("=", Integer::equals), NEQ("<>", EQ.predicate.negate()),
         LT("<", (lvl, req) -> lvl.compareTo(req) < 0), GT(">", (lvl, req) -> lvl.compareTo(req) > 0),
         LTE("<=", GT.predicate.negate()), GTE(">=", LT.predicate.negate());
 

@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-public class AnvilRecipe implements Listener {
+public class RecipeEvents implements Listener {
 
     @EventHandler
     public void onAnvil(PrepareAnvilEvent e) {
@@ -63,9 +63,8 @@ public class AnvilRecipe implements Listener {
     public void onAnvilClick(InventoryClickEvent e) {
         if (!Config.anvilCombinationEnabled)
             return;
-        if (!(e.getClickedInventory() instanceof AnvilInventory))
+        if (!(e.getClickedInventory() instanceof AnvilInventory inv))
             return;
-        AnvilInventory inv = (AnvilInventory) e.getClickedInventory();
         Player player = (Player) e.getWhoClicked();
         ItemStack is1 = inv.getItem(0), is2 = inv.getItem(1), is3 = inv.getItem(2);
         Logger logger = PortableBeacons.INSTANCE.logger;
@@ -97,7 +96,7 @@ public class AnvilRecipe implements Listener {
         }
 
         int levelRequired = ItemUtils.calculateCombinationCost(is1, is2);
-        if (true) {
+        if (Config.debug) {
             logger.info("Anvil combination for " + player);
             logger.info("Required levels: " + levelRequired + ", max repair cost: " + inv.getMaximumRepairCost() + ", enforce: " + Config.anvilCombinationEnforceVanillaExpLimit);
         }

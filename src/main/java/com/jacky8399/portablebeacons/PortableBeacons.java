@@ -3,11 +3,13 @@ package com.jacky8399.portablebeacons;
 import com.jacky8399.portablebeacons.events.EffectsTimer;
 import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.events.ReminderOutline;
+import com.jacky8399.portablebeacons.recipes.RecipeManager;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.logging.Logger;
 
 public final class PortableBeacons extends JavaPlugin {
@@ -43,6 +45,8 @@ public final class PortableBeacons extends JavaPlugin {
         getCommand("portablebeacons").setExecutor(new CommandPortableBeacons());
 
         saveDefaultConfig();
+        if (!new File(getDataFolder(), "recipes.yml").exists())
+            saveResource("recipes.yml", false);
         reloadConfig();
         Events.registerEvents();
         effectsTimer = new EffectsTimer();
@@ -53,6 +57,7 @@ public final class PortableBeacons extends JavaPlugin {
     public void reloadConfig() {
         super.reloadConfig();
         Config.loadConfig();
+        RecipeManager.loadRecipes();
     }
 
     @Override

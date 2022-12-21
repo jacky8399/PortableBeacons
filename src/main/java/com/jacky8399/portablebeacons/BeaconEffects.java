@@ -197,6 +197,41 @@ public class BeaconEffects implements Cloneable {
         return ret;
     }
 
+    public Map<String, Object> save() {
+        // only save effects and custom enchants
+        var map = new HashMap<String, Object>();
+        effects.forEach((potion, level) -> map.put(potion.getKey().toString(), level));
+        if (expReductionLevel != 0)
+            map.put("exp-reduction", expReductionLevel);
+        if (soulboundLevel != 0)
+            map.put("soulbound", soulboundLevel);
+        return map;
+    }
+
+    public static BeaconEffects load(Map<String, Object> map, boolean allowVirtual) throws IllegalArgumentException {
+        var beaconEffects = new BeaconEffects();
+        int minLevel = allowVirtual ? 0 : 1;
+        beaconEffects.expReductionLevel = minLevel - 1;
+        beaconEffects.soulboundLevel = minLevel - 1;
+        var effects = new HashMap<PotionEffectType, Integer>();
+        map.forEach((key, obj) -> {
+            if (!(obj instanceof Number number) || number.intValue() < minLevel)
+                throw new IllegalArgumentException(obj + " is not a valid value for key " + key);
+            if ("exp-reduction".equals(key)) {
+                beaconEffects.expReductionLevel = number.intValue();
+            } else if ("soulbound".equals(key)) {
+                beaconEffects.soulboundLevel = number.intValue();
+            } else {
+                PotionEffectType type = PotionEffectUtils.parsePotion(key);
+                if (type == null)
+                    throw new IllegalArgumentException(key + " is not a valid key");
+                effects.put(type, number.intValue());
+            }
+        });
+        beaconEffects.setEffects(effects);
+        return beaconEffects;
+    }
+
     @SuppressWarnings({"deprecation", "ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons PLUGIN = PortableBeacons.INSTANCE;

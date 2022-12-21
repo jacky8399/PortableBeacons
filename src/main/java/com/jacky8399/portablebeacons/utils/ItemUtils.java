@@ -70,7 +70,7 @@ public class ItemUtils {
             meta.setCustomModelData(Config.itemCustomModelData);
         }
 
-        meta.addEnchant(Enchantment.MENDING, 1, true);
+        meta.addEnchant(Enchantment.DURABILITY, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         List<String> effectsLore = effects.toLore(hideEffects, hideEffects);
         if (Config.itemLore.size() != 0) {

@@ -1,0 +1,31 @@
+recipes:
+  # combining two beacons
+  anvil-combination:
+    type: __special_combination
+    enabled: true
+    # Max no. of effects the resultant item can have
+    max-effects: 6
+    # true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)
+    # false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)
+    combine-effects-additively: true
+    # enforce the vanilla repair cost limit (max. 39 levels)
+    enforce-vanilla-exp-limit: true
+    display-failure-prompt: false
+
+  # Default anvil recipes
+  exp-reduction:
+    type: anvil
+    enabled: true
+    input: minecraft:enchanted_book{StoredEnchantments:[]}
+    modifications:
+      add:
+        exp-reduction: 1
+
+  soulbound:
+    type: anvil
+    enabled: true
+    input: minecraft:enchanted_book{StoredEnchantments:[]}
+    modifications:
+      __special_set-soulbound-owner: true
+      add:
+        soulbound: 1

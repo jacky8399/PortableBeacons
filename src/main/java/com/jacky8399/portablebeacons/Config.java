@@ -1,18 +1,22 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
+import com.jacky8399.portablebeacons.recipes.CombinationRecipe;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -29,6 +33,7 @@ public class Config {
         config.set("beacon-item.creation-reminder.enabled", Config.creationReminder);
         // prompt
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
+        config.setComments("ritual.item", List.of("Saved by the plugin", "To change this value in-game, use /portablebeacons setritualitem"));
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
         config.options().copyDefaults(true).setHeader(List.of("Documentation:",
@@ -36,6 +41,8 @@ public class Config {
     }
 
     public static void doMigrations(FileConfiguration config) {
+        Logger logger = PortableBeacons.INSTANCE.logger;
+
         List<String> migrated = new ArrayList<>();
         // ritual.item
         ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
@@ -68,8 +75,34 @@ public class Config {
             migrated.add("beacon-item.effects -> effects");
         }
 
+        // anvil recipes
+        var recipesFile = new File(PortableBeacons.INSTANCE.getDataFolder(), "recipes.yml");
+        if (config.contains("anvil-combination")) {
+            var section = config.getConfigurationSection("anvil-combination");
+            var values = new HashMap<>(section.getValues(false));
+            // additional/changed names
+            values.put("type", CombinationRecipe.TYPE);
+            Object combineAdditively = values.remove("combine-effects-additively");
+            if (combineAdditively != null)
+                values.put("combine-additively", combineAdditively);
+
+            var yaml = YamlConfiguration.loadConfiguration(recipesFile);
+            yaml.createSection("recipes.anvil-combination", values);
+            yaml.setComments("recipes.anvil-combination", List.of("""
+                    This recipe was created by automatic config migration.
+                    To avoid having your changes be overwritten, you must either:
+                     - Delete section anvil-combination in config.yml, OR
+                     - Save the migrated config.yml using /pb saveconfig""".split("\\n")));
+            try {
+                yaml.save(recipesFile);
+                config.set("anvil-combination", null);
+                migrated.add("anvil-combination -> recipes.yml");
+            } catch (IOException ex) {
+                logger.severe("An error occurred while migrating anvil-combination: " + ex);
+            }
+        }
+
         if (migrated.size() != 0) {
-            Logger logger = PortableBeacons.INSTANCE.logger;
             logger.warning("The following legacy config values have been migrated (in memory):");
             migrated.forEach(message -> logger.warning(" - " + message));
             logger.warning("Confirm that the features still work correctly, then run " +
@@ -404,22 +437,10 @@ public class Config {
         return effects.getOrDefault(potion, EMPTY_INFO);
     }
 
-    public static class PotionEffectInfo {
-        @Nullable
-        public final String displayName;
-        @Nullable
-        public final Integer durationInTicks;
-        @Nullable
-        public final Integer maxAmplifier;
-        @Nullable
-        public final Boolean hideParticles;
-
-        public PotionEffectInfo(@Nullable String displayName, @Nullable Integer duration, @Nullable Integer maxAmplifier, @Nullable Boolean hideParticles) {
-            this.displayName = displayName;
-            this.durationInTicks = duration;
-            this.maxAmplifier = maxAmplifier;
-            this.hideParticles = hideParticles;
-        }
+    public record PotionEffectInfo(@Nullable String displayName,
+                                   @Nullable Integer durationInTicks,
+                                   @Nullable Integer maxAmplifier,
+                                   @Nullable Boolean hideParticles) {
 
         @SuppressWarnings("ConstantConditions")
         public int getDuration() {

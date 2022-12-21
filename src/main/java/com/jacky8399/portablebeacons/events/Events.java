@@ -45,7 +45,7 @@ public final class Events implements Listener {
         PortableBeacons plugin = PortableBeacons.INSTANCE;
         Bukkit.getPluginManager().registerEvents(new Events(plugin), plugin);
         Bukkit.getPluginManager().registerEvents(new ReminderOutline(plugin), plugin);
-        Bukkit.getPluginManager().registerEvents(new AnvilRecipe(), plugin);
+        Bukkit.getPluginManager().registerEvents(new RecipeEvents(), plugin);
         Bukkit.getPluginManager().registerEvents(new Inventories(), plugin);
     }
 

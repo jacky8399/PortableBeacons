@@ -116,8 +116,8 @@ public class PotionEffectUtils {
     @NotNull
     public static String getDisplayName(PotionEffectType effect, int level) {
         Config.PotionEffectInfo info = Config.effects.get(effect);
-        if (info != null && info.displayName != null) {
-            return ItemUtils.replacePlaceholders(null, info.displayName, level);
+        if (info != null && info.displayName() != null) {
+            return ItemUtils.replacePlaceholders(null, info.displayName(), level);
         } else {
             String levelString = toRomanNumeral(level);
 
