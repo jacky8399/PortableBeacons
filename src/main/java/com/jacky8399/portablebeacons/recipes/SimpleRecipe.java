@@ -23,6 +23,13 @@ public record SimpleRecipe(@NotNull InventoryType type,
             throw new IllegalArgumentException("Invalid inventory type " + type);
     }
 
+    public SimpleRecipe(@NotNull InventoryType type,
+                        @NotNull ItemStack input,
+                        @NotNull List<BeaconModification> modifications,
+                        @NotNull ExpCostCalculator expCost) {
+        this(type, input, modifications, expCost, EnumSet.noneOf(SpecialOps.class));
+    }
+
     @Override
     public ItemStack getOutput(Player player, ItemStack beacon, ItemStack input) {
         BeaconEffects effects = ItemUtils.getEffects(beacon);
@@ -53,7 +60,7 @@ public record SimpleRecipe(@NotNull InventoryType type,
 
     @Override
     public Map<String, Object> save() {
-        var map = new HashMap<String, Object>();
+        var map = new LinkedHashMap<String, Object>();
         map.put("type", type.name().toLowerCase(Locale.ENGLISH));
         map.put("input", input);
         var modMap = new HashMap<String, Object>();
@@ -69,19 +76,23 @@ public record SimpleRecipe(@NotNull InventoryType type,
     }
 
     public static SimpleRecipe load(Map<String, Object> map) throws IllegalArgumentException {
-        InventoryType type = InventoryType.valueOf(map.get("type").toString().toUpperCase(Locale.ENGLISH));
+        InventoryType type = InventoryType.valueOf(
+                Objects.requireNonNull((String) map.get("type"), "type cannot be null").toUpperCase(Locale.ENGLISH));
         ItemStack stack;
-        Object inputObj = map.get("input");
+        Object inputObj = Objects.requireNonNull(map.get("input"), "input cannot be null");
         if (inputObj instanceof String inputStr)
             stack = Bukkit.getItemFactory().createItemStack(inputStr);
+        else if (inputObj instanceof ItemStack stack1) // apparently it can do that??
+            stack = stack1;
         else
             stack = ItemStack.deserialize((Map<String, Object>) inputObj);
 
-        var modifications = ((Map<String, Map<String, Object>>) map.get("modifications")).entrySet()
-                .stream()
-                .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
-                .toList();
-        var expCost = ExpCostCalculator.valueOf(map.get("exp-cost"));
+        var modifications =
+                Objects.requireNonNull((Map<String, Map<String, Object>>) map.get("modifications"), "modifications cannot be null")
+                        .entrySet().stream()
+                        .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
+                        .toList();
+        var expCost = ExpCostCalculator.valueOf(map.getOrDefault("exp-cost", 0));
         var specialOps = EnumSet.noneOf(SpecialOps.class);
         for (var special : SpecialOps.values()) {
             if (map.get(special.key) instanceof Boolean bool && bool)

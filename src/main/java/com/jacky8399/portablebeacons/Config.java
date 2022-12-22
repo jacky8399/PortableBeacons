@@ -2,6 +2,10 @@ package com.jacky8399.portablebeacons;
 
 import com.google.common.base.Preconditions;
 import com.jacky8399.portablebeacons.recipes.CombinationRecipe;
+import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
+import com.jacky8399.portablebeacons.recipes.RecipeManager;
+import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
+import com.jacky8399.portablebeacons.utils.BeaconModification;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Material;
@@ -10,12 +14,13 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
@@ -76,31 +81,7 @@ public class Config {
         }
 
         // anvil recipes
-        var recipesFile = new File(PortableBeacons.INSTANCE.getDataFolder(), "recipes.yml");
-        if (config.contains("anvil-combination")) {
-            var section = config.getConfigurationSection("anvil-combination");
-            var values = new HashMap<>(section.getValues(false));
-            // additional/changed names
-            values.put("type", CombinationRecipe.TYPE);
-            Object combineAdditively = values.remove("combine-effects-additively");
-            if (combineAdditively != null)
-                values.put("combine-additively", combineAdditively);
-
-            var yaml = YamlConfiguration.loadConfiguration(recipesFile);
-            yaml.createSection("recipes.anvil-combination", values);
-            yaml.setComments("recipes.anvil-combination", List.of("""
-                    This recipe was created by automatic config migration.
-                    To avoid having your changes be overwritten, you must either:
-                     - Delete section anvil-combination in config.yml, OR
-                     - Save the migrated config.yml using /pb saveconfig""".split("\\n")));
-            try {
-                yaml.save(recipesFile);
-                config.set("anvil-combination", null);
-                migrated.add("anvil-combination -> recipes.yml");
-            } catch (IOException ex) {
-                logger.severe("An error occurred while migrating anvil-combination: " + ex);
-            }
-        }
+        doAnvilMigrations(config, migrated);
 
         if (migrated.size() != 0) {
             logger.warning("The following legacy config values have been migrated (in memory):");
@@ -108,6 +89,110 @@ public class Config {
             logger.warning("Confirm that the features still work correctly, then run " +
                     "'/portablebeacons saveconfig' to save these changes to disk.");
             logger.warning("Consult documentation and migrate manually by deleting old values if necessary.");
+        }
+    }
+
+    // Comments that will be added, copied from recipes.yml
+    private static final Map<String, List<String>> RECIPE_DEFAULT_COMMENTS = Map.of(
+            "type", List.of("Crafting bench of the recipe, can be anvil or smithing"),
+            "input", List.of("The sacrificial item"),
+            "modifications", """
+                    Modifications to the beacon, similar to the /pb item command. For example, given the commands
+                    "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:
+                    modifications:
+                      subtract:
+                        soulbound: 1
+                      add:
+                        speed: 2""".lines().toList(),
+            SimpleRecipe.SpecialOps.SET_SOULBOUND_OWNER.key, List.of("Special command to also bind the beacon to the player")
+    );
+    static void doAnvilMigrations(FileConfiguration config, List<String> migrated) {
+        Logger logger = PortableBeacons.INSTANCE.logger;
+        var recipesFile = RecipeManager.RECIPES_FILE;
+        var yaml = YamlConfiguration.loadConfiguration(recipesFile);
+        boolean changed = false;
+
+        ConfigurationSection section;
+        if ((section = config.getConfigurationSection("anvil-combination")) != null) {
+            try {
+                var values = CombinationRecipe.load(section.getValues(false)).save();
+
+                yaml.createSection("recipes.anvil-combination", values);
+                yaml.setComments("recipes.anvil-combination", """
+                        This recipe was created by automatic config migration.
+                        To avoid having your changes be overwritten, you must either:
+                         - Delete section anvil-combination in config.yml, OR
+                         - Save the migrated config.yml using /pb saveconfig""".lines().toList());
+                // copy children comments
+                for (String key : section.getKeys(false)) {
+                    String newKey = "recipes.anvil-combination." + key;
+                    List<String> comments;
+                    if ((comments = section.getComments(key)).size() != 0)
+                        yaml.setComments(newKey, comments);
+                    if ((comments = section.getInlineComments(key)).size() != 0)
+                        yaml.setInlineComments(newKey, comments);
+                }
+                changed = true;
+                config.set("anvil-combination", null);
+                migrated.add("anvil-combination -> recipes.yml");
+            } catch (Exception ex) {
+                logger.severe("Failed to migrate anvil-combination");
+                logger.severe(ex.toString());
+            }
+        }
+
+        for (String customEnch : new String[]{"exp-reduction", "soulbound"}) {
+            String oldPath = "beacon-item.custom-enchantments." + customEnch + ".enchantment";
+            String enchStr;
+            if ((enchStr = config.getString(oldPath, null)) == null || enchStr.isEmpty()) {
+                continue;
+            }
+            int level = config.getInt(oldPath + "-level", 1);
+
+            try {
+                Enchantment ench = Objects.requireNonNull(Enchantment.getByKey(NamespacedKey.fromString(enchStr)), "Invalid enchantment " + enchStr);
+                var fakeStack = new ItemStack(Material.ENCHANTED_BOOK);
+                var meta = (EnchantmentStorageMeta) fakeStack.getItemMeta();
+                meta.addStoredEnchant(ench, level, true);
+                fakeStack.setItemMeta(meta);
+
+                // add one level of enchantment
+                var virtualEffects = BeaconEffects.load(Map.of(customEnch, 1), true);
+                var recipe = new SimpleRecipe(
+                        InventoryType.ANVIL, fakeStack,
+                        List.of(new BeaconModification(BeaconModification.Type.ADD, virtualEffects)),
+                        ExpCostCalculator.Dynamic.INSTANCE,
+                        customEnch.equals("soulbound") ?
+                                EnumSet.of(SimpleRecipe.SpecialOps.SET_SOULBOUND_OWNER) :
+                                EnumSet.noneOf(SimpleRecipe.SpecialOps.class)
+                );
+                var newSection = yaml.createSection("recipes." + customEnch, recipe.save());
+                yaml.setComments("recipes." + customEnch, """
+                        This recipe was created by automatic config migration.
+                        To avoid having your changes be overwritten, you must either:
+                         - Delete section %s in config.yml, OR
+                         - Save the migrated config.yml using /pb saveconfig""".formatted(oldPath).lines().toList());
+                // copy comments
+                RECIPE_DEFAULT_COMMENTS.forEach(newSection::setComments);
+
+                // remove section in old config
+                config.set(oldPath, null);
+                config.set(oldPath + "-level", null);
+
+                changed = true;
+                migrated.add(oldPath + " -> recipes.yml");
+            } catch (Exception ex) {
+                logger.severe("Failed to migrate beacon-item.custom-enchantments." + customEnch + ".enchantment");
+                logger.severe(ex.toString());
+            }
+        }
+
+        if (changed) {
+            try {
+                yaml.save(recipesFile);
+            } catch (IOException ex) {
+                logger.severe("An error occurred while migrating anvil-combination: " + ex);
+            }
         }
     }
 

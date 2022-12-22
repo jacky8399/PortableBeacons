@@ -11,6 +11,11 @@ import java.util.function.IntBinaryOperator;
 
 public record BeaconModification(Type type, BeaconEffects virtualEffects, boolean bypassRestrictions)
         implements Consumer<BeaconEffects> {
+
+    public BeaconModification(Type type, BeaconEffects virtualEffects) {
+        this(type, virtualEffects, false);
+    }
+
     public enum Type {
         ADD(Integer::sum),
         SET((left, right) -> right),
@@ -27,7 +32,7 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
         }
 
         public static Type parseType(String string) {
-            return switch (string) {
+            return switch (string.toLowerCase(Locale.ENGLISH)) {
                 case "add" -> ADD;
                 case "set" -> SET;
                 case "subtract", "remove" -> SUBTRACT;
@@ -52,7 +57,7 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
 
     private static final String BYPASS_RESTRICTIONS_KEY = "__special_bypass-restrictions";
     public Map<String, Object> save() {
-        var effectsMap = virtualEffects.save();
+        var effectsMap = virtualEffects.save(true);
         if (bypassRestrictions)
             effectsMap.put(BYPASS_RESTRICTIONS_KEY, true);
         return Map.of(type.name().toLowerCase(Locale.ENGLISH), effectsMap);

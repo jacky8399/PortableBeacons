@@ -14,9 +14,21 @@ recipes:
 
   # Default anvil recipes
   exp-reduction:
+    # Crafting bench of the recipe, can be anvil or smithing
     type: anvil
     enabled: true
-    input: minecraft:enchanted_book{StoredEnchantments:[]}
+    # The sacrificial item
+    input: minecraft:enchanted_book{StoredEnchantments:[{id:mending,lvl:1}]}
+    # The cost of this recipe, in levels.
+    # (Default: 0, use "dynamic" for dynamic experience cost)
+    exp-cost: dynamic
+    # Modifications to the beacon, similar to the /pb item command. For example, given the commands
+    # "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:
+    # modifications:
+    #   subtract:
+    #     soulbound: 1
+    #   add:
+    #     speed: 2
     modifications:
       add:
         exp-reduction: 1
@@ -24,8 +36,10 @@ recipes:
   soulbound:
     type: anvil
     enabled: true
-    input: minecraft:enchanted_book{StoredEnchantments:[]}
+    input: minecraft:enchanted_book{StoredEnchantments:[{id:binding_curse,lvl:1}]}
+    exp-cost: dynamic
+    # Special command to also bind the beacon to the player
+    __special_set-soulbound-owner: true
     modifications:
-      __special_set-soulbound-owner: true
       add:
         soulbound: 1

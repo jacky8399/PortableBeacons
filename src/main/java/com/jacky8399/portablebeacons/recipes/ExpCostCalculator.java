@@ -10,18 +10,24 @@ public sealed interface ExpCostCalculator {
     static ExpCostCalculator valueOf(Object object) {
         if (object instanceof Number number && number.intValue() >= 0) {
             return new Fixed(number.intValue());
-        } else if ("default".equals(object)) {
-            return Default.INSTANCE;
+        } else if ("dynamic".equals(object)) {
+            return Dynamic.INSTANCE;
         } else {
-            throw new IllegalArgumentException(object + " is not a valid exp-cost");
+            int level;
+            try {
+                level = Integer.parseInt(object.toString());
+                return new Fixed(level);
+            } catch (NumberFormatException ignored) {
+                throw new IllegalArgumentException(object + " is not a valid exp-cost");
+            }
         }
     }
 
     default Object save() {
         if (this instanceof Fixed fixed) {
             return fixed.level;
-        } else if (this instanceof Default) {
-            return "default";
+        } else if (this instanceof Dynamic) {
+            return "dynamic";
         } else {
             throw new Error();
         }
@@ -34,8 +40,8 @@ public sealed interface ExpCostCalculator {
         }
     }
 
-    final class Default implements com.jacky8399.portablebeacons.recipes.ExpCostCalculator {
-        static final Default INSTANCE = new Default();
+    final class Dynamic implements com.jacky8399.portablebeacons.recipes.ExpCostCalculator {
+        public static final Dynamic INSTANCE = new Dynamic();
 
         @Override
         public int getCost(ItemStack left, ItemStack right) {

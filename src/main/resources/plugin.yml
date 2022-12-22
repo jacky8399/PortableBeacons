@@ -52,6 +52,9 @@ permissions:
       portablebeacons.command.updateitems: true
       portablebeacons.command.setritualitem: true
       portablebeacons.command.info: true
+      portablebeacons.command.recipe: true
+      portablebeacons.command.recipe.*: true
+
   portablebeacons.command.item.*:
     default: op
     description: "Grants access to all /portableacons item subcommands"
@@ -61,6 +64,14 @@ permissions:
       portablebeacons.command.item.remove: true
       portablebeacons.command.item.set: true
       portablebeacons.command.item.setenchantment: true
+
+  portablebeacons.command.recipe.*:
+    default: op
+    description: "Grants access to all /portableacons recipe subcommands"
+    children:
+      portablebeacons.command.recipe.list: true
+      portablebeacons.command.recipe.add: true
+
   portablebeacons.bypass.*:
     children:
 #      portablebeacons.bypass.level-limit: true

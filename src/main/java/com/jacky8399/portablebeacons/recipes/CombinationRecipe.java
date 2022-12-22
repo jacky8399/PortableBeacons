@@ -5,14 +5,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public record CombinationRecipe(int maxEffects,
-                                boolean combineAdditively,
+                                boolean combineEffectsAdditively,
                                 boolean enforceVanillaExpLimits,
                                 boolean showErrorPrompt) implements BeaconRecipe {
-
 
     @Override
     public @Nullable ItemStack getOutput(Player player, ItemStack beacon, ItemStack input) {
@@ -21,7 +20,7 @@ public record CombinationRecipe(int maxEffects,
 
     @Override
     public int getCost(ItemStack beacon, ItemStack input) {
-        int cost = ExpCostCalculator.Default.INSTANCE.getCost(beacon, input);
+        int cost = ExpCostCalculator.Dynamic.INSTANCE.getCost(beacon, input);
         if (enforceVanillaExpLimits && cost > 39) {
             return -1; // disallow
         }
@@ -36,19 +35,20 @@ public record CombinationRecipe(int maxEffects,
     public static final String TYPE = "__special_combination";
     @Override
     public Map<String, Object> save() {
-        var map = new HashMap<String, Object>();
+        var map = new LinkedHashMap<String, Object>();
+        map.put("type", TYPE);
         map.put("max-effects", maxEffects);
-        map.put("combine-additively", combineAdditively);
+        map.put("combine-effects-additively", combineEffectsAdditively);
         map.put("enforce-vanilla-exp-limit", enforceVanillaExpLimits);
-        map.put("show-error-prompt", showErrorPrompt);
+//        map.put("display-error-prompt", showErrorPrompt);
         return map;
     }
 
     public static CombinationRecipe load(Map<String, Object> map) {
         int maxEffects = ((Number) map.getOrDefault("max-effects", 6)).intValue();
-        boolean combineAdditively = ((Boolean) map.getOrDefault("combine-additively", true));
+        boolean combineEffectsAdditively = ((Boolean) map.getOrDefault("combine-effects-additively", true));
         boolean enforceVanillaExpLimits = ((Boolean) map.getOrDefault("enforce-vanilla-exp-limit", true));
-        boolean showErrorPrompt = ((Boolean) map.getOrDefault("show-error-prompt", false));
-        return new CombinationRecipe(maxEffects, combineAdditively, enforceVanillaExpLimits, showErrorPrompt);
+//        boolean showErrorPrompt = ((Boolean) map.getOrDefault("show-error-prompt", false));
+        return new CombinationRecipe(maxEffects, combineEffectsAdditively, enforceVanillaExpLimits, false);
     }
 }

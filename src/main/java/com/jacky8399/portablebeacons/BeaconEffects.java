@@ -197,13 +197,17 @@ public class BeaconEffects implements Cloneable {
         return ret;
     }
 
-    public Map<String, Object> save() {
+    public Map<String, Object> save(boolean allowVirtual) {
         // only save effects and custom enchants
-        var map = new HashMap<String, Object>();
-        effects.forEach((potion, level) -> map.put(potion.getKey().toString(), level));
-        if (expReductionLevel != 0)
+        int minLevel = allowVirtual ? 0 : 1;
+        var map = new LinkedHashMap<String, Object>();
+        effects.forEach((potion, level) -> {
+            if (level >= minLevel)
+                map.put(potion.getKey().toString(), level);
+        });
+        if (expReductionLevel >= minLevel)
             map.put("exp-reduction", expReductionLevel);
-        if (soulboundLevel != 0)
+        if (soulboundLevel >= minLevel)
             map.put("soulbound", soulboundLevel);
         return map;
     }
