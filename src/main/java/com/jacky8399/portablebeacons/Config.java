@@ -33,7 +33,6 @@ public class Config {
         config.set("ritual.item", Config.ritualItem);
         // toggles
         config.set("ritual.enabled", Config.ritualEnabled);
-        config.set("anvil-combination.enabled", Config.anvilCombinationEnabled);
         config.set("beacon-item.effects-toggle.enabled", Config.effectsToggleEnabled);
         config.set("beacon-item.creation-reminder.enabled", Config.creationReminder);
         // prompt
@@ -115,7 +114,7 @@ public class Config {
         ConfigurationSection section;
         if ((section = config.getConfigurationSection("anvil-combination")) != null) {
             try {
-                var values = CombinationRecipe.load(section.getValues(false)).save();
+                var values = CombinationRecipe.load("anvil-combination", section.getValues(false)).save();
 
                 yaml.createSection("recipes.anvil-combination", values);
                 yaml.setComments("recipes.anvil-combination", """
@@ -159,7 +158,7 @@ public class Config {
                 // add one level of enchantment
                 var virtualEffects = BeaconEffects.load(Map.of(customEnch, 1), true);
                 var recipe = new SimpleRecipe(
-                        InventoryType.ANVIL, fakeStack,
+                        customEnch, InventoryType.ANVIL, fakeStack,
                         List.of(new BeaconModification(BeaconModification.Type.ADD, virtualEffects)),
                         ExpCostCalculator.Dynamic.INSTANCE,
                         customEnch.equals("soulbound") ?
@@ -246,9 +245,6 @@ public class Config {
         // Exp-reduction
 
         enchExpReductionEnabled = config.getBoolean("beacon-item.custom-enchantments.exp-reduction.enabled");
-        var expReductionEnchName = config.getString("beacon-item.custom-enchantments.exp-reduction.enchantment").toLowerCase(Locale.ENGLISH);
-        enchExpReductionEnchantment = expReductionEnchName.isEmpty() ? null : Enchantment.getByKey(NamespacedKey.fromString(expReductionEnchName));
-        enchExpReductionEnchantmentLevel = getAndCheckEnchLevel(enchExpReductionEnchantment, config, "beacon-item.custom-enchantments.exp-reduction.enchantment-level");
         enchExpReductionMaxLevel = getAndCheckInt(1, config, "beacon-item.custom-enchantments.exp-reduction.max-level");
         enchExpReductionName = translateColor(config.getString("beacon-item.custom-enchantments.exp-reduction.name"));
         enchExpReductionReductionPerLevel = config.getDouble("beacon-item.custom-enchantments.exp-reduction.reduction-per-level");
@@ -256,9 +252,6 @@ public class Config {
         // Soulbound
 
         enchSoulboundEnabled = config.getBoolean("beacon-item.custom-enchantments.soulbound.enabled");
-        var soulboundEnchName = config.getString("beacon-item.custom-enchantments.soulbound.enchantment").toLowerCase(Locale.ENGLISH);
-        enchSoulboundEnchantment = soulboundEnchName.isEmpty() ? null : Enchantment.getByKey(NamespacedKey.fromString(soulboundEnchName));
-        enchSoulboundEnchantmentLevel = getAndCheckEnchLevel(enchSoulboundEnchantment, config, "beacon-item.custom-enchantments.soulbound.enchantment-level");
         enchSoulboundMaxLevel = getAndCheckInt(1, config, "beacon-item.custom-enchantments.soulbound.max-level");
         enchSoulboundName = translateColor(config.getString("beacon-item.custom-enchantments.soulbound.name"));
         enchSoulboundOwnerUsageOnly = config.getBoolean("beacon-item.custom-enchantments.soulbound.owner-usage-only");
@@ -273,14 +266,6 @@ public class Config {
         nerfForceDowngrade = config.getBoolean("beacon-item.nerfs.force-downgrade");
 
         readEffects(config);
-
-        // Anvil combination
-
-        anvilCombinationEnabled = config.getBoolean("anvil-combination.enabled");
-        anvilCombinationMaxEffects = getAndCheckInt(1, config, "anvil-combination.max-effects");
-        anvilCombinationCombineEffectsAdditively = config.getBoolean("anvil-combination.combine-effects-additively");
-        anvilCombinationEnforceVanillaExpLimit = config.getBoolean("anvil-combination.enforce-vanilla-exp-limit");
-        anvilDisplayFailurePrompt = config.getBoolean("anvil-combination.display-failure-prompt");
 
         worldGuard = config.getBoolean("world-guard");
 
@@ -485,8 +470,6 @@ public class Config {
     public static double enchExpReductionReductionPerLevel;
     public static int enchExpReductionMaxLevel;
     public static String enchExpReductionName;
-    public static Enchantment enchExpReductionEnchantment;
-    public static int enchExpReductionEnchantmentLevel;
 
     public static boolean enchSoulboundEnabled;
     public static boolean enchSoulboundOwnerUsageOnly;
@@ -494,21 +477,12 @@ public class Config {
     public static boolean enchSoulboundCurseOfBinding;
     public static int enchSoulboundMaxLevel;
     public static String enchSoulboundName;
-    public static Enchantment enchSoulboundEnchantment;
-    public static int enchSoulboundEnchantmentLevel;
 
     // Nerfs
     public static double nerfExpLevelsPerMinute;
     public static boolean nerfOnlyApplyInHotbar;
     public static Set<String> nerfDisabledWorlds;
     public static boolean nerfForceDowngrade;
-
-    // Anvil crafting
-    public static boolean anvilCombinationEnabled;
-    public static int anvilCombinationMaxEffects;
-    public static boolean anvilCombinationCombineEffectsAdditively;
-    public static boolean anvilCombinationEnforceVanillaExpLimit;
-    public static boolean anvilDisplayFailurePrompt;
 
     public static boolean worldGuard;
 

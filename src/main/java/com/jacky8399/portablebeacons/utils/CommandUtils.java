@@ -18,6 +18,8 @@ public class CommandUtils {
             Stream.of("exp-reduction", "soulbound", "all")
     ).toList();
     public static Stream<String> listModifications(String input, boolean allowVirtual) {
+        if (input.isEmpty())
+            return PotionEffectUtils.getValidPotionNames().stream();
         // try removing equal sign and everything after
         int splitIdx = input.indexOf('=');
         if (splitIdx == -1)

@@ -12,29 +12,32 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-public record SimpleRecipe(@NotNull InventoryType type,
+public record SimpleRecipe(String id,
+                           @NotNull InventoryType type,
                            @NotNull ItemStack input,
                            @NotNull List<BeaconModification> modifications,
                            @NotNull ExpCostCalculator expCost,
                            @NotNull EnumSet<SpecialOps> specialOperations) implements BeaconRecipe {
 
     public SimpleRecipe {
-        if (type != InventoryType.ANVIL)
+        if (type != InventoryType.ANVIL && type != InventoryType.SMITHING)
             throw new IllegalArgumentException("Invalid inventory type " + type);
     }
 
-    public SimpleRecipe(@NotNull InventoryType type,
+    public SimpleRecipe(String id,
+                        @NotNull InventoryType type,
                         @NotNull ItemStack input,
                         @NotNull List<BeaconModification> modifications,
                         @NotNull ExpCostCalculator expCost) {
-        this(type, input, modifications, expCost, EnumSet.noneOf(SpecialOps.class));
+        this(id, type, input, modifications, expCost, EnumSet.noneOf(SpecialOps.class));
     }
 
     @Override
     public ItemStack getOutput(Player player, ItemStack beacon, ItemStack input) {
         BeaconEffects effects = ItemUtils.getEffects(beacon);
         for (var modification : modifications) {
-            modification.accept(effects);
+            if (!modification.modify(effects))
+                return null;
         }
 
         if (specialOperations.contains(SpecialOps.SET_SOULBOUND_OWNER))
@@ -75,7 +78,7 @@ public record SimpleRecipe(@NotNull InventoryType type,
         return map;
     }
 
-    public static SimpleRecipe load(Map<String, Object> map) throws IllegalArgumentException {
+    public static SimpleRecipe load(String id, Map<String, Object> map) throws IllegalArgumentException {
         InventoryType type = InventoryType.valueOf(
                 Objects.requireNonNull((String) map.get("type"), "type cannot be null").toUpperCase(Locale.ENGLISH));
         ItemStack stack;
@@ -99,7 +102,7 @@ public record SimpleRecipe(@NotNull InventoryType type,
                 specialOps.add(special);
         }
 
-        return new SimpleRecipe(type, stack, modifications, expCost, specialOps);
+        return new SimpleRecipe(id, type, stack, modifications, expCost, specialOps);
     }
 
     public enum SpecialOps {

@@ -31,7 +31,6 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.GrindstoneInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffect;
@@ -333,16 +332,6 @@ public final class Events implements Listener {
                 boolean isReadOnly = !Config.effectsToggleEnabled ||
                         (Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
                 Inventories.openInventory(player, new InventoryTogglePotion(stack, isReadOnly));
-            }
-        }
-    }
-
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
-    public void onGrindstoneItem(InventoryClickEvent e) {
-        if (e.getClickedInventory() instanceof GrindstoneInventory ||
-                (e.getInventory() instanceof GrindstoneInventory && (e.getClick().isShiftClick() || e.getClick().isKeyboardClick()))) {
-            if (ItemUtils.isPortableBeacon(e.getCurrentItem()) || ItemUtils.isPortableBeacon(e.getCursor())) {
-                e.setResult(Event.Result.DENY);
             }
         }
     }

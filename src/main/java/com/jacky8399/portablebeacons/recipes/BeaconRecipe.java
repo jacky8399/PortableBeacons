@@ -17,15 +17,19 @@ public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
 
     int getCost(ItemStack beacon, ItemStack input);
 
+    // Unused
+    @Deprecated
     boolean isApplicableTo(ItemStack beacon, ItemStack input);
 
     Map<String, Object> save();
 
-    static BeaconRecipe load(Map<String, Object> map) {
+    String id();
+
+    static BeaconRecipe load(String id, Map<String, Object> map) {
         if (CombinationRecipe.TYPE.equals(map.get("type"))) {
-            return CombinationRecipe.load(map);
+            return CombinationRecipe.load(id, map);
         } else {
-            return SimpleRecipe.load(map);
+            return SimpleRecipe.load(id, map);
         }
     }
 

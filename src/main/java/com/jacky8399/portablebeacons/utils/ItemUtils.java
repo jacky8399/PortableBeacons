@@ -9,13 +9,10 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.function.BinaryOperator;
 import java.util.regex.Pattern;
 
 public class ItemUtils {
@@ -100,110 +97,11 @@ public class ItemUtils {
         if (isPortableBeacon(is2)) {
             BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
             return getCost(e1) + getCost(e2);
-        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK &&
-                is2.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
+        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK) {
             BeaconEffects effects = getEffects(is1);
-            Map<Enchantment, Integer> enchants = storageMeta.getStoredEnchants();
-            int numOfEnchantsApplicable = 0;
-
-            Integer enchLevel;
-            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null &&
-                    (enchLevel = enchants.get(Config.enchSoulboundEnchantment)) != null &&
-                    enchLevel >= Config.enchSoulboundEnchantmentLevel)
-                numOfEnchantsApplicable++;
-            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null &&
-                    (enchLevel = enchants.get(Config.enchExpReductionEnchantment)) != null &&
-                    enchLevel >= Config.enchExpReductionEnchantmentLevel)
-                numOfEnchantsApplicable++;
-
-            return getCost(effects) * numOfEnchantsApplicable;
+            return getCost(effects);
         }
         return 0;
-    }
-
-    @Nullable
-    public static ItemStack showFailure(String message, boolean show) {
-        if (!show)
-            return null;
-        ItemStack messageStack = new ItemStack(Material.BARRIER);
-        ItemMeta meta = messageStack.getItemMeta();
-        meta.setDisplayName(ChatColor.RED + message);
-        messageStack.setItemMeta(meta);
-        return messageStack;
-    }
-
-    public static ItemStack combineStack(Player player, ItemStack is1, ItemStack is2, boolean shouldShowFailure) {
-        if (!isPortableBeacon(is1) || is2 == null)
-            return null;
-        BeaconEffects original = getEffects(is1);
-        // soulbound owner check
-        if (Config.enchSoulboundOwnerUsageOnly && !original.isOwner(player)) {
-            return showFailure("You do not own the portable beacon", shouldShowFailure);
-        }
-
-        if (isPortableBeacon(is2)) {
-            BeaconEffects e2 = getEffects(is2);
-            // owner check for other beacon
-            if (Config.enchSoulboundOwnerUsageOnly && !e2.isOwner(player)) {
-                return showFailure("You do not own the portable beacon", shouldShowFailure);
-            }
-            HashMap<PotionEffectType, Integer> potions = new HashMap<>(original.getEffects());
-            BinaryOperator<Integer> algorithm = Config.anvilCombinationCombineEffectsAdditively ?
-                    Integer::sum : ItemUtils::anvilAlgorithm;
-            for (var entry : e2.getEffects().entrySet()) {
-                var potionType = entry.getKey();
-                int potionLevel = entry.getValue();
-                int maxPotionLevel = Config.getInfo(potionType).getMaxAmplifier();
-                int newLevel = potions.merge(potionType, potionLevel, algorithm);
-                if (newLevel > maxPotionLevel) {
-                    return showFailure("Overpowered " + PotionEffectUtils.getName(potionType), shouldShowFailure);
-                }
-            }
-
-            // check max effects count / overpowered effects
-            if (potions.size() > Config.anvilCombinationMaxEffects) {
-                return showFailure("Too many effects", shouldShowFailure);
-            }
-
-            BeaconEffects newEffects = original.clone();
-            newEffects.setEffects(potions);
-            return createStack(newEffects);
-        } else if (is2.getType() == Material.ENCHANTED_BOOK &&
-                is2.getItemMeta() instanceof EnchantmentStorageMeta storageMeta) {
-            Map<Enchantment, Integer> enchants = storageMeta.getStoredEnchants();
-            boolean hasCombination = false;
-
-            Integer enchLevel;
-            if (Config.enchSoulboundEnabled && Config.enchSoulboundEnchantment != null &&
-                    (enchLevel = enchants.get(Config.enchSoulboundEnchantment)) != null &&
-                    enchLevel >= Config.enchSoulboundEnchantmentLevel) {
-                hasCombination = true;
-                if (++original.soulboundLevel > Config.enchSoulboundMaxLevel) // level check
-                    return showFailure("Overpowered Soulbound", shouldShowFailure);
-                if (original.soulboundOwner == null || original.soulboundOwner.equals(player.getUniqueId()))
-                    original.soulboundOwner = player.getUniqueId();
-            }
-            if (Config.enchExpReductionEnabled && Config.enchExpReductionEnchantment != null &&
-                    (enchLevel = enchants.get(Config.enchExpReductionEnchantment)) != null &&
-                    enchLevel >= Config.enchExpReductionEnchantmentLevel) {
-                hasCombination = true;
-                if (++original.expReductionLevel > Config.enchExpReductionMaxLevel) // level check
-                    return showFailure("Overpowered Experience Efficiency", shouldShowFailure);
-            }
-
-            return hasCombination ?
-                    createStackCopyItemData(original, is1) :
-                    showFailure("Incompatible enchantments", shouldShowFailure);
-        }
-        return showFailure("Invalid combination", shouldShowFailure);
-    }
-
-    private static int anvilAlgorithm(int s1, int s2) {
-        if (s1 == s2) {
-            return s1 + 1;
-        } else {
-            return Math.max(s1, s2);
-        }
     }
 
     private static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{(.+?)}");

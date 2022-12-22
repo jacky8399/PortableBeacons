@@ -8,8 +8,7 @@ recipes:
     # true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)
     # false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)
     combine-effects-additively: true
-    # enforce the vanilla repair cost limit (max. 39 levels)
-    enforce-vanilla-exp-limit: true
+    exp-cost: dynamic
     display-failure-prompt: false
 
   # Default anvil recipes
@@ -19,8 +18,9 @@ recipes:
     enabled: true
     # The sacrificial item
     input: minecraft:enchanted_book{StoredEnchantments:[{id:mending,lvl:1}]}
-    # The cost of this recipe, in levels.
-    # (Default: 0, use "dynamic" for dynamic experience cost)
+    # The cost of this recipe, in levels. (Default: 0)
+    # Use "dynamic" for dynamic experience cost subject to vanilla limits (max 39 levels)
+    # Use "dynamic-unrestricted" for dynamic experience cost
     exp-cost: dynamic
     # Modifications to the beacon, similar to the /pb item command. For example, given the commands
     # "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:

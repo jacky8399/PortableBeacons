@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -113,11 +113,11 @@ public class CommandPortableBeacons implements TabExecutor {
                     // <id>
                     case 3 -> Stream.of();
                     // <type>
-                    case 4 -> Stream.of("anvil");
+                    case 4 -> Stream.of("anvil", "smithing");
                     // <item>/<expCost>
                     case 5 -> {
                         if (looksLikeItem) {
-                            yield Stream.of("0", "1", "2", "default");
+                            yield Stream.of("0", "1", "2", "dynamic", "dynamic-unrestricted");
                         } else {
                             yield Arrays.stream(Material.values())
                                     .map(Material::getKey)
@@ -209,7 +209,6 @@ public class CommandPortableBeacons implements TabExecutor {
         Class<Config> clazz = Config.class;
         try {
             builder.put("ritual", clazz.getField("ritualEnabled"));
-            builder.put("anvil-combination", clazz.getField("anvilCombinationEnabled"));
             builder.put("toggle-gui", clazz.getField("effectsToggleEnabled"));
             builder.put("creation-reminder", clazz.getField("creationReminder"));
             builder.put("world-placement", clazz.getField("placementEnabled"));
@@ -262,6 +261,10 @@ public class CommandPortableBeacons implements TabExecutor {
                         Optional.of(args[2].equalsIgnoreCase("true")) : Optional.empty();
                 boolean newValue;
                 String toToggle = args[1].toLowerCase(Locale.ROOT);
+                if ("anvil-combination".equalsIgnoreCase(toToggle)) {
+                    sender.sendMessage(YELLOW + "Please use /" + label + " recipe disable anvil-combination");
+                    return;
+                }
                 Field field = TOGGLES.get(toToggle);
                 if (field == null) {
                     sender.sendMessage(RED + "Invalid toggle option!");
@@ -485,7 +488,7 @@ public class CommandPortableBeacons implements TabExecutor {
         }
     }
 
-    static void editPlayers(CommandSender sender, List<Player> players, Consumer<BeaconEffects> modifier,
+    static void editPlayers(CommandSender sender, List<Player> players, Predicate<BeaconEffects> modifier,
                             boolean silent, boolean modifyAll) {
         List<Player> succeeded = new ArrayList<>();
         List<Player> failedPlayers = new ArrayList<>();
@@ -497,10 +500,10 @@ public class CommandPortableBeacons implements TabExecutor {
                     ItemStack stack = iterator.next();
                     if (!ItemUtils.isPortableBeacon(stack))
                         continue;
-                    success = true;
                     BeaconEffects effects = ItemUtils.getEffects(stack);
-                    modifier.accept(effects);
-                    iterator.set(ItemUtils.createStackCopyItemData(effects, stack));
+                    success = modifier.test(effects);
+                    if (success)
+                        iterator.set(ItemUtils.createStackCopyItemData(effects, stack));
                 }
                 if (success) {
                     succeeded.add(player);
@@ -518,11 +521,14 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
-                modifier.accept(effects);
-                inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
-                succeeded.add(player);
-                if (!silent)
-                    player.sendMessage(GREEN + "Your portable beacon was modified!");
+                if (modifier.test(effects)) {
+                    inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
+                    succeeded.add(player);
+                    if (!silent)
+                        player.sendMessage(GREEN + "Your portable beacon was modified!");
+                } else {
+                    failedPlayers.add(player);
+                }
             }
         }
 
@@ -606,7 +612,7 @@ public class CommandPortableBeacons implements TabExecutor {
                             failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
             }
-            case "update" -> editPlayers(sender, players, effects -> {}, silent, modifyAll);
+            case "update" -> editPlayers(sender, players, ignored -> true, silent, modifyAll);
             case "setowner" -> {
                 if (args.length < 4) {
                     throw promptUsage(label, "item "  + args[1] + " <players> <ownerUUID/ownerName>");
@@ -624,8 +630,10 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                 }
                 UUID finalUuid = uuid;
-                Consumer<BeaconEffects> modifier = effects -> effects.soulboundOwner = finalUuid;
-                editPlayers(sender, players, modifier, silent, modifyAll);
+                editPlayers(sender, players, effects -> {
+                    effects.soulboundOwner = finalUuid;
+                    return true;
+                }, silent, modifyAll);
             }
             case "filter" -> {
                 if (args.length < 5) {
@@ -642,7 +650,10 @@ public class CommandPortableBeacons implements TabExecutor {
                         return;
                     }
                 }
-                editPlayers(sender, players, effects -> effects.filter(filters, whitelist), silent, modifyAll);
+                editPlayers(sender, players, effects -> {
+                    effects.filter(filters, whitelist);
+                    return true;
+                }, silent, modifyAll);
             }
             default -> {
                 var modificationType = BeaconModification.Type.parseType(operation);
@@ -700,7 +711,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 BeaconEffects virtualEffects = parseEffects(sender, Arrays.copyOfRange(args, 6 + argOffset, args.length), true);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
 
-                SimpleRecipe recipe = new SimpleRecipe(type, stack, List.of(modification), expCost);
+                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, List.of(modification), expCost);
 
                 // save in YAML
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);

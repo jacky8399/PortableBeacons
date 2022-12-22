@@ -140,17 +140,17 @@ public class BeaconEffects implements Cloneable {
         boolean showSoulbound = showEnchants && Config.enchSoulboundEnabled && soulboundLevel != 0;
 
         if (showEffects && (showExpReduction || showSoulbound)) {
-            loreBuilder.append('\n').append('\n');
+            loreBuilder.append('\n');
         }
 
         if (showExpReduction) {
-            loreBuilder.append(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
+            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
                     new ItemUtils.ContextLevel(expReductionLevel),
                     Map.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
             ));
         }
         if (showSoulbound) {
-            loreBuilder.append(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
+            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
                     new ItemUtils.ContextLevel(soulboundLevel),
                     Map.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
             ));

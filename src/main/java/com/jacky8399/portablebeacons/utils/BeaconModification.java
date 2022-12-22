@@ -1,19 +1,26 @@
 package com.jacky8399.portablebeacons.utils;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.Config;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.function.IntBinaryOperator;
+import java.util.function.Predicate;
 
 public record BeaconModification(Type type, BeaconEffects virtualEffects, boolean bypassRestrictions)
-        implements Consumer<BeaconEffects> {
+        implements Predicate<BeaconEffects> {
 
     public BeaconModification(Type type, BeaconEffects virtualEffects) {
         this(type, virtualEffects, false);
+    }
+
+    @Override
+    public boolean test(BeaconEffects effects) {
+        return modify(effects);
     }
 
     public enum Type {
@@ -40,21 +47,39 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
             };
         }
     }
-    @Override
-    public void accept(BeaconEffects effects) {
+
+    public boolean modify(BeaconEffects effects) {
         var map = new TreeMap<>(effects.getEffects());
-        virtualEffects.getEffects().forEach((potion, level) -> map.merge(potion, level, type::mapMerge));
+        for (var entry : virtualEffects.getEffects().entrySet()) {
+            PotionEffectType potion = entry.getKey();
+            Integer level = entry.getValue();
+            Integer newLevel = map.merge(potion, level, type::mapMerge);
+            // check restrictions
+            if (!bypassRestrictions && newLevel != null && newLevel > Config.getInfo(potion).getMaxAmplifier()) {
+                return false;
+            }
+        }
         effects.setEffects(map);
         if (virtualEffects.expReductionLevel != -1) {
             int newLevel = type.merger.applyAsInt(effects.expReductionLevel, virtualEffects.expReductionLevel);
             effects.expReductionLevel = Math.max(newLevel, 0);
+            // check restrictions
+            if (!bypassRestrictions && effects.expReductionLevel > Config.enchExpReductionMaxLevel) {
+                return false;
+            }
         }
         if (virtualEffects.soulboundLevel != -1) {
             int newLevel = type.merger.applyAsInt(effects.soulboundLevel, virtualEffects.soulboundLevel);
             effects.soulboundLevel = Math.max(newLevel, 0);
+            // check restrictions
+            if (!bypassRestrictions && effects.soulboundLevel > Config.enchSoulboundMaxLevel) {
+                return false;
+            }
         }
+        return true;
     }
 
+    // subject to changes
     private static final String BYPASS_RESTRICTIONS_KEY = "__special_bypass-restrictions";
     public Map<String, Object> save() {
         var effectsMap = virtualEffects.save(true);
