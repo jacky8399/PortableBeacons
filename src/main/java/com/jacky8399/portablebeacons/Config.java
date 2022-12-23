@@ -95,6 +95,12 @@ public class Config {
     private static final Map<String, List<String>> RECIPE_DEFAULT_COMMENTS = Map.of(
             "type", List.of("Crafting bench of the recipe, can be anvil or smithing"),
             "input", List.of("The sacrificial item"),
+            "exp-cost", List.of("The cost of this recipe, in levels. (Default: 0)",
+                    "Use \"dynamic\" for dynamic experience cost subject to vanilla limits (max 39 levels)",
+                    "Use \"dynamic-unrestricted\" for dynamic experience cost"),
+            "max-effects", List.of("Max no. of effects the resultant item can have"),
+            "combine-effects-additively", List.of("true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)",
+                                                  "false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)"),
             "modifications", """
                     Modifications to the beacon, similar to the /pb item command. For example, given the commands
                     "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:
@@ -116,21 +122,14 @@ public class Config {
             try {
                 var values = CombinationRecipe.load("anvil-combination", section.getValues(false)).save();
 
-                yaml.createSection("recipes.anvil-combination", values);
+                var newSection = yaml.createSection("recipes.anvil-combination", values);
                 yaml.setComments("recipes.anvil-combination", """
                         This recipe was created by automatic config migration.
                         To avoid having your changes be overwritten, you must either:
                          - Delete section anvil-combination in config.yml, OR
                          - Save the migrated config.yml using /pb saveconfig""".lines().toList());
-                // copy children comments
-                for (String key : section.getKeys(false)) {
-                    String newKey = "recipes.anvil-combination." + key;
-                    List<String> comments;
-                    if ((comments = section.getComments(key)).size() != 0)
-                        yaml.setComments(newKey, comments);
-                    if ((comments = section.getInlineComments(key)).size() != 0)
-                        yaml.setInlineComments(newKey, comments);
-                }
+                // copy comments
+                RECIPE_DEFAULT_COMMENTS.forEach(newSection::setComments);
                 changed = true;
                 config.set("anvil-combination", null);
                 migrated.add("anvil-combination -> recipes.yml");
@@ -268,22 +267,6 @@ public class Config {
         readEffects(config);
 
         worldGuard = config.getBoolean("world-guard");
-
-        if (debug) {
-            logger.info("[Debug] Configuration:");
-            Map<String, Object> values = config.getValues(true);
-            for (Map.Entry<String, Object> entry : values.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (value instanceof String || value instanceof Number || value instanceof Boolean) {
-                    logger.info(key + ": " + value);
-                } else if (value instanceof List<?>) {
-                    logger.info(key + ": " + ((List<?>) value).stream()
-                            .map(Objects::toString)
-                            .collect(Collectors.joining(", ", "[", "]")));
-                }
-            }
-        }
 
         logger.info("Config loaded");
     }

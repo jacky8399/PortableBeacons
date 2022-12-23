@@ -25,7 +25,9 @@ public record CombinationRecipe(String id,
     }
 
     @Override
-    public @Nullable ItemStack getOutput(Player player, ItemStack beacon, ItemStack input) {
+    public @Nullable RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
+        if (input.getAmount() != 1)
+            return null;
         BeaconEffects e2 = ItemUtils.getEffects(input);
         if (e2 == null)
             return null;
@@ -47,7 +49,7 @@ public record CombinationRecipe(String id,
         effects.soulboundLevel = anvilAlgorithm(effects.soulboundLevel, e2.soulboundLevel, Config.enchSoulboundMaxLevel);
 
         effects.setEffects(potions);
-        return ItemUtils.createStackCopyItemData(effects, beacon);
+        return RecipeOutput.sacrificeInput(ItemUtils.createStackCopyItemData(effects, beacon));
     }
 
     private int anvilAlgorithm(int s1, int s2, int max) {

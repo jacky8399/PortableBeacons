@@ -2,23 +2,28 @@ package com.jacky8399.portablebeacons.recipes;
 
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
 public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
+
+    record RecipeOutput(@NotNull ItemStack output, @Nullable ItemStack right) {
+        public static RecipeOutput sacrificeInput(@NotNull ItemStack output) {
+            return new RecipeOutput(output, null);
+        }
+    }
     @Nullable
-    default ItemStack getPreviewOutput(Player player, ItemStack beacon, ItemStack input) {
+    default RecipeOutput getPreviewOutput(Player player, ItemStack beacon, ItemStack input) {
         return getOutput(player, beacon, input);
     }
 
     @Nullable
-    ItemStack getOutput(Player player, ItemStack beacon, ItemStack input);
+    RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input);
 
     int getCost(ItemStack beacon, ItemStack input);
 
-    // Unused
-    @Deprecated
     boolean isApplicableTo(ItemStack beacon, ItemStack input);
 
     Map<String, Object> save();

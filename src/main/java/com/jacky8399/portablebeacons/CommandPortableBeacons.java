@@ -3,6 +3,7 @@ package com.jacky8399.portablebeacons;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.jacky8399.portablebeacons.events.Events;
+import com.jacky8399.portablebeacons.recipes.BeaconRecipe;
 import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;
 import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
@@ -722,6 +723,32 @@ public class CommandPortableBeacons implements TabExecutor {
                     throw new RuntimeException("Failed to save recipe " + id, ex);
                 }
                 sender.sendMessage(GREEN + "Recipe " + id + " created and saved");
+            }
+            case "testinput" -> {
+                if (!checkPermission(sender, "recipe.testinput"))
+                    return;
+                if (args.length < 3)
+                    throw promptUsage(label, "recipe testinput <id> [item]");
+                String id = args[2];
+                BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
+                if (!(recipe instanceof SimpleRecipe simpleRecipe))
+                    throw new IllegalArgumentException("Can't find recipe with ID " + id);
+                ItemStack stack;
+                if (args.length == 4) {
+                    stack = Bukkit.getItemFactory().createItemStack(args[3]);
+                } else if (sender instanceof Player player) {
+                    stack = player.getInventory().getItemInMainHand();
+                } else {
+                    throw promptUsage(label, "recipe testinput <id> <item>", "Must hold or provide item");
+                }
+                // ensure stack size
+                stack.setAmount(simpleRecipe.input().getAmount());
+                if (simpleRecipe.isApplicableTo(new ItemStack(Material.BEACON), stack)) {
+                    sender.sendMessage(GREEN + "Recipe " + id + " would accept " + BLUE + stack);
+                } else {
+                    sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
+                            YELLOW + simpleRecipe.input());
+                }
             }
         }
     }

@@ -122,17 +122,21 @@ public class PotionEffectUtils {
             String levelString = toRomanNumeral(level);
 
             NamespacedKey key = effect.getKey();
-            StringBuilder name = new StringBuilder(key.getKey().length() + levelString.length() + 3);
+            StringBuilder name = new StringBuilder(key.getKey().length() + levelString.length() + 2);
             name.append(key.getKey());
 
             // capitalize string
             name.setCharAt(0, Character.toUpperCase(name.charAt(0)));
             for (int i = 1; i < name.length() - 1; i++) {
                 char chr = name.charAt(i);
+                if (chr == '_') {
+                    name.setCharAt(i, ' ');
+                    chr = ' ';
+                }
                 if (chr == ' ')
                     name.setCharAt(i + 1, Character.toUpperCase(name.charAt(i + 1)));
             }
-            name.insert(0, isNegative(effect) ? ChatColor.RED : ChatColor.BLUE).append(' ').append(levelString);
+            name.insert(0, isNegative(effect) ? ChatColor.RED : ChatColor.BLUE).append(levelString);
             return name.toString();
         }
     }

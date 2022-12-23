@@ -33,8 +33,8 @@ public final class RecipeManager {
     private static final Map<Material, List<SimpleRecipe>> smithingRecipes = new HashMap<>();
 
     @Nullable
-    public static BeaconRecipe findRecipeFor(InventoryType type, ItemStack right) {
-        if (ItemUtils.isPortableBeacon(right))
+    public static BeaconRecipe findRecipeFor(InventoryType type, ItemStack beacon, ItemStack right) {
+        if (ItemUtils.isPortableBeacon(right) && combinationRecipe.isApplicableTo(beacon, right))
             return combinationRecipe;
         Map<Material, List<SimpleRecipe>> recipeLookupMap = switch (type) {
             case ANVIL -> anvilRecipes;
@@ -45,7 +45,7 @@ public final class RecipeManager {
         if (recipes == null)
             return null;
         for (var recipe : recipes) {
-            if (recipe.input().isSimilar(right)) {
+            if (recipe.isApplicableTo(beacon, right)) {
                 return recipe;
             }
         }

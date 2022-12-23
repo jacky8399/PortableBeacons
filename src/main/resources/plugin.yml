@@ -71,6 +71,7 @@ permissions:
     children:
       portablebeacons.command.recipe.list: true
       portablebeacons.command.recipe.add: true
+      portablebeacons.command.recipe.testinput: true
 
   portablebeacons.bypass.*:
     children:

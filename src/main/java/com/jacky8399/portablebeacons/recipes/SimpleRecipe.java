@@ -5,9 +5,11 @@ import com.jacky8399.portablebeacons.utils.BeaconModification;
 import com.jacky8399.portablebeacons.utils.BeaconPyramid;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -33,7 +35,7 @@ public record SimpleRecipe(String id,
     }
 
     @Override
-    public ItemStack getOutput(Player player, ItemStack beacon, ItemStack input) {
+    public RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
         BeaconEffects effects = ItemUtils.getEffects(beacon);
         for (var modification : modifications) {
             if (!modification.modify(effects))
@@ -48,7 +50,15 @@ public record SimpleRecipe(String id,
         BeaconPyramid pyramid;
         if ((pyramid = ItemUtils.getPyramid(beacon)) != null)
             ItemUtils.setPyramid(stack, pyramid);
-        return stack;
+
+        int amount = input.getAmount() - this.input.getAmount();
+        if (amount <= 0) {
+            return new RecipeOutput(stack, null);
+        } else {
+            var newInput = input.clone();
+            newInput.setAmount(amount);
+            return new RecipeOutput(stack, newInput);
+        }
     }
 
     @Override
@@ -58,7 +68,22 @@ public record SimpleRecipe(String id,
 
     @Override
     public boolean isApplicableTo(ItemStack beacon, ItemStack input) {
-        return input.isSimilar(this.input);
+        // enchanted_book isSimilar behaves weirdly
+        if (this.input.getType() == Material.ENCHANTED_BOOK) {
+            if (input.getType() != Material.ENCHANTED_BOOK)
+                return false;
+            EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) this.input.getItemMeta();
+            if (enchantMeta == null || !enchantMeta.hasStoredEnchants())
+                return true;
+            if (!(input.getItemMeta() instanceof EnchantmentStorageMeta other))
+                return false;
+            for (var entry : enchantMeta.getStoredEnchants().entrySet()) {
+                if (other.getStoredEnchantLevel(entry.getKey()) < entry.getValue())
+                    return false;
+            }
+            return true;
+        }
+        return this.input.isSimilar(input) && input.getAmount() >= this.input.getAmount();
     }
 
     @Override
