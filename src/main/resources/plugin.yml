@@ -70,11 +70,12 @@ permissions:
     description: "Grants access to all /portableacons recipe subcommands"
     children:
       portablebeacons.command.recipe.list: true
-      portablebeacons.command.recipe.add: true
+      portablebeacons.command.recipe.create: true
+      portablebeacons.command.recipe.enable: true
+      portablebeacons.command.recipe.disable: true
       portablebeacons.command.recipe.testinput: true
+      portablebeacons.command.recipe.info: true
 
   portablebeacons.bypass.*:
     children:
-#      portablebeacons.bypass.level-limit: true
-#      portablebeacons.bypass.anvil-limit: true
       portablebeacons.bypass.world-guard-limit: true

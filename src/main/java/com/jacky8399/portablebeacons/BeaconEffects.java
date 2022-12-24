@@ -274,7 +274,7 @@ public class BeaconEffects implements Cloneable {
             for (Map.Entry<PotionEffectType, Integer> entry : complex.effects.entrySet()) {
                 PotionEffectType type = entry.getKey();
                 Integer level = entry.getValue();
-                NamespacedKey key = new NamespacedKey(NamespacedKey.BUKKIT, type.getName().toLowerCase(Locale.US));
+                NamespacedKey key = type.getKey();
                 effects.set(key, SHORT, level.shortValue());
                 // disabled
                 if (complex.disabledEffects.contains(type))
@@ -307,7 +307,7 @@ public class BeaconEffects implements Cloneable {
                 PersistentDataContainer effects = primitive.get(EFFECTS, TAG_CONTAINER);
                 ImmutableMap.Builder<PotionEffectType, Integer> effectsMap = ImmutableMap.builder();
                 for (NamespacedKey key : effects.getKeys()) {
-                    PotionEffectType type = PotionEffectType.getByName(key.getKey());
+                    PotionEffectType type = PotionEffectUtils.parsePotion(key);
                     if (type == null) continue;
                     short level = effects.get(key, SHORT);
                     effectsMap.put(type, (int) level);
@@ -318,8 +318,7 @@ public class BeaconEffects implements Cloneable {
                     PersistentDataContainer disabledEffects = primitive.get(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER);
                     if (disabledEffects != null) {
                         ImmutableSet<PotionEffectType> disabledEffectsSet = disabledEffects.getKeys().stream()
-                                .map(NamespacedKey::getKey)
-                                .map(PotionEffectType::getByName)
+                                .map(PotionEffectUtils::parsePotion)
                                 .filter(Objects::nonNull)
                                 .collect(ImmutableSet.toImmutableSet());
                         ret.setDisabledEffects(disabledEffectsSet);

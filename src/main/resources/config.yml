@@ -1,6 +1,8 @@
 # Documentation:
 # https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml
 
+# The configuration version. Shouldn't be modified.
+config-version: 1
 # Configuration related to beacon items
 # Use /pb updateitems to mark preexisting items for update
 # Items will be updated when they are next ticked
@@ -10,7 +12,6 @@ beacon-item:
   lore:
     - '&7Shift+right click to configure potion effects'
   custom-model-data: -1 # Custom model data; Set to -1 to disable
-  #
 
   # Show a glowing outline around nearby beacons to players who can perform a ritual
   creation-reminder:
@@ -20,6 +21,7 @@ beacon-item:
     disable-if-already-own-beacon-item: true # Don't remind player if they already have a beacon in their inventory
 
   # Enchantments to further enhance the effects of a portable beacon
+  # To se
   custom-enchantments:
     # Reduces the experience upkeep
     exp-reduction:
@@ -29,11 +31,6 @@ beacon-item:
       # {exp-reduction|multiplier} to get experience multiplier (e.g. 80%) in percentage
       # {exp-reduction|multiplier or reduction|number} to get experience multiplier/reduction (e.g. 20% vs 0.2) in decimal
       name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
-      # to disallow enchanting in anvil but still allow preexisting enchantments to work,
-      # set enchantment to an empty string ('')
-      enchantment: mending
-      # the required enchantment level
-      enchantment-level: 1
       reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
     # Retain item on death
@@ -44,8 +41,6 @@ beacon-item:
       # {soulbound-owner|uuid} to get UUID of soulbound owner
       # {soulbound-owner|name|Your custom text} to change the displayed text when the owner's name cannot be found (This is usually unnecessary)
       name: '&4Soulbound {level}&8 to {soulbound-owner}'
-      enchantment: binding_curse
-      enchantment-level: 1
       max-level: 5
       # whether a level will be deducted on death
       consume-level-on-death: true
@@ -67,7 +62,7 @@ beacon-item:
     # Require individual permission for toggling effects (portablebeacons.effects-toggle.<effect name>)
     require-permission: false
 
-  # My futile attempts to balance portable beacons
+  # Futile attempts to balance portable beacons
   nerfs:
     # Experience levels consumed per minute (set to 0 to disable)
     # upkeep per minute = value * (levels of every effect + levels of custom enchantments)
@@ -76,7 +71,7 @@ beacon-item:
     exp-levels-per-minute: 0.0555555552
     # Whether the beacon should be active only when it is in the hotbar
     only-apply-in-hotbar: false
-    # Downgrade all effects stronger than its max-amplifier
+    # If true, downgrade all effects stronger than its max-amplifier (see effects.<effect-name>.max-amplifier)
     # Note: requires an item update (/pb updateitems) to take effect
     force-downgrade: false
     # Portable beacons will be disabled in these worlds
@@ -90,11 +85,12 @@ effects:
   default:
     # How long the effects will last when applied, in ticks
     duration: 280
-    # The maximum amplifier allowed. Set to 0 to disallow the effect, even in commands.
+    # The maximum amplifier allowed in recipes
+    # To apply this change retroactively, see beacon-item.nerfs.force-downgrade
     max-amplifier: 3
     # Set to true to hide particles for the effect, false to use beacon ambient effect
     hide-particles: false
-  REGENERATION:
+  regeneration:
     # How the effect is displayed in the item lore
     # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
     # Use {level} for Roman numeral (Regeneration III)
@@ -102,22 +98,22 @@ effects:
     # Use {level|number} for decimal (Regeneration 3)
     # name: '&cRegeneration {level}' will replicate default behavior
     name: '&cRegeneration'
-  SPEED:
+  speed:
     name: '&fSpeed'
-  RESISTANCE:
+  resistance:
     name: '&9Resistance'
-  HASTE:
+  haste:
     name: '&eHaste'
-  JUMP_BOOST:
+  jump_boost:
     name: '&aJump Boost'
-  STRENGTH:
+  strength:
     name: '&4Strength'
   # You can add more potion effects, the key must match vanilla names
   # Specifying duration & max-amplifier overrides values from the default section
-  # For example, to prevent night vision blinking:
-# NIGHT_VISION:
-#   name: '&1Night Vision'
-#   duration: 400
+  # For example, to prevent the night vision effect from flickering:
+  night_vision:
+    name: '&1Night Vision'
+    duration: 400
 
 # Ritual to create portable beacons by dropping an item onto an active beacon
 ritual:
@@ -134,16 +130,6 @@ world-interactions:
   pickup-enabled: true
   # Require silk touch tool to pick up
   pickup-requires-silk-touch: true
-
-anvil-combination:
-  enabled: true # Enable combining portable beacons in anvil
-  max-effects: 6 # Max no. of effects the resultant item can have
-  # true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)
-  # false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)
-  combine-effects-additively: true
-  # enforce the vanilla repair cost limit (max. 39 levels)
-  enforce-vanilla-exp-limit: true
-  display-failure-prompt: false
 
 # Enable WorldGuard integration
 world-guard: true

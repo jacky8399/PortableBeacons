@@ -1,12 +1,7 @@
 package com.jacky8399.portablebeacons;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.jacky8399.portablebeacons.events.Events;
-import com.jacky8399.portablebeacons.recipes.BeaconRecipe;
-import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
-import com.jacky8399.portablebeacons.recipes.RecipeManager;
-import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
+import com.jacky8399.portablebeacons.recipes.*;
 import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;
@@ -30,6 +25,7 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -40,8 +36,8 @@ public class CommandPortableBeacons implements TabExecutor {
 
 
     private static final String ITEM_USAGE = "item <give/add/set/subtract/setowner/filter>[-silently/-modify-all] <players> <...>";
-    private static final String RECIPE_USAGE = "recipe <list/add> [...]";
-    private static final String RECIPE_ADD_USAGE = "recipe add <id> <type> [item] <expCost> <action> <modifications...>";
+    private static final String RECIPE_USAGE = "recipe <list/create/info/enable/disable/testinput> [...]";
+    private static final String RECIPE_CREATE_USAGE = "recipe create <id> <type> [item] <expCost> <action> <modifications...>";
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
@@ -49,15 +45,16 @@ public class CommandPortableBeacons implements TabExecutor {
         if (tabCompletion == null)
             return Collections.emptyList();
         String input = args[args.length - 1];
-        return tabCompletion.filter(completion -> completion.startsWith(input)).collect(Collectors.toList());
+        return tabCompletion.filter(completion -> completion.startsWith(input)).toList();
     }
 
+    private static final Pattern EXP_COST_PATTERN = Pattern.compile("^\\d+|dy");
     private Stream<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length <= 1) {
             return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle", "recipe")
                     .filter(subcommand -> sender.hasPermission(COMMAND_PERM + subcommand));
         } else if (args[0].equalsIgnoreCase("item") && sender.hasPermission(COMMAND_PERM + "item")) {
-            String operationArg = args[1].split("-")[0];
+            String operationArg = args[1].split("-", 2)[0];
             if (args.length == 2) {
                 String[] operations = {"give", "add", "remove", "set", "filter", "setowner"};
                 String[] flags = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
@@ -69,9 +66,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     // flags
                     if (operation.equalsIgnoreCase(operationArg)) {
                         for (String flag : flags) {
-                            if ((operation + flag).startsWith(args[1])) {
-                                completions.add(operation);
-                            }
+                            completions.add(operation + flag);
                         }
                     } else if (operation.startsWith(args[1])) {
                         completions.add(operation);
@@ -92,97 +87,58 @@ public class CommandPortableBeacons implements TabExecutor {
                     return CommandUtils.listFilter(input);
                 }
             }
-
-            return CommandUtils.listModifications(args[args.length - 1], "give".equalsIgnoreCase(args[1]));
+            return CommandUtils.listModifications(args[args.length - 1], !"give".equalsIgnoreCase(args[1]));
         } else if (args[0].equalsIgnoreCase("inspect") && args.length == 2 &&
                 sender.hasPermission(COMMAND_PERM + "inspect")) {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName);
         } else if (args[0].equalsIgnoreCase("toggle") && sender.hasPermission(COMMAND_PERM + "toggle")) {
             if (args.length == 2) {
-                return TOGGLES.keySet().stream()
+                return Config.TOGGLES.keySet().stream()
                         .filter(toggle -> sender.hasPermission(COMMAND_PERM + "toggle." + toggle));
             } else if (args.length == 3) {
                 return Stream.of("true", "false");
             }
         } else if (args[0].equalsIgnoreCase("recipe") && sender.hasPermission(COMMAND_PERM + "recipe")) {
-            if (args.length == 2)
-                return Stream.of("list", "add")
+            if (args.length == 2) {
+                return Stream.of("list", "create", "enable", "disable", "testinput", "info")
                         .filter(cmd -> sender.hasPermission(COMMAND_PERM + "recipe." + cmd));
-            else if (args[1].equalsIgnoreCase("add") && sender.hasPermission(COMMAND_PERM + "recipe.add")) {
-                boolean looksLikeItem = args.length >= 5 && !args[4].isEmpty() && !args[4].matches("\\d+|default");
-                return switch (args.length - (looksLikeItem ? 1 : 0)) {
-                    // <id>
-                    case 3 -> Stream.of();
-                    // <type>
-                    case 4 -> Stream.of("anvil", "smithing");
-                    // <item>/<expCost>
-                    case 5 -> {
-                        if (looksLikeItem) {
-                            yield Stream.of("0", "1", "2", "dynamic", "dynamic-unrestricted");
-                        } else {
-                            yield Arrays.stream(Material.values())
-                                    .map(Material::getKey)
-                                    .map(NamespacedKey::toString);
+            }
+            switch (args[1]) {
+                case "create" -> {
+                    if (!sender.hasPermission(COMMAND_PERM + "recipe.create"))
+                        return null;
+                    boolean looksLikeItem = args.length >= 5 && !args[4].isEmpty() && !EXP_COST_PATTERN.matcher(args[4]).find();
+                    return switch (args.length - (looksLikeItem ? 1 : 0)) {
+                        // <id>
+                        case 3 -> null;
+                        // <type>
+                        case 4 -> Stream.of("anvil", "smithing");
+                        // <item>/<expCost>
+                        case 5 -> {
+                            if (looksLikeItem) {
+                                yield Stream.of("0", "1", "2", "dynamic", "dynamic-unrestricted");
+                            } else {
+                                yield Arrays.stream(Material.values())
+                                        .map(Material::getKey)
+                                        .map(NamespacedKey::toString);
+                            }
                         }
-                    }
-                    // <action>
-                    case 6 -> Arrays.stream(BeaconModification.Type.values())
-                            .map(type -> type.name().toLowerCase(Locale.ENGLISH));
-                    // <modifications...>
-                    default -> CommandUtils.listModifications(args[args.length - 1], true);
-                };
+                        // <action>
+                        case 6 -> Stream.of("add", "set", "subtract");
+                        // <modifications...>
+                        default -> CommandUtils.listModifications(args[args.length - 1], true);
+                    };
+                }
+                case "enable", "disable", "testinput", "info" -> {
+                    if (!sender.hasPermission(COMMAND_PERM + "recipe." + args[1]))
+                        return null;
+                    if (args.length != 3)
+                        return null;
+                    return RecipeManager.RECIPES.keySet().stream();
+                }
             }
         }
         return null;
-    }
-
-    @NotNull
-    public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowVirtual) {
-        boolean seenEqualsPrompt = false;
-        int minLevel = allowVirtual ? 0 : 1;
-        BeaconEffects beaconEffects = new BeaconEffects();
-        beaconEffects.expReductionLevel = minLevel - 1; // to ensure no level -1 with item give
-        beaconEffects.soulboundLevel = minLevel - 1;
-        HashMap<PotionEffectType, Integer> effects = new HashMap<>();
-        for (String s : input) {
-            try {
-                String potionName = s;
-                int level = 1;
-                if (s.contains("=") || s.contains("*")) {
-                    String splitChar = s.contains("=") ? "=" : "\\*";
-                    if (!"=".equals(splitChar) && !seenEqualsPrompt) {
-                        seenEqualsPrompt = true;
-                        sender.sendMessage(YELLOW + "Consider using type=level for consistency with other formats.");
-                    }
-                    String[] split = s.split(splitChar);
-                    Preconditions.checkState(split.length == 2, "Invalid format, correct format is type" + splitChar + "level");
-                    potionName = split[0];
-                    level = Integer.parseInt(split[1]);
-                }
-
-                if (potionName.equalsIgnoreCase("exp-reduction")) {
-                    beaconEffects.expReductionLevel = level;
-                    continue;
-                } else if (potionName.equalsIgnoreCase("soulbound")) {
-                    beaconEffects.soulboundLevel = level;
-                    continue;
-                } else if (potionName.equalsIgnoreCase("all")) {
-                    for (PotionEffectType potionEffectType : PotionEffectType.values()) {
-                        effects.put(potionEffectType, level);
-                    }
-                    continue;
-                }
-                PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
-                if (type == null)
-                    throw new IllegalArgumentException(s + " is not a valid potion effect or enchantment");
-                Preconditions.checkArgument(level >= minLevel, "Level is negative");
-                effects.put(type, level);
-            } catch (IllegalArgumentException e) {
-                sender.sendMessage(RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
-            }
-        }
-        beaconEffects.setEffects(effects);
-        return beaconEffects;
     }
 
     private boolean checkPermission(CommandSender sender, String permission) {
@@ -204,21 +160,6 @@ public class CommandPortableBeacons implements TabExecutor {
         return new RuntimeException("Usage: /" + label + " " + usage, new RuntimeException(cause));
     }
 
-    private static final ImmutableMap<String, Field> TOGGLES;
-    static {
-        ImmutableMap.Builder<String, Field> builder = ImmutableMap.builder();
-        Class<Config> clazz = Config.class;
-        try {
-            builder.put("ritual", clazz.getField("ritualEnabled"));
-            builder.put("toggle-gui", clazz.getField("effectsToggleEnabled"));
-            builder.put("creation-reminder", clazz.getField("creationReminder"));
-            builder.put("world-placement", clazz.getField("placementEnabled"));
-            builder.put("world-pickup", clazz.getField("pickupEnabled"));
-            TOGGLES = builder.build();
-        } catch (Exception e) {
-            throw new Error("Can't find toggleable field??", e);
-        }
-    }
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 0) {
@@ -240,7 +181,7 @@ public class CommandPortableBeacons implements TabExecutor {
     }
 
     public void runCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
-        switch (args[0].toLowerCase(Locale.ROOT)) {
+        switch (args[0].toLowerCase(Locale.ENGLISH)) {
             case "reload" -> {
                 if (!checkPermission(sender, "reload"))
                     return;
@@ -258,92 +199,95 @@ public class CommandPortableBeacons implements TabExecutor {
                     return;
                 if (args.length < 2)
                     throw promptUsage(label, "toggle <toggleName> [true/false]");
-                Optional<Boolean> value = args.length == 3 ?
-                        Optional.of(args[2].equalsIgnoreCase("true")) : Optional.empty();
-                boolean newValue;
-                String toToggle = args[1].toLowerCase(Locale.ROOT);
-                if ("anvil-combination".equalsIgnoreCase(toToggle)) {
+                if ("anvil-combination".equalsIgnoreCase(args[1])) {
                     sender.sendMessage(YELLOW + "Please use /" + label + " recipe disable anvil-combination");
                     return;
                 }
-                Field field = TOGGLES.get(toToggle);
-                if (field == null) {
-                    sender.sendMessage(RED + "Invalid toggle option!");
-                    return;
-                }
+                String toToggle = args[1].toLowerCase(Locale.ENGLISH);
+                Field field = Config.TOGGLES.get(toToggle);
+                if (field == null)
+                    throw new IllegalArgumentException("Invalid toggle option " + toToggle);
                 if (!checkPermission(sender, "toggle." + toToggle))
                     return;
+                Boolean newValue = args.length == 3 ? Boolean.valueOf(args[2]) : null;
                 try {
-                    newValue = value.orElseGet(() -> {
-                        try {
-                            return !field.getBoolean(null);
-                        } catch (Exception e) {
-                            throw new Error(e);
-                        }
-                    });
+                    if (newValue == null)
+                        newValue = !field.getBoolean(null);
                     field.setBoolean(null, newValue);
-                } catch (Exception e) {
-                    sender.sendMessage(RED + "Couldn't toggle value");
-                    return;
+                } catch (ReflectiveOperationException ex) {
+                    throw new RuntimeException("Couldn't toggle " + toToggle, ex);
                 }
-                sender.sendMessage(YELLOW + "Temporarily set " + GREEN + args[1] + YELLOW + " to " + (newValue ? GREEN : RED) + newValue);
+                sender.sendMessage(YELLOW + "Temporarily set " + GREEN + toToggle + YELLOW + " to " + (newValue ? GREEN : RED) + newValue);
                 sender.sendMessage(YELLOW + "To make your change persist after a reload, do " + GREEN + "/" + label + " saveconfig");
             }
             case "setritualitem" -> {
                 if (!checkPermission(sender, "setritualitem"))
                     return;
-                if (sender instanceof Player) {
-                    ItemStack stack = ((Player) sender).getInventory().getItemInMainHand();
-                    if (stack.getType() == Material.AIR) {
-                        Config.ritualItem = new ItemStack(Material.AIR);
-                        sender.sendMessage(RED + "Set ritual item to air");
-                        if (Config.pickupEnabled) {
-                            sender.sendMessage(RED + "This allows players to \"pick up\" portable beacons by breaking " +
-                                    "existing beacons" + (Config.pickupRequireSilkTouch ? " with silk touch tools" : ""));
-                            sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the pickup feature, " +
-                                    "do /" + label + " toggle world-pickup false");
-                        } else {
-                            sender.sendMessage(RED + "This would have allowed players to create portable beacons " +
-                                    "by breaking existing beacons" + (Config.pickupRequireSilkTouch ? " with silk touch\n" : "\n")
-                                    + DARK_RED + BOLD + "HOWEVER, " + RESET + RED + "the config option is " +
-                                    "currently disabled. \n" + RED + "To turn on this feature, do /" + label + "toggle world-placement true");
-                        }
-                        sender.sendMessage(YELLOW + "To " + BOLD + "TURN OFF" + RESET + YELLOW + " the ritual, " +
-                                "do /" + label + " toggle ritual false");
-                    } else {
-                        Config.ritualItem = stack.clone();
-                        sender.sendMessage(GREEN + "Set ritual item to " +
-                                stack.getAmount() + "x" + YELLOW + stack.getType().name() + GREEN + " (+ additional item meta).");
-                    }
-                    // clear old ritual items
-                    Events.INSTANCE.ritualItems.clear();
-                    PortableBeacons.INSTANCE.saveConfig();
-                    sender.sendMessage(GREEN + "Configuration saved to file.");
+                ItemStack stack;
+                if (args.length > 1) {
+                    stack = Bukkit.getItemFactory().createItemStack(args[1]);
+                    stack.setAmount(args.length >= 3 ? Integer.parseInt(args[2]) : 1);
+                } else if (sender instanceof Player player) {
+                    stack = player.getInventory().getItemInMainHand();
                 } else {
-                    sender.sendMessage(RED + "You must be a player to use this command!");
+                    throw promptUsage(label, "setritualitem [item] [amount]");
                 }
+                ItemStack oldRitualItem = Config.ritualItem;
+                var builder = new ComponentBuilder("Changed ritual item from ").color(GREEN);
+                if (oldRitualItem.getType() == Material.AIR)
+                    builder.append("air").color(YELLOW);
+                else
+                    builder.append(CommandUtils.showItem(oldRitualItem));
+                builder.append(" to ").color(GREEN);
+
+                if (stack.getType() == Material.AIR) {
+                    Config.ritualItem = new ItemStack(Material.AIR);
+                    sender.spigot().sendMessage(builder.append("air").color(BLUE).create());
+                    if (Config.pickupEnabled) {
+                        sender.sendMessage("""
+                                %sThis allows players to create portable beacons by breaking existing beacons%s
+                                %sTo %sTURN OFF%s this feature, do /%s toggle world-pickup false
+                                %sTo %sturn off%s the ritual, do /%s toggle ritual false""".formatted(
+                                RED, (Config.pickupRequireSilkTouch ? " with silk touch" : ""),
+                                YELLOW, BOLD, "" + RESET + YELLOW, label,
+                                YELLOW, RED, YELLOW, label));
+                    } else {
+                        sender.sendMessage("""
+                                %sThe ritual has been %sdisabled%s.
+                                %sTo allow players to create portable beacons by breaking existing beacons%s,
+                                %sdo /%s toggle world-placement. (The feature is currently %sOFF%s)""".formatted(
+                                YELLOW, RED, YELLOW,
+                                YELLOW, (Config.pickupRequireSilkTouch ? " with silk touch" : ""),
+                                YELLOW, label, RED, YELLOW));
+                    }
+                } else {
+                    Config.ritualItem = stack.clone();
+                    sender.spigot().sendMessage(builder.append(CommandUtils.showItem(stack)).create());
+                }
+                // clear old ritual items
+                Events.INSTANCE.ritualItems.clear();
+                PortableBeacons.INSTANCE.saveConfig();
+                sender.sendMessage(GREEN + "Configuration saved to file.");
             }
             case "updateitems" -> {
                 if (!checkPermission(sender, "updateitems"))
                     return;
                 // six characters
-                Config.itemCustomVersion = Integer.toString(ThreadLocalRandom.current().nextInt(0xFFFFFF + 1), 16);
+                Config.itemCustomVersion = Integer.toHexString(ThreadLocalRandom.current().nextInt(0xFFFFFF + 1));
                 PortableBeacons.INSTANCE.saveConfig();
-                sender.sendMessage(GREEN + "All portable beacon items will be forced to update soon.");
-                sender.sendMessage(GREEN + "Configuration saved to file.");
+                sender.sendMessage(GREEN + "All portable beacon items will be forced to update soon.\n" +
+                        GREEN + "Configuration saved to file.");
             }
             case "inspect" -> {
                 if (!checkPermission(sender, "inspect"))
                     return;
-                Player target = null;
-                if (args.length > 1)
-                    target = Bukkit.getPlayer(args[1]);
-                if (target == null) {
-                    if (!(sender instanceof Player)) {
-                        sender.sendMessage(RED + "You must specify a player!");
-                        return;
-                    }
-                    target = (Player) sender;
+                Player target;
+                if (args.length > 1) {
+                    target = Objects.requireNonNull(Bukkit.getPlayer(args[1]), "Player " + args[1] + " not found");
+                } else if (sender instanceof Player player) {
+                    target = player;
+                } else {
+                    throw new RuntimeException("You must specify a player!");
                 }
                 doInspect(sender, target);
             }
@@ -357,7 +301,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     return;
                 doRecipe(sender, args, label);
             }
-            default -> throw promptUsage(label, "<reload/setritualitem/updateitems/inspect/item/toggle> [...]");
+            default -> throw promptUsage(label, "<reload/setritualitem/updateitems/inspect/item/toggle/recipe> [...]");
         }
     }
 
@@ -590,7 +534,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (args.length < 4) {
                     throw promptUsage(label, "item "  + args[1] + " <players> <effects...>");
                 }
-                BeaconEffects beaconEffects = parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), false);
+                BeaconEffects beaconEffects = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), false);
                 ItemStack stack = ItemUtils.createStack(beaconEffects);
                 Set<Player> failedPlayers = new HashSet<>();
 
@@ -664,7 +608,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     throw promptUsage(label, "item "  + args[1] + " <players> <effects...>");
                 }
 
-                BeaconEffects virtual = parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), true);
+                BeaconEffects virtual = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), true);
                 BeaconModification modification = new BeaconModification(modificationType, virtual, true);
                 editPlayers(sender, players, modification, silent, modifyAll);
             }
@@ -678,15 +622,18 @@ public class CommandPortableBeacons implements TabExecutor {
             case "list" -> {
                 if (!checkPermission(sender, "recipe.list"))
                     return;
-                sender.sendMessage(GREEN + "Loaded recipes:");
+                sender.sendMessage(GREEN + "Enabled recipes:");
                 for (var entry : RecipeManager.RECIPES.entrySet())
                     sender.sendMessage("  " + entry.getKey());
+                sender.sendMessage(RED + "Disabled recipes:");
+                for (var entry : RecipeManager.DISABLED_RECIPES)
+                    sender.sendMessage("  " + entry);
             }
-            case "add" -> {
-                if (!checkPermission(sender, "recipe.add"))
+            case "create" -> {
+                if (!checkPermission(sender, "recipe.create"))
                     return;
                 if (args.length < 7)
-                    throw promptUsage(label, RECIPE_ADD_USAGE);
+                    throw promptUsage(label, RECIPE_CREATE_USAGE);
                 String id = args[2];
                 InventoryType type = InventoryType.valueOf(args[3].toUpperCase(Locale.ENGLISH));
                 ItemStack stack;
@@ -697,32 +644,55 @@ public class CommandPortableBeacons implements TabExecutor {
                     // is ItemStack, check if there are enough additional arguments
                     argOffset = 1;
                     if (args.length < 7 + argOffset)
-                        throw promptUsage(label, RECIPE_ADD_USAGE);
+                        throw promptUsage(label, RECIPE_CREATE_USAGE);
                 } catch (IllegalArgumentException ex) {
                     // not ItemStack
                     if (!(sender instanceof Player player))
-                        throw promptUsage(label, RECIPE_ADD_USAGE, "Must provide item when running in console");
+                        throw promptUsage(label, RECIPE_CREATE_USAGE, "Must provide item when running in console");
                     stack = player.getInventory().getItemInMainHand();
                 }
                 if (stack.getType().isAir())
-                    throw promptUsage(label, RECIPE_ADD_USAGE, "item must not be air");
+                    throw promptUsage(label, RECIPE_CREATE_USAGE, "item must not be air");
 
                 ExpCostCalculator expCost = ExpCostCalculator.valueOf(args[4 + argOffset]);
                 BeaconModification.Type action = BeaconModification.Type.parseType(args[5 + argOffset]);
-                BeaconEffects virtualEffects = parseEffects(sender, Arrays.copyOfRange(args, 6 + argOffset, args.length), true);
+                BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 6 + argOffset, args.length), true);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
 
                 SimpleRecipe recipe = new SimpleRecipe(id, type, stack, List.of(modification), expCost);
 
                 // save in YAML
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
+                if (yaml.isConfigurationSection("recipes." + id)) {
+                    throw new IllegalArgumentException("There is already a recipe with ID " + id);
+                }
                 yaml.createSection("recipes." + id, recipe.save());
                 try {
                     yaml.save(RecipeManager.RECIPES_FILE);
                 } catch (IOException ex) {
                     throw new RuntimeException("Failed to save recipe " + id, ex);
                 }
-                sender.sendMessage(GREEN + "Recipe " + id + " created and saved");
+                sender.sendMessage(GREEN + "Recipe " + id + " created and saved to recipes.yml\n" +
+                                   YELLOW + "To apply your changes, do /" + label + " reload");
+            }
+            case "enable", "disable" -> {
+                if (!checkPermission(sender, "recipe." + args[1]))
+                    return;
+                if (args.length < 3)
+                    throw promptUsage(label, "recipe " + args[1] + " <id>");
+                String id = args[2];
+                var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
+                if (!yaml.isConfigurationSection("recipes." + id))
+                    throw new IllegalArgumentException("Can't find recipe with ID " + id);
+                yaml.set("recipes." + id + ".enabled", args[1].equals("enable"));
+                yaml.setComments("recipes." + id + ".enabled", List.of("Modified by " + sender.getName()));
+                try {
+                    yaml.save(RecipeManager.RECIPES_FILE);
+                } catch (IOException ex) {
+                    throw new RuntimeException("Failed to toggle recipe " + id, ex);
+                }
+                sender.sendMessage(GREEN + "Recipe " + id + " set to " + args[1] + "\n" +
+                                   YELLOW + "To apply your changes, do /" + label + " reload");
             }
             case "testinput" -> {
                 if (!checkPermission(sender, "recipe.testinput"))
@@ -749,6 +719,45 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
                             YELLOW + simpleRecipe.input());
                 }
+            }
+            case "info" -> {
+                if (!checkPermission(sender, "recipe.info"))
+                    return;
+                if (args.length < 3)
+                    throw promptUsage(label, "recipe info <id>");
+                String id = args[2];
+                BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
+                var builder = new ComponentBuilder("Recipe " + id + "\n").color(GREEN);
+                if (recipe instanceof CombinationRecipe combinationRecipe) {
+                    builder.append("Type: Beacon Combination\n").color(AQUA);
+                    builder.append("Max. " + combinationRecipe.maxEffects() + " effects\n").color(YELLOW);
+                    builder.append("Combining effects " + (combinationRecipe.combineEffectsAdditively() ?
+                            "additively" : "like enchantments") + "\n").color(YELLOW);
+                } else if (recipe instanceof SimpleRecipe simpleRecipe) {
+                    builder.append("Type: Simple Recipe\n" +
+                            "Recipe type: " + simpleRecipe.type().name().toLowerCase(Locale.ENGLISH)).color(YELLOW);
+                    builder.append("Accepts: ").color(WHITE)
+                            .append(CommandUtils.showItem(simpleRecipe.input()))
+                            .append("\n").color(WHITE);
+                    for (var modification : simpleRecipe.modifications()) {
+                        builder.append(modification.type().name() + "s:\n").color(BLUE);
+                        var effects = modification.virtualEffects().save(true);
+                        for (var entry : effects.entrySet()) {
+                            builder.append("  ").append(entry.getKey() + "=" + entry.getValue() + "\n").color(GRAY);
+                        }
+                    }
+                    for (var special : simpleRecipe.specialOperations()) {
+                        builder.append(switch (special) {
+                            case SET_SOULBOUND_OWNER -> "Set soulbound owner to player\n";
+                        }).color(YELLOW);
+                    }
+                } else {
+                    throw new IllegalArgumentException("Can't find recipe with ID " + id);
+                }
+                builder.append("Exp cost: " + (recipe.expCost() instanceof ExpCostCalculator.Fixed fixed ?
+                        fixed.level() + " levels" :
+                        recipe.expCost().save()));
+                sender.spigot().sendMessage(builder.create());
             }
         }
     }

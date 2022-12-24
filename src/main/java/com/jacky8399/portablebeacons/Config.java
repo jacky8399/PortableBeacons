@@ -1,6 +1,5 @@
 package com.jacky8399.portablebeacons;
 
-import com.google.common.base.Preconditions;
 import com.jacky8399.portablebeacons.recipes.CombinationRecipe;
 import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;
@@ -22,11 +21,29 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Config {
+    public static final Map<String, Field> TOGGLES;
+    static {
+        Class<Config> clazz = Config.class;
+        try {
+            TOGGLES = Map.of("ritual", clazz.getField("ritualEnabled"),
+                    "toggle-gui", clazz.getField("effectsToggleEnabled"),
+                    "creation-reminder", clazz.getField("creationReminder"),
+                    "world-placement", clazz.getField("placementEnabled"),
+                    "world-pickup", clazz.getField("pickupEnabled"));
+        } catch (ReflectiveOperationException e) {
+            throw new Error("Can't find toggleable field", e);
+        }
+    }
+
+    public static final int CONFIG_VERSION = 1;
+
     public static void saveConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
         // things that can be changed by commands
@@ -35,123 +52,133 @@ public class Config {
         config.set("ritual.enabled", Config.ritualEnabled);
         config.set("beacon-item.effects-toggle.enabled", Config.effectsToggleEnabled);
         config.set("beacon-item.creation-reminder.enabled", Config.creationReminder);
-        // prompt
+        config.set("world-interactions.placement-enabled", Config.placementEnabled);
+        config.set("world-interactions.pickup-enabled", Config.pickupEnabled);
+        // warning message
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         config.setComments("ritual.item", List.of("Saved by the plugin", "To change this value in-game, use /portablebeacons setritualitem"));
         if (Config.itemCustomVersion != null)
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
+        config.set("config-version", CONFIG_VERSION);
+        config.setComments("config-version", List.of("The configuration version. Shouldn't be modified."));
         config.options().copyDefaults(true).setHeader(List.of("Documentation:",
                 "https://github.com/jacky8399/PortableBeacons/blob/master/src/main/resources/config.yml"));
     }
 
     public static void doMigrations(FileConfiguration config) {
         Logger logger = PortableBeacons.INSTANCE.logger;
+        int configVersion = config.getInt("config-version", 0);
 
         List<String> migrated = new ArrayList<>();
-        // ritual.item
-        ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
-        if (legacy != null && !config.contains("ritual.item", true)) {
-            config.set("ritual.item", legacy);
-            config.set("item-used", null);
-            config.set("item_used", null);
-            migrated.add("item-used/item_used -> ritual.item");
-        }
+        if (configVersion == 0) {
+            // ritual.item
+            ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
+            if (legacy != null && !config.contains("ritual.item", true)) {
+                config.set("ritual.item", legacy);
+                config.set("item-used", null);
+                config.set("item_used", null);
+                migrated.add("item-used/item_used -> ritual.item");
+            }
 
-        // beacon-item.nerfs.exp-percentage-per-cycle
-        if (config.contains("beacon-item.nerfs.exp-percentage-per-cycle") &&
-                !config.contains("beacon-item.nerfs.exp-levels-per-minute", true)) {
-            double expPerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
-            config.set("beacon-item.nerfs.exp-levels-per-minute", expPerCycle * 8);
-            config.set("beacon-item.nerfs.exp-percentage-per-cycle", null);
-            migrated.add("beacon-item.nerfs: exp-percentage-per-cycle -> exp-levels-per-minute");
-        }
+            // beacon-item.nerfs.exp-percentage-per-cycle
+            if (config.contains("beacon-item.nerfs.exp-percentage-per-cycle") &&
+                    !config.contains("beacon-item.nerfs.exp-levels-per-minute", true)) {
+                double expPerCycle = config.getDouble("beacon-item.nerfs.exp-percentage-per-cycle");
+                config.set("beacon-item.nerfs.exp-levels-per-minute", expPerCycle * 8);
+                config.set("beacon-item.nerfs.exp-percentage-per-cycle", null);
+                migrated.add("beacon-item.nerfs: exp-percentage-per-cycle -> exp-levels-per-minute");
+            }
 
-        // anvil-combination.max-effect-amplifier
-        if (config.contains("anvil-combination.max-effect-amplifier", true)) {
-            int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
-            config.set("effects.default.max-amplifier", maxAmplifier);
-            config.set("anvil-combination.max-effect-amplifier", null);
-            migrated.add("anvil-combination.max-effect-amplifier -> effects.default.max-amplifier");
-        }
+            // anvil-combination.max-effect-amplifier
+            if (config.contains("anvil-combination.max-effect-amplifier", true)) {
+                int maxAmplifier = config.getInt("anvil-combination.max-effect-amplifier");
+                config.set("effects.default.max-amplifier", maxAmplifier);
+                config.set("anvil-combination.max-effect-amplifier", null);
+                migrated.add("anvil-combination.max-effect-amplifier -> effects.default.max-amplifier");
+            }
 
-        // legacy effects
-        if (loadConfigLegacy(config)) {
-            migrated.add("beacon-item.effects -> effects");
-        }
+            // legacy effects
+            if (loadConfigLegacy(config)) {
+                migrated.add("beacon-item.effects -> effects");
+            }
 
-        // anvil recipes
-        doAnvilMigrations(config, migrated);
+            // anvil recipes
+            doAnvilMigrations(config, migrated);
+        }
 
         if (migrated.size() != 0) {
             logger.warning("The following legacy config values have been migrated (in memory):");
             migrated.forEach(message -> logger.warning(" - " + message));
             logger.warning("Confirm that the features still work correctly, then run " +
                     "'/portablebeacons saveconfig' to save these changes to disk.");
-            logger.warning("Consult documentation and migrate manually by deleting old values if necessary.");
+            logger.warning("Consult documentation and migrate manually if necessary.");
         }
     }
 
-    // Comments that will be added, copied from recipes.yml
-    private static final Map<String, List<String>> RECIPE_DEFAULT_COMMENTS = Map.of(
-            "type", List.of("Crafting bench of the recipe, can be anvil or smithing"),
-            "input", List.of("The sacrificial item"),
-            "exp-cost", List.of("The cost of this recipe, in levels. (Default: 0)",
-                    "Use \"dynamic\" for dynamic experience cost subject to vanilla limits (max 39 levels)",
-                    "Use \"dynamic-unrestricted\" for dynamic experience cost"),
-            "max-effects", List.of("Max no. of effects the resultant item can have"),
-            "combine-effects-additively", List.of("true for simple combination (e.g. Speed 2 + Speed 1 = Speed 3)",
-                                                  "false for anvil-like combination (e.g. Speed 2 + Speed 2 = Speed 3, Speed 2 + Speed 1 = Speed 2)"),
-            "modifications", """
-                    Modifications to the beacon, similar to the /pb item command. For example, given the commands
-                    "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:
-                    modifications:
-                      subtract:
-                        soulbound: 1
-                      add:
-                        speed: 2""".lines().toList(),
-            SimpleRecipe.SpecialOps.SET_SOULBOUND_OWNER.key, List.of("Special command to also bind the beacon to the player")
-    );
+    /**
+     * Copies comments and inline comments from {@code source.path} to {@code destination.path}
+     */
+    static void copyComments(@Nullable YamlConfiguration source, YamlConfiguration destination, String path, boolean deep) {
+        if (source == null)
+            return;
+        var srcSection = source.getConfigurationSection(path);
+        var destSection = destination.getConfigurationSection(path);
+        if (srcSection == null || destSection == null)
+            return;
+        for (String key : destSection.getKeys(deep)) {
+            List<String> comments;
+            if ((comments = srcSection.getComments(key)).size() != 0) {
+                destSection.setComments(key, comments);
+            }
+            if ((comments = srcSection.getInlineComments(key)).size() != 0) {
+                destSection.setInlineComments(key, comments);
+            }
+        }
+    }
+
     static void doAnvilMigrations(FileConfiguration config, List<String> migrated) {
         Logger logger = PortableBeacons.INSTANCE.logger;
-        var recipesFile = RecipeManager.RECIPES_FILE;
-        var yaml = YamlConfiguration.loadConfiguration(recipesFile);
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
+        YamlConfiguration defaultYaml;
+        try (var reader = new InputStreamReader(Objects.requireNonNull(PortableBeacons.INSTANCE.getResource("recipes.yml")))) {
+            defaultYaml = YamlConfiguration.loadConfiguration(reader);
+        } catch (IOException ignored) {
+            defaultYaml = null;
+        }
         boolean changed = false;
-
         ConfigurationSection section;
         if ((section = config.getConfigurationSection("anvil-combination")) != null) {
             try {
                 var values = CombinationRecipe.load("anvil-combination", section.getValues(false)).save();
 
-                var newSection = yaml.createSection("recipes.anvil-combination", values);
+                yaml.createSection("recipes.anvil-combination", values);
                 yaml.setComments("recipes.anvil-combination", """
                         This recipe was created by automatic config migration.
                         To avoid having your changes be overwritten, you must either:
-                         - Delete section anvil-combination in config.yml, OR
+                         - Delete 'anvil-combination' in config.yml, OR
                          - Save the migrated config.yml using /pb saveconfig""".lines().toList());
-                // copy comments
-                RECIPE_DEFAULT_COMMENTS.forEach(newSection::setComments);
+                copyComments(defaultYaml, yaml, "recipes.anvil-combination", true);
                 changed = true;
                 config.set("anvil-combination", null);
                 migrated.add("anvil-combination -> recipes.yml");
             } catch (Exception ex) {
                 logger.severe("Failed to migrate anvil-combination");
-                logger.severe(ex.toString());
+                ex.printStackTrace();
             }
         }
 
         for (String customEnch : new String[]{"exp-reduction", "soulbound"}) {
             String oldPath = "beacon-item.custom-enchantments." + customEnch + ".enchantment";
             String enchStr;
-            if ((enchStr = config.getString(oldPath, null)) == null || enchStr.isEmpty()) {
+            if ((enchStr = config.getString(oldPath, null)) == null || enchStr.isEmpty())
                 continue;
-            }
-            int level = config.getInt(oldPath + "-level", 1);
-
+            // enchantment-level was never released
             try {
-                Enchantment ench = Objects.requireNonNull(Enchantment.getByKey(NamespacedKey.fromString(enchStr)), "Invalid enchantment " + enchStr);
+                Enchantment ench = Objects.requireNonNull(Enchantment.getByKey(NamespacedKey.fromString(enchStr)),
+                        "Invalid enchantment " + enchStr);
                 var fakeStack = new ItemStack(Material.ENCHANTED_BOOK);
                 var meta = (EnchantmentStorageMeta) fakeStack.getItemMeta();
-                meta.addStoredEnchant(ench, level, true);
+                meta.addStoredEnchant(ench, 1, false);
                 fakeStack.setItemMeta(meta);
 
                 // add one level of enchantment
@@ -164,32 +191,28 @@ public class Config {
                                 EnumSet.of(SimpleRecipe.SpecialOps.SET_SOULBOUND_OWNER) :
                                 EnumSet.noneOf(SimpleRecipe.SpecialOps.class)
                 );
-                var newSection = yaml.createSection("recipes." + customEnch, recipe.save());
+                yaml.createSection("recipes." + customEnch, recipe.save());
                 yaml.setComments("recipes." + customEnch, """
                         This recipe was created by automatic config migration.
                         To avoid having your changes be overwritten, you must either:
-                         - Delete section %s in config.yml, OR
+                         - Delete '%s' in config.yml, OR
                          - Save the migrated config.yml using /pb saveconfig""".formatted(oldPath).lines().toList());
-                // copy comments
-                RECIPE_DEFAULT_COMMENTS.forEach(newSection::setComments);
-
-                // remove section in old config
+                copyComments(defaultYaml, yaml, "recipes." + customEnch, true);
                 config.set(oldPath, null);
-                config.set(oldPath + "-level", null);
-
                 changed = true;
                 migrated.add(oldPath + " -> recipes.yml");
             } catch (Exception ex) {
-                logger.severe("Failed to migrate beacon-item.custom-enchantments." + customEnch + ".enchantment");
-                logger.severe(ex.toString());
+                logger.severe("Failed to migrate " + oldPath);
+                ex.printStackTrace();
             }
         }
 
         if (changed) {
             try {
-                yaml.save(recipesFile);
+                yaml.save(RecipeManager.RECIPES_FILE);
             } catch (IOException ex) {
-                logger.severe("An error occurred while migrating anvil-combination: " + ex);
+                logger.severe("An error occurred while migrating anvil-combination");
+                ex.printStackTrace();
             }
         }
     }
@@ -285,27 +308,18 @@ public class Config {
 
             try {
                 String displayName = translateColor(yaml.getString("name"));
-                Integer maxAmplifier = (Integer) yaml.get("max-amplifier");
-                Integer duration = (Integer) yaml.get("duration");
+                Integer maxAmplifier = getAndCheckInteger(0, 255, yaml, "max-amplifier");
+                Integer duration = getAndCheckInteger(0, Integer.MAX_VALUE, yaml, "duration");
                 Boolean hideParticles = (Boolean) yaml.get("hide-particles");
 
-                // check range
-                if (maxAmplifier != null && (maxAmplifier < 0 || maxAmplifier > 255))
-                    throw new IllegalArgumentException("max-amplifier must be between 0 and 255");
-                if (duration != null && duration < 0)
-                    throw new IllegalArgumentException("duration must be greater than 0");
-
                 if (key.equals("default")) {
-                    Preconditions.checkNotNull(maxAmplifier, "'max-amplifier' in default cannot be null");
-                    Preconditions.checkNotNull(duration, "'duration' in default cannot be null");
-                    Preconditions.checkNotNull(hideParticles, "'hide-particles' in default cannot be null");
-
+                    Objects.requireNonNull(maxAmplifier, "'max-amplifier' in default cannot be null");
+                    Objects.requireNonNull(duration, "'duration' in default cannot be null");
+                    Objects.requireNonNull(hideParticles, "'hide-particles' in default cannot be null");
                     effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier, hideParticles);
                 } else {
-                    PotionEffectType type = PotionEffectUtils.parsePotion(key, true);
-                    if (type == null)
-                        throw new IllegalArgumentException(key + " is not a valid potion effect");
-
+                    PotionEffectType type = Objects.requireNonNull(PotionEffectUtils.parsePotion(key, true),
+                            key + " is not a valid potion effect");
                     effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier, hideParticles));
                 }
             } catch (Exception e) {
@@ -342,82 +356,88 @@ public class Config {
         return false;
     }
 
-    private static final boolean canUseRGB;
-
-    static {
-        boolean canUseRGB1;
-        try {
-            ChatColor.class.getMethod("of", String.class);
-            canUseRGB1 = true;
-        } catch (NoSuchMethodException e) {
-            canUseRGB1 = false;
-        }
-        canUseRGB = canUseRGB1;
-    }
-
     @Nullable
     public static String translateColor(@Nullable String raw) {
         if (raw == null) return null;
         // replace RGB codes first
         // use EssentialsX &#RRGGBB format
-        if (canUseRGB) {
-            StringBuilder builder = new StringBuilder(raw);
-            int idx;
-            while ((idx = builder.indexOf("&#")) != -1) {
-                try {
-                    String colorStr = builder.substring(idx + 1, idx + 8);
-                    ChatColor color = ChatColor.of(colorStr);
-                    builder.replace(idx, idx + 8, color.toString());
-                } catch (StringIndexOutOfBoundsException | IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Malformed RGB color around index=" + idx + ", string=" + raw, e);
-                }
+        StringBuilder builder = new StringBuilder(raw);
+        int idx;
+        while ((idx = builder.indexOf("&#")) != -1) {
+            try {
+                String colorStr = builder.substring(idx + 1, idx + 8);
+                ChatColor color = ChatColor.of(colorStr);
+                builder.replace(idx, idx + 8, color.toString());
+            } catch (StringIndexOutOfBoundsException | IllegalArgumentException e) {
+                throw new IllegalArgumentException("Malformed RGB color around index=" + idx + ", string=" + raw, e);
             }
-            raw = builder.toString();
         }
-
-        raw = ChatColor.translateAlternateColorCodes('&', raw);
-        return raw;
+        raw = builder.toString();
+        return ChatColor.translateAlternateColorCodes('&', raw);
     }
 
-    static int getAndCheckInt(int min, int max, FileConfiguration config, String path) {
-        int value = config.getInt(path);
+    static String getFullPath(ConfigurationSection config, String path) {
+        String rootPath = config.getCurrentPath();
+        if (rootPath == null || rootPath.isEmpty())
+            return path;
+        else
+            return rootPath + "." + path;
+    }
+
+    private static final Logger LOGGER = PortableBeacons.INSTANCE.logger;
+    @Nullable
+    static Integer getAndCheckInteger(int min, int max, ConfigurationSection config, String path) {
+        Object obj = config.get(path);
+        if (obj == null)
+            return null;
+        if (!(obj instanceof Integer value)) {
+            LOGGER.severe("Config \"" + getFullPath(config, path) + "\" is not an integer");
+            return min;
+        }
         if (value > max) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %d, got %d.".formatted(path, max, value));
+            LOGGER.severe("Config \"%s\" cannot be larger than %d, got %d."
+                    .formatted(getFullPath(config, path), max, value));
             return max;
         } else if (value < min) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %d, got %d.".formatted(path, min, value));
+            LOGGER.severe("Config \"%s\" cannot be smaller than %d, got %d."
+                    .formatted(getFullPath(config, path), min, value));
             return min;
         } else {
             return value;
         }
     }
 
-    static int getAndCheckInt(int min, FileConfiguration config, String path) {
+
+    static int getAndCheckInt(int min, int max, ConfigurationSection config, String path) {
+        Integer integer = getAndCheckInteger(min, max, config, path);
+        if (integer == null) {
+            PortableBeacons.INSTANCE.logger.severe("Config \"" + getFullPath(config, path) + "\" cannot be null");
+            return min;
+        }
+        return integer;
+    }
+
+    static int getAndCheckInt(int min, ConfigurationSection config, String path) {
         return getAndCheckInt(min, Integer.MAX_VALUE, config, path);
     }
-    static double getAndCheckDouble(double min, double max, FileConfiguration config, String path) {
+    static double getAndCheckDouble(double min, double max, ConfigurationSection config, String path) {
         double value = config.getDouble(path);
         if (value > max) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %f, got %f.".formatted(path, max, value));
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %f, got %f."
+                    .formatted(getFullPath(config, path), max, value));
             return max;
         } else if (value < min) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %f, got %f.".formatted(path, min, value));
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %f, got %f."
+                    .formatted(getFullPath(config, path), min, value));
             return min;
         } else {
             return value;
         }
     }
 
-    static double getAndCheckDouble(double min, FileConfiguration config, String path) {
+    static double getAndCheckDouble(double min, ConfigurationSection config, String path) {
         return getAndCheckDouble(min, Double.MAX_VALUE, config, path);
     }
-
-    static int getAndCheckEnchLevel(@Nullable Enchantment enchantment, FileConfiguration config, String path) {
-        if (enchantment == null)
-            return -1;
-        return getAndCheckInt(enchantment.getStartLevel(), enchantment.getMaxLevel(), config, path);
-    }
-
     // Configuration values
 
     public static boolean debug;

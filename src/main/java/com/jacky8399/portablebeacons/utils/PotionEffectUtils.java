@@ -48,6 +48,14 @@ public class PotionEffectUtils {
         return parsePotion(input, false);
     }
 
+    @Nullable
+    public static PotionEffectType parsePotion(NamespacedKey key) {
+        if (NamespacedKey.BUKKIT.equals(key.getNamespace())) {
+            return PotionEffectType.getByName(key.getKey());
+        }
+        return PotionEffectType.getByKey(key);
+    }
+
     private static final Set<String> VALID_POTION_NAMES = Arrays.stream(PotionEffectType.values())
             .map(PotionEffectUtils::getName)
             .collect(Collectors.toUnmodifiableSet());

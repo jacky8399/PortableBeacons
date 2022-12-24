@@ -30,6 +30,8 @@ public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
 
     String id();
 
+    ExpCostCalculator expCost();
+
     static BeaconRecipe load(String id, Map<String, Object> map) {
         if (CombinationRecipe.TYPE.equals(map.get("type"))) {
             return CombinationRecipe.load(id, map);

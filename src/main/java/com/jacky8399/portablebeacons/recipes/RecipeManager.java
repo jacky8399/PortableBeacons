@@ -20,9 +20,10 @@ import java.util.function.Supplier;
 
 public final class RecipeManager {
 
+    public static final int CONFIG_VERSION = 1;
 
     public static final Map<String, BeaconRecipe> RECIPES = new LinkedHashMap<>();
-    public static final Set<BeaconRecipe> DISABLED_RECIPES = new LinkedHashSet<>();
+    public static final List<String> DISABLED_RECIPES = new ArrayList<>();
 
     private static final PortableBeacons PLUGIN = PortableBeacons.INSTANCE;
     public static final File RECIPES_FILE = new File(PLUGIN.getDataFolder(), "recipes.yml");
@@ -34,7 +35,8 @@ public final class RecipeManager {
 
     @Nullable
     public static BeaconRecipe findRecipeFor(InventoryType type, ItemStack beacon, ItemStack right) {
-        if (ItemUtils.isPortableBeacon(right) && combinationRecipe.isApplicableTo(beacon, right))
+        if (type == InventoryType.ANVIL && ItemUtils.isPortableBeacon(right) &&
+            combinationRecipe.isApplicableTo(beacon, right))
             return combinationRecipe;
         Map<Material, List<SimpleRecipe>> recipeLookupMap = switch (type) {
             case ANVIL -> anvilRecipes;
@@ -87,13 +89,13 @@ public final class RecipeManager {
                     var recipe = BeaconRecipe.load(recipeName, recipeMap);
                     RECIPES.put(recipeName, recipe);
                     if (!(Boolean) recipeMap.getOrDefault("enabled", true)) {
-                        DISABLED_RECIPES.add(recipe);
+                        DISABLED_RECIPES.add(recipeName); // don't really need to store the recipe
                     }
-                    if (recipe instanceof CombinationRecipe combinationRecipe) {
+                    if (recipe instanceof CombinationRecipe newCombinationRecipe) {
                         if (RecipeManager.combinationRecipe != null) {
                             plugin.logger.severe("Cannot have more than one anvil combination recipes! Skipping " + recipeName + ".");
                         } else {
-                            RecipeManager.combinationRecipe = combinationRecipe;
+                            RecipeManager.combinationRecipe = newCombinationRecipe;
                         }
                     } else if (recipe instanceof SimpleRecipe simpleRecipe) {
                         addRecipe(simpleRecipe);

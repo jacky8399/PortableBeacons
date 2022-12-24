@@ -91,6 +91,7 @@ public record SimpleRecipe(String id,
         var map = new LinkedHashMap<String, Object>();
         map.put("type", type.name().toLowerCase(Locale.ENGLISH));
         map.put("input", input);
+        map.put("input-amount", input.getAmount());
         var modMap = new HashMap<String, Object>();
         for (var mod : modifications) {
             modMap.putAll(mod.save());
@@ -114,12 +115,16 @@ public record SimpleRecipe(String id,
             stack = stack1;
         else
             stack = ItemStack.deserialize((Map<String, Object>) inputObj);
+        int amount = (Integer) map.getOrDefault("input-amount", 1);
+        stack.setAmount(amount);
 
-        var modifications =
-                Objects.requireNonNull((Map<String, Map<String, Object>>) map.get("modifications"), "modifications cannot be null")
-                        .entrySet().stream()
-                        .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
-                        .toList();
+        var modificationsMap = (Map<String, Map<String, Object>>) map.get("modifications");
+        if (modificationsMap == null || modificationsMap.size() == 0) {
+            throw new IllegalArgumentException("modifications cannot be null or empty");
+        }
+        var modifications = modificationsMap.entrySet().stream()
+                .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
+                .toList();
         var expCost = ExpCostCalculator.valueOf(map.getOrDefault("exp-cost", 0));
         var specialOps = EnumSet.noneOf(SpecialOps.class);
         for (var special : SpecialOps.values()) {
@@ -131,7 +136,7 @@ public record SimpleRecipe(String id,
     }
 
     public enum SpecialOps {
-        SET_SOULBOUND_OWNER("__special_set-soulbound-owner");
+        SET_SOULBOUND_OWNER("set-soulbound-owner");
         public final String key;
         SpecialOps(String key) {
             this.key = key;

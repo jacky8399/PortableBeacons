@@ -1,3 +1,5 @@
+config-version: 1
+
 recipes:
   # combining two beacons
   anvil-combination:
@@ -12,11 +14,12 @@ recipes:
 
   # Default anvil recipes
   exp-reduction:
-    # Crafting bench of the recipe, can be anvil or smithing
+    # Crafting station of the recipe, can be anvil or smithing
     type: anvil
     enabled: true
     # The sacrificial item
     input: minecraft:enchanted_book{StoredEnchantments:[{id:mending,lvl:1}]}
+    input-amount: 1
     # The cost of this recipe, in levels. (Default: 0)
     # Use "dynamic" for dynamic experience cost subject to vanilla limits (max 39 levels)
     # Use "dynamic-unrestricted" for dynamic experience cost
@@ -36,9 +39,10 @@ recipes:
     type: anvil
     enabled: true
     input: minecraft:enchanted_book{StoredEnchantments:[{id:binding_curse,lvl:1}]}
+    input-amount: 1
     exp-cost: dynamic
     # Special command to also bind the beacon to the player
-    __special_set-soulbound-owner: true
+    set-soulbound-owner: true
     modifications:
       add:
         soulbound: 1

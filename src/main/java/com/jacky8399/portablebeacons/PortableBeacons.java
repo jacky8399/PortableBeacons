@@ -10,6 +10,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.logging.Logger;
 
 public final class PortableBeacons extends JavaPlugin {
@@ -62,6 +65,14 @@ public final class PortableBeacons extends JavaPlugin {
 
     @Override
     public void saveConfig() {
+        try {
+            Files.copy(new File(getDataFolder(), "config.yml").toPath(),
+                    new File(getDataFolder(), "config.yml.bak").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            logger.severe("Failed to backup config.yml");
+            ex.printStackTrace();
+        }
+
         Config.saveConfig();
         super.saveConfig();
     }

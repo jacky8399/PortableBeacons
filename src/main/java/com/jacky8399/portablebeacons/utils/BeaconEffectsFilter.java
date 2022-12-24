@@ -22,7 +22,7 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
         this.constraint = constraint;
     }
 
-    public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_]+)(?:(=|<>|<|<=|>|>=)(\\d+))?$");
+    public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_:]+)(?:(=|<>|<|<=|>|>=)(\\d+))?$");
     public static BeaconEffectsFilter fromString(String input) {
         PotionEffectType simplePotion = PotionEffectUtils.parsePotion(input);
         if (simplePotion != null)
