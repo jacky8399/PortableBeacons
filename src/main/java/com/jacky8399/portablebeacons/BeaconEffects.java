@@ -110,7 +110,10 @@ public class BeaconEffects implements Cloneable {
 
     public List<PotionEffect> toEffects() {
         Map<PotionEffectType, Integer> allEffects = getEffects();
-        List<PotionEffect> enabledEffects = new ArrayList<>(allEffects.size() - disabledEffects.size());
+        int capacity = allEffects.size() - disabledEffects.size();
+        if (capacity <= 0)
+            return List.of();
+        List<PotionEffect> enabledEffects = new ArrayList<>(capacity);
         for (Map.Entry<PotionEffectType, Integer> entry : allEffects.entrySet()) {
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();

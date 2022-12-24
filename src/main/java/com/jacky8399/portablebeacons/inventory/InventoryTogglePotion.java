@@ -191,6 +191,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                     return;
                 }
                 effects.remove(type);
+                disabledEffects.remove(type);
             }
             playEdit(e);
             updateItem();
