@@ -56,7 +56,7 @@ public class CommandPortableBeacons implements TabExecutor {
         } else if (args[0].equalsIgnoreCase("item") && sender.hasPermission(COMMAND_PERM + "item")) {
             String operationArg = args[1].split("-", 2)[0];
             if (args.length == 2) {
-                String[] operations = {"give", "add", "remove", "set", "filter", "setowner"};
+                String[] operations = {"give", "add", "subtract", "set", "filter", "setowner", "update"};
                 String[] flags = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
                 List<String> completions = new ArrayList<>();
                 for (String operation : operations) {
@@ -65,6 +65,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         continue;
                     // flags
                     if (operation.equalsIgnoreCase(operationArg)) {
+                        completions.add(operation);
                         for (String flag : flags) {
                             completions.add(operation + flag);
                         }
@@ -497,6 +498,9 @@ public class CommandPortableBeacons implements TabExecutor {
         }
 
         String[] operationWithFlags = args[1].split("-");
+        if (operationWithFlags[0].equals("remove"))
+            operationWithFlags[0] = "subtract";
+
         String operation = operationWithFlags[0];
         if (!checkPermission(sender, "item." + operation))
             return;
@@ -736,7 +740,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 } else if (recipe instanceof SimpleRecipe simpleRecipe) {
                     builder.append("Type: Simple Recipe\n" +
                             "Recipe type: " + simpleRecipe.type().name().toLowerCase(Locale.ENGLISH)).color(YELLOW);
-                    builder.append("Accepts: ").color(WHITE)
+                    builder.append("\nAccepts: ").color(WHITE)
                             .append(CommandUtils.showItem(simpleRecipe.input()))
                             .append("\n").color(WHITE);
                     for (var modification : simpleRecipe.modifications()) {

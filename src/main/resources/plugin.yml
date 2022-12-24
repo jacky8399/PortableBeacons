@@ -61,9 +61,15 @@ permissions:
     children:
       portablebeacons.command.item.give: true
       portablebeacons.command.item.add: true
-      portablebeacons.command.item.remove: true
+      portablebeacons.command.item.subtract: true
       portablebeacons.command.item.set: true
-      portablebeacons.command.item.setenchantment: true
+      portablebeacons.command.item.filter: true
+      portablebeacons.command.item.setowner: true
+
+  portablebeacons.command.item.remove:
+    description: "Support for deprecated remove permission"
+    children:
+      - portablebeacons.command.item.subtract
 
   portablebeacons.command.recipe.*:
     default: op
