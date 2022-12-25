@@ -96,7 +96,7 @@ public class BeaconEffects implements Cloneable {
     }
 
     public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
-        HashMap<PotionEffectType, Integer> map = whitelist ? new HashMap<>() : new HashMap<>(effects);
+        Map<PotionEffectType, Integer> map = whitelist ? new TreeMap<>(effects.comparator()) : new TreeMap<>(effects);
         for (BeaconEffectsFilter filter : filters) {
             if (filter.contains(effects)) {
                 if (whitelist)
@@ -109,12 +109,14 @@ public class BeaconEffects implements Cloneable {
     }
 
     public List<PotionEffect> toEffects() {
+        // don't need the map to be sorted, filter ourselves
         Map<PotionEffectType, Integer> allEffects = getEffects();
         int capacity = allEffects.size() - disabledEffects.size();
         if (capacity <= 0)
             return List.of();
         List<PotionEffect> enabledEffects = new ArrayList<>(capacity);
-        for (Map.Entry<PotionEffectType, Integer> entry : allEffects.entrySet()) {
+        for (var entry : allEffects.entrySet()) {
+            if (disabledEffects.contains(entry.getKey())) continue;
             Config.PotionEffectInfo info = Config.getInfo(entry.getKey());
             int duration = info.getDuration();
             enabledEffects.add(new PotionEffect(entry.getKey(), duration, entry.getValue() - 1, true, !info.isHideParticles()));
@@ -239,7 +241,7 @@ public class BeaconEffects implements Cloneable {
         return beaconEffects;
     }
 
-    @SuppressWarnings({"deprecation", "ConstantConditions"})
+    @SuppressWarnings({"ConstantConditions"})
     public static class BeaconEffectsDataType implements PersistentDataType<PersistentDataContainer, BeaconEffects> {
         private static final PortableBeacons PLUGIN = PortableBeacons.INSTANCE;
 

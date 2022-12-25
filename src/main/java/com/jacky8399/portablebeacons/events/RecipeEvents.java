@@ -59,10 +59,6 @@ public class RecipeEvents implements Listener {
             resultSetter.accept(null);
             return false; // owner only
         }
-        if (Config.debug)
-            PortableBeacons.INSTANCE.logger.info("handleRecipe (preview: %b) for %s in %s: %s".formatted(
-                    preview, player.getName(), view.getType(), right.getType()
-            ));
         BeaconRecipe recipe = RecipeManager.findRecipeFor(view.getType(), beacon, right);
         if (recipe == null) {
             resultSetter.accept(null);
@@ -78,8 +74,8 @@ public class RecipeEvents implements Listener {
                 recipe.getOutput(player, beacon, right);
 
         if (Config.debug)
-            PortableBeacons.INSTANCE.logger.info("handleRecipe (preview: %b) for %s in %s: recipe %s, cost %d, output %s".formatted(
-                    preview, player.getName(), view.getType(), recipe.id(), cost, recipeOutput
+            PortableBeacons.INSTANCE.logger.info("handleRecipe (preview: %b) for %s in %s: recipe %s, cost %d".formatted(
+                    preview, player.getName(), view.getType(), recipe.id(), cost
             ));
         if (recipeOutput == null) {
             resultSetter.accept(null);
