@@ -22,8 +22,6 @@ public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
     @Nullable
     RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input);
 
-    int getCost(ItemStack beacon, ItemStack input);
-
     boolean isApplicableTo(ItemStack beacon, ItemStack input);
 
     Map<String, Object> save();

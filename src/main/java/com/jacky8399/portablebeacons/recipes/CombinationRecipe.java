@@ -20,11 +20,6 @@ public record CombinationRecipe(String id,
                                 boolean showErrorPrompt) implements BeaconRecipe {
 
     @Override
-    public int getCost(ItemStack beacon, ItemStack input) {
-        return expCost.getCost(beacon, input);
-    }
-
-    @Override
     public @Nullable RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
         if (input.getAmount() != 1)
             return null;
@@ -77,7 +72,7 @@ public record CombinationRecipe(String id,
         map.put("type", TYPE);
         map.put("max-effects", maxEffects);
         map.put("combine-effects-additively", combineEffectsAdditively);
-        map.put("exp-cost", expCost.save());
+        map.put("exp-cost", expCost.serialize());
 //        map.put("display-error-prompt", showErrorPrompt);
         return map;
     }
@@ -89,10 +84,10 @@ public record CombinationRecipe(String id,
         if (!map.containsKey("exp-cost")) {
             boolean enforceVanillaExpLimits = ((Boolean) map.getOrDefault("enforce-vanilla-exp-limit", true));
             expCost = enforceVanillaExpLimits ?
-                    ExpCostCalculator.Dynamic.INSTANCE :
+                    ExpCostCalculator.Dynamic.VANILLA :
                     ExpCostCalculator.DynamicUnrestricted.INSTANCE;
         } else {
-            expCost = ExpCostCalculator.valueOf(map.get("exp-cost"));
+            expCost = ExpCostCalculator.deserialize(map.get("exp-cost"));
         }
 //        boolean showErrorPrompt = ((Boolean) map.getOrDefault("show-error-prompt", false));
         return new CombinationRecipe(id, maxEffects, combineEffectsAdditively, expCost, false);

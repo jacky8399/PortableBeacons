@@ -174,7 +174,7 @@ public class Config {
                 continue;
             // enchantment-level was never released
             try {
-                Enchantment ench = Objects.requireNonNull(Enchantment.getByKey(NamespacedKey.fromString(enchStr)),
+                Enchantment ench = Objects.requireNonNull(Enchantment.getByKey(NamespacedKey.fromString(enchStr.toLowerCase(Locale.ENGLISH))),
                         "Invalid enchantment " + enchStr);
                 var fakeStack = new ItemStack(Material.ENCHANTED_BOOK);
                 var meta = (EnchantmentStorageMeta) fakeStack.getItemMeta();
@@ -186,7 +186,7 @@ public class Config {
                 var recipe = new SimpleRecipe(
                         customEnch, InventoryType.ANVIL, fakeStack,
                         List.of(new BeaconModification(BeaconModification.Type.ADD, virtualEffects)),
-                        ExpCostCalculator.Dynamic.INSTANCE,
+                        ExpCostCalculator.Dynamic.VANILLA,
                         customEnch.equals("soulbound") ?
                                 EnumSet.of(SimpleRecipe.SpecialOps.SET_SOULBOUND_OWNER) :
                                 EnumSet.noneOf(SimpleRecipe.SpecialOps.class)

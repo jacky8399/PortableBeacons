@@ -6,6 +6,11 @@ import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.recipes.BeaconRecipe;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.TranslatableComponent;
+import net.md_5.bungee.chat.ComponentSerializer;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -24,6 +29,24 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class RecipeEvents implements Listener {
+
+    private static ItemStack showError(String error) {
+        ItemStack stack = new ItemStack(Material.BARRIER);
+        ItemMeta meta = stack.getItemMeta();
+        meta.setDisplayName(ChatColor.RED + error);
+        stack.setItemMeta(meta);
+        return stack;
+    }
+    private static ItemStack showLocalizedError(String error) {
+        ItemStack stack = new ItemStack(Material.BARRIER);
+        ItemMeta meta = stack.getItemMeta();
+        var translatable = new TranslatableComponent(error);
+        translatable.setColor(ChatColor.RED);
+        translatable.setItalic(false);
+        ItemUtils.setDisplayName(meta, translatable);
+        stack.setItemMeta(meta);
+        return stack;
+    }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onGrindstoneItem(InventoryClickEvent e) {
@@ -64,8 +87,16 @@ public class RecipeEvents implements Listener {
             resultSetter.accept(null);
             return false; // no recipe
         }
-        int cost = recipe.getCost(beacon, right);
+        int cost = recipe.expCost().getCost(beacon, right);
         if (cost < 0) { // disallowed
+            if (preview) { // Too expensive!
+                if (inv instanceof AnvilInventory anvilInventory) {
+                    Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> anvilInventory.setRepairCost(40));
+                } else {
+                    resultSetter.accept(showLocalizedError("container.repair.expensive"));
+                    return false;
+                }
+            }
             resultSetter.accept(null);
             return false;
         }
@@ -86,21 +117,31 @@ public class RecipeEvents implements Listener {
         boolean canAfford = player.getGameMode() == GameMode.CREATIVE || level >= cost;
 
         if (preview) {
-            var result = recipeOutput.output();
+            var result = recipeOutput.output().clone();
+            ItemMeta meta = result.getItemMeta();
+            List<String> lore = meta.hasLore() ? new ArrayList<>(ItemUtils.getRawLore(meta)) : new ArrayList<>();
+            int oldSize = lore.size();
             if (cost > 0) {
-                ItemMeta meta = result.getItemMeta();
-                @SuppressWarnings("ConstantConditions")
-                List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
-                if (inv instanceof AnvilInventory anvilInventory && anvilInventory.getMaximumRepairCost() > cost) {
+                if (inv instanceof AnvilInventory anvilInventory &&
+                        (cost < anvilInventory.getMaximumRepairCost() || player.getGameMode() == GameMode.CREATIVE)) {
                     Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> anvilInventory.setRepairCost(cost));
                 } else {
-                    lore.add("");
-                    lore.add("" + (canAfford ? ChatColor.GREEN : ChatColor.RED) + ChatColor.BOLD + "Enchantment cost: " + cost);
+                    var translatable = new TranslatableComponent("container.repair.cost", Integer.toString(cost));
+                    translatable.setColor(canAfford ? ChatColor.GREEN : ChatColor.RED);
+                    translatable.setItalic(false);
+                    translatable.setBold(true);
+
+                    lore.add(ComponentSerializer.toString(new TextComponent()));
+                    lore.add(ComponentSerializer.toString(translatable));
                 }
-                if (Config.debug) {
-                    lore.add("" + ChatColor.GRAY + "Recipe: " + recipe.id());
-                }
-                meta.setLore(lore);
+            }
+            if (Config.debug) {
+                var recipeComponent = new ComponentBuilder("Recipe: " + recipe.id())
+                        .color(ChatColor.GRAY).italic(false).create();
+                lore.add(ComponentSerializer.toString(recipeComponent));
+            }
+            if (lore.size() != oldSize) {
+                ItemUtils.setRawLore(meta, lore);
                 result.setItemMeta(meta);
             }
             resultSetter.accept(result);
@@ -164,6 +205,9 @@ public class RecipeEvents implements Listener {
 
     // replicate vanilla behavior
     private static void handleClick(InventoryClickEvent e, ItemStack result) {
+        if (result == null)
+            return;
+
         Inventory craftingInventory = e.getInventory();
         Sound sound = switch (craftingInventory.getType()) {
             case ANVIL -> Sound.BLOCK_ANVIL_USE;
@@ -173,26 +217,28 @@ public class RecipeEvents implements Listener {
 
         Player player = (Player) e.getWhoClicked();
         PlayerInventory inventory = player.getInventory();
-        World world = player.getWorld();
-        Location location = player.getLocation();
 
         // play crafting station sound
-        player.playSound(player, sound, SoundCategory.BLOCKS, 1, 1);
+        player.getWorld().playSound(player, sound, SoundCategory.BLOCKS, 1, 1);
 
         ItemStack cursor = e.getCursor();
         switch (e.getClick()) {
             case LEFT, RIGHT -> {
-                if (cursor == null || !cursor.isSimilar(result)) {
+                if (cursor == null) {
                     player.setItemOnCursor(result);
+                } else if (!cursor.isSimilar(result)) {
+                    player.setItemOnCursor(result);
+                    dropItemAs(player, cursor);
                 } else {
                     cursor.setAmount(cursor.getAmount() + result.getAmount());
                     player.setItemOnCursor(cursor);
                 }
             }
-            case DROP, CONTROL_DROP -> world.dropItemNaturally(location, result);
+            // DROP, CONTROL_DROP, default
+            default -> dropItemAs(player, result);
             case SHIFT_LEFT, SHIFT_RIGHT -> {
                 var leftOver = inventory.addItem(result);
-                leftOver.forEach((ignored, stack) -> world.dropItemNaturally(location, stack));
+                leftOver.forEach((ignored, stack) -> dropItemAs(player, stack));
             }
             case SWAP_OFFHAND, NUMBER_KEY -> {
                 int slot = e.getHotbarButton();
@@ -206,7 +252,7 @@ public class RecipeEvents implements Listener {
                         leftOver = inventory.addItem(original);
                     inventory.setItem(slot, result);
                 }
-                leftOver.forEach((ignored, stack) -> world.dropItemNaturally(location, stack));
+                leftOver.forEach((ignored, stack) -> dropItemAs(player, stack));
             }
             case MIDDLE, CREATIVE -> {
                 if (player.getGameMode() == GameMode.CREATIVE) {
@@ -214,9 +260,18 @@ public class RecipeEvents implements Listener {
                     clone.setAmount(clone.getMaxStackSize());
                     player.setItemOnCursor(clone);
                 } else {
-                    world.dropItemNaturally(location, result);
+                    dropItemAs(player, result);
                 }
             }
         }
+    }
+
+    private static void dropItemAs(Player player, ItemStack stack) {
+        Location location = player.getEyeLocation();
+        player.getWorld().dropItem(location, stack, item -> {
+            item.setThrower(player.getUniqueId());
+            item.setOwner(player.getUniqueId());
+            item.setVelocity(location.getDirection());
+        });
     }
 }

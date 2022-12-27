@@ -62,11 +62,6 @@ public record SimpleRecipe(String id,
     }
 
     @Override
-    public int getCost(ItemStack beacon, ItemStack input) {
-        return expCost.getCost(beacon, input);
-    }
-
-    @Override
     public boolean isApplicableTo(ItemStack beacon, ItemStack input) {
         // enchanted_book isSimilar behaves weirdly
         if (this.input.getType() == Material.ENCHANTED_BOOK) {
@@ -97,7 +92,7 @@ public record SimpleRecipe(String id,
             modMap.putAll(mod.save());
         }
         map.put("modifications", modMap);
-        map.put("exp-cost", expCost.save());
+        map.put("exp-cost", expCost.serialize());
         for (var specialValue : specialOperations) {
             map.put(specialValue.key, true);
         }
@@ -125,7 +120,7 @@ public record SimpleRecipe(String id,
         var modifications = modificationsMap.entrySet().stream()
                 .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
                 .toList();
-        var expCost = ExpCostCalculator.valueOf(map.getOrDefault("exp-cost", 0));
+        var expCost = ExpCostCalculator.deserialize(map.getOrDefault("exp-cost", 0));
         var specialOps = EnumSet.noneOf(SpecialOps.class);
         for (var special : SpecialOps.values()) {
             if (map.get(special.key) instanceof Boolean bool && bool)

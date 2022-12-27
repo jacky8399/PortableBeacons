@@ -45,7 +45,9 @@ public class CommandPortableBeacons implements TabExecutor {
         if (tabCompletion == null)
             return Collections.emptyList();
         String input = args[args.length - 1];
-        return tabCompletion.filter(completion -> completion.startsWith(input)).toList();
+        return tabCompletion
+//                .filter(completion -> completion.startsWith(input))
+                .toList();
     }
 
     private static final Pattern EXP_COST_PATTERN = Pattern.compile("^\\d+|dy");
@@ -117,7 +119,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         // <item>/<expCost>
                         case 5 -> {
                             if (looksLikeItem) {
-                                yield Stream.of("0", "1", "2", "dynamic", "dynamic-unrestricted");
+                                yield CommandUtils.listExpCosts(args[args.length - 1]);
                             } else {
                                 yield Arrays.stream(Material.values())
                                         .map(Material::getKey)
@@ -658,7 +660,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (stack.getType().isAir())
                     throw promptUsage(label, RECIPE_CREATE_USAGE, "item must not be air");
 
-                ExpCostCalculator expCost = ExpCostCalculator.valueOf(args[4 + argOffset]);
+                ExpCostCalculator expCost = ExpCostCalculator.deserialize(args[4 + argOffset]);
                 BeaconModification.Type action = BeaconModification.Type.parseType(args[5 + argOffset]);
                 BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 6 + argOffset, args.length), true);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
@@ -760,7 +762,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
                 builder.append("Exp cost: " + (recipe.expCost() instanceof ExpCostCalculator.Fixed fixed ?
                         fixed.level() + " levels" :
-                        recipe.expCost().save()));
+                        recipe.expCost().serialize()));
                 sender.spigot().sendMessage(builder.create());
             }
         }

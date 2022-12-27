@@ -119,6 +119,15 @@ public class CommandUtils {
         }
     }
 
+    public static Stream<String> listExpCosts(String input) {
+        if (input.startsWith("dynamic-max")) {
+            return IntStream.rangeClosed(1, 100)
+                    .mapToObj(i -> "dynamic-max" + i);
+        } else {
+            return Stream.of("0", "1", "dynamic", "dynamic-unrestricted", "dynamic-max");
+        }
+    }
+
     @NotNull
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowVirtual) {
         boolean seenEqualsPrompt = false;
@@ -166,5 +175,30 @@ public class CommandUtils {
         }
         beaconEffects.setEffects(effects);
         return beaconEffects;
+    }
+
+    private static void serializeComponentRecursively(List<BaseComponent> components, StringBuilder builder) {
+        for (var component : components) {
+            if (component instanceof TextComponent text) {
+                builder.append(text.getText());
+            } else if (component instanceof TranslatableComponent translatable) {
+                builder.append(translatable.getTranslate());
+            }
+            if (component.getExtra() != null) {
+                serializeComponentRecursively(component.getExtra(), builder);
+            }
+        }
+    }
+
+    public static String serializeComponentPlain(BaseComponent component) {
+        var builder = new StringBuilder();
+        serializeComponentRecursively(List.of(component), builder);
+        return builder.toString();
+    }
+
+    public static String serializeComponentPlain(BaseComponent @NotNull... components) {
+        var builder = new StringBuilder();
+        serializeComponentRecursively(Arrays.asList(components), builder);
+        return builder.toString();
     }
 }

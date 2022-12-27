@@ -2,6 +2,9 @@ package com.jacky8399.portablebeacons.utils;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.PortableBeacons;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.chat.ComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -12,6 +15,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -87,21 +92,66 @@ public class ItemUtils {
         return newIs;
     }
 
-    private static int getCost(BeaconEffects effects) {
-        return effects.getEffects().values().stream().mapToInt(level -> 1 << level).sum();
+    /*
+        Spigot stores the display name and lore as JSON strings internally, but there is no API to set them to a JSON text.
+        https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/browse/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java?at=64c15270e76475e68b2167d4bfba162a4a827fe0#267
+     */
+    private static final VarHandle ITEM_META_DISPLAY_NAME;
+    private static final VarHandle ITEM_META_LORE;
+    static {
+        Class<? extends ItemMeta> clazz = Bukkit.getItemFactory().getItemMeta(Material.STONE).getClass();
+        VarHandle itemMetaDisplayName = null;
+        VarHandle itemMetaLore = null;
+        try {
+            var privateLookup = MethodHandles.privateLookupIn(clazz, MethodHandles.lookup());
+            itemMetaDisplayName = privateLookup.findVarHandle(clazz, "displayName", String.class);
+            itemMetaLore = privateLookup.findVarHandle(clazz, "lore", List.class);
+        } catch (ReflectiveOperationException ex) {
+            PortableBeacons.INSTANCE.logger.warning("Failed to find displayName/lore field in " + clazz.getName());
+        }
+        ITEM_META_DISPLAY_NAME = itemMetaDisplayName;
+        ITEM_META_LORE = itemMetaLore;
+    }
+    public static void setDisplayName(ItemMeta meta, BaseComponent @Nullable... components) {
+        if (components == null) {
+            meta.setDisplayName(null);
+            return;
+        }
+
+        if (ITEM_META_DISPLAY_NAME == null) {
+            // failed to find displayName field
+            meta.setDisplayName(CommandUtils.serializeComponentPlain(components));
+        } else {
+            String json = ComponentSerializer.toString(components);
+            ITEM_META_DISPLAY_NAME.set(meta, json);
+        }
     }
 
-    public static int calculateCombinationCost(ItemStack is1, ItemStack is2) {
-        if (!isPortableBeacon(is1))
-            return 0;
-        if (isPortableBeacon(is2)) {
-            BeaconEffects e1 = getEffects(is1), e2 = getEffects(is2);
-            return getCost(e1) + getCost(e2);
-        } else if (is2 != null && is2.getType() == Material.ENCHANTED_BOOK) {
-            BeaconEffects effects = getEffects(is1);
-            return getCost(effects);
+    public static void setLore(ItemMeta meta, @Nullable List<BaseComponent> lore) {
+        if (lore == null) {
+            meta.setLore(null);
+            return;
         }
-        return 0;
+
+        if (ITEM_META_LORE == null) {
+            meta.setLore(lore.stream().map(CommandUtils::serializeComponentPlain).toList());
+        } else {
+            List<String> newLore = lore.stream().map(ComponentSerializer::toString).toList();
+            ITEM_META_LORE.set(meta, newLore);
+        }
+    }
+
+    public static void setRawLore(ItemMeta meta, @Nullable List<String> lore) {
+        if (ITEM_META_LORE == null) {
+            meta.setLore(lore);
+        } else {
+            ITEM_META_LORE.set(meta, lore);
+        }
+    }
+
+    @Nullable
+    public static List<String> getRawLore(ItemMeta meta) {
+        return ITEM_META_LORE != null ? (List<String>) ITEM_META_LORE.get(meta) : meta.getLore();
     }
 
     private static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{(.+?)}");

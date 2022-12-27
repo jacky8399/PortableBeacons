@@ -205,9 +205,8 @@ public class InventoryTogglePotion implements InventoryProvider {
             if (!clicked.hasPermission(ADD_POTION_PERM))
                 return;
             var cursor = e.getCursor();
-            if (cursor == null || cursor.getType() != Material.POTION)
+            if (cursor == null || !(cursor.getItemMeta() instanceof PotionMeta potionMeta))
                 return;
-            PotionMeta potionMeta = (PotionMeta) cursor.getItemMeta();
             var basePotion = potionMeta.getBasePotionData();
             if (basePotion.getType().getEffectType() != null) {
                 PotionEffectType potion = basePotion.getType() == PotionType.TURTLE_MASTER ?
