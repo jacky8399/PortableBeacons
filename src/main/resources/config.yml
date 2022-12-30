@@ -21,7 +21,7 @@ beacon-item:
     disable-if-already-own-beacon-item: true # Don't remind player if they already have a beacon in their inventory
 
   # Enchantments to further enhance the effects of a portable beacon
-  # To se
+  # See recipes.yml
   custom-enchantments:
     # Reduces the experience upkeep
     exp-reduction:

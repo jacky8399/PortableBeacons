@@ -13,6 +13,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
@@ -29,7 +30,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.jacky8399.portablebeacons.utils.CommandUtils.displayItem;
 import static net.md_5.bungee.api.ChatColor.*;
+import static net.md_5.bungee.api.chat.ComponentBuilder.FormatRetention.NONE;
 
 public class CommandPortableBeacons implements TabExecutor {
     private static final String COMMAND_PERM = "portablebeacons.command.";
@@ -37,7 +40,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
     private static final String ITEM_USAGE = "item <give/add/set/subtract/setowner/filter>[-silently/-modify-all] <players> <...>";
     private static final String RECIPE_USAGE = "recipe <list/create/info/enable/disable/testinput> [...]";
-    private static final String RECIPE_CREATE_USAGE = "recipe create <id> <type> [item] <expCost> <action> <modifications...>";
+    private static final String RECIPE_CREATE_USAGE = "recipe create <id> <type> [item] [itemAmount] <expCost> <action> <modifications...>";
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
@@ -46,7 +49,7 @@ public class CommandPortableBeacons implements TabExecutor {
             return Collections.emptyList();
         String input = args[args.length - 1];
         return tabCompletion
-//                .filter(completion -> completion.startsWith(input))
+                .filter(completion -> completion.startsWith(input))
                 .toList();
     }
 
@@ -110,13 +113,14 @@ public class CommandPortableBeacons implements TabExecutor {
                 case "create" -> {
                     if (!sender.hasPermission(COMMAND_PERM + "recipe.create"))
                         return null;
-                    boolean looksLikeItem = args.length >= 5 && !args[4].isEmpty() && !EXP_COST_PATTERN.matcher(args[4]).find();
-                    return switch (args.length - (looksLikeItem ? 1 : 0)) {
+                    boolean looksLikeItem = args.length >= 6 && !args[4].isEmpty() && !args[5].isEmpty() &&
+                            !EXP_COST_PATTERN.matcher(args[4]).find();
+                    return switch (args.length - (looksLikeItem ? 2 : 0)) {
                         // <id>
                         case 3 -> null;
                         // <type>
                         case 4 -> Stream.of("anvil", "smithing");
-                        // <item>/<expCost>
+                        // [item]/<expCost>
                         case 5 -> {
                             if (looksLikeItem) {
                                 yield CommandUtils.listExpCosts(args[args.length - 1]);
@@ -126,8 +130,14 @@ public class CommandPortableBeacons implements TabExecutor {
                                         .map(NamespacedKey::toString);
                             }
                         }
-                        // <action>
-                        case 6 -> Stream.of("add", "set", "subtract");
+                        // [itemAmount]/<action>
+                        case 6 -> {
+                            if (looksLikeItem) {
+                                yield Stream.of("add", "set", "subtract");
+                            } else {
+                                yield null;
+                            }
+                        }
                         // <modifications...>
                         default -> CommandUtils.listModifications(args[args.length - 1], true);
                     };
@@ -151,16 +161,13 @@ public class CommandPortableBeacons implements TabExecutor {
         return result;
     }
 
+    private void assertPermission(CommandSender sender, String permission) {
+        if (!sender.hasPermission(COMMAND_PERM + permission))
+            throw new IllegalStateException(RED + "You don't have permission to do this!");
+    }
+
     private RuntimeException promptUsage(String label, String usage) {
         return new RuntimeException("Usage: /" + label + " " + usage);
-    }
-
-    private RuntimeException promptUsage(String label, String usage, Throwable cause) {
-        return new RuntimeException("Usage: /" + label + " " + usage, cause);
-    }
-
-    private RuntimeException promptUsage(String label, String usage, String cause) {
-        return new RuntimeException("Usage: /" + label + " " + usage, new RuntimeException(cause));
     }
 
     @Override
@@ -176,8 +183,13 @@ public class CommandPortableBeacons implements TabExecutor {
             runCommand(sender, command, label, args);
         } catch (Exception ex) {
             sender.sendMessage(RED + ex.getMessage());
-            if (ex.getCause() != null) {
-                sender.sendMessage(RED + "(Caused by " + ex.getCause() + ")");
+            Throwable cause = ex.getCause();
+            while (cause != null) {
+                sender.sendMessage(RED + "(Caused by " + cause.getClass().getSimpleName() + ": " + cause.getMessage() + ")");
+                cause = cause.getCause();
+            }
+            if (Config.debug) {
+                ex.printStackTrace();
             }
         }
         return true;
@@ -240,7 +252,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (oldRitualItem.getType() == Material.AIR)
                     builder.append("air").color(YELLOW);
                 else
-                    builder.append(CommandUtils.showItem(oldRitualItem));
+                    builder.append(displayItem(oldRitualItem));
                 builder.append(" to ").color(GREEN);
 
                 if (stack.getType() == Material.AIR) {
@@ -265,7 +277,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                 } else {
                     Config.ritualItem = stack.clone();
-                    sender.spigot().sendMessage(builder.append(CommandUtils.showItem(stack)).create());
+                    sender.spigot().sendMessage(builder.append(displayItem(stack)).create());
                 }
                 // clear old ritual items
                 Events.INSTANCE.ritualItems.clear();
@@ -325,10 +337,10 @@ public class CommandPortableBeacons implements TabExecutor {
             canUseBeacons = WorldGuardHelper.canUseBeacons(target);
             effectiveEffects = WorldGuardHelper.filterBeaconEffects(target, effects);
         }
-        Map<PotionEffectType, Integer> effectsMap = effects.getEffects();
-        Map<PotionEffectType, Integer> effectiveEffectsMap = effectiveEffects.getEffects();
+        Map<PotionEffectType, Integer> potions = effects.getEffects();
+        Map<PotionEffectType, Integer> effectivePotions = effectiveEffects.getEffects();
         sender.sendMessage(GREEN + "Potion effects:");
-        for (Map.Entry<PotionEffectType, Integer> entry : effectsMap.entrySet()) {
+        for (var entry : potions.entrySet()) {
             PotionEffectType type = entry.getKey();
             int level = entry.getValue();
             // format used in commands
@@ -336,11 +348,9 @@ public class CommandPortableBeacons implements TabExecutor {
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
                     .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(type, level)))
-                    .append(" ", ComponentBuilder.FormatRetention.NONE)
+                    .append(" ", NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
-                    .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                            new Text(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create())
-                    ))
+                    .event(CommandUtils.showText(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create()))
                     .event(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, internalFormat))
                     .create();
 
@@ -351,7 +361,7 @@ public class CommandPortableBeacons implements TabExecutor {
             } else if (!canUseBeacons) {
                 disabledMsg = "Target is in a WorldGuard region where Portable Beacons are disabled!\n" +
                         "Check 'allow-portable-beacons' of the region.";
-            } else if (!effectiveEffectsMap.containsKey(type)) {
+            } else if (!effectivePotions.containsKey(type)) {
                 disabledMsg = "Target is in a WorldGuard region where " + PotionEffectUtils.getName(entry.getKey()) +
                         " is disabled!\nCheck 'allowed-beacon-effects'/'blocked-beacon-effects' of the region.";
             } else if (effects.getDisabledEffects().contains(type)) { // disabled
@@ -360,18 +370,15 @@ public class CommandPortableBeacons implements TabExecutor {
 
             if (disabledMsg != null) {
                 // an interesting way to apply strikethrough to the entire component
-                TextComponent potionDisplayStrikethrough = new TextComponent();
-                potionDisplayStrikethrough.setExtra(Arrays.asList(potionDisplay));
+                TextComponent potionDisplayStrikethrough = new TextComponent(potionDisplay);
 
                 BaseComponent[] actualDisplay = new ComponentBuilder()
                         .append(potionDisplayStrikethrough).strikethrough(true)
-                        .append(" DISABLED ", ComponentBuilder.FormatRetention.NONE)
+                        .append(" DISABLED ", NONE)
                         .color(DARK_GRAY).italic(true)
-                        .append("[?]", ComponentBuilder.FormatRetention.NONE)
+                        .append("[?]", NONE)
                         .color(DARK_GRAY)
-                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                new Text(new ComponentBuilder(disabledMsg).color(RED).create())
-                        ))
+                        .event(CommandUtils.showText(new ComponentBuilder(disabledMsg).color(RED).create()))
                         .create();
                 sender.spigot().sendMessage(actualDisplay);
                 if (!showHoverMessages) { // show consoles too
@@ -386,28 +393,37 @@ public class CommandPortableBeacons implements TabExecutor {
         sender.sendMessage(GREEN + "Custom data version: " + YELLOW + effects.customDataVersion);
         if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
             sender.sendMessage(GREEN + "Enchantments:");
-            if (effects.expReductionLevel != 0)
-                sender.sendMessage(String.format("  %sEXP_REDUCTION %d (%.2f%% exp consumption)",
-                        YELLOW, effects.expReductionLevel,
-                        Math.max(0, 1 - effects.expReductionLevel * Config.enchExpReductionReductionPerLevel) * 100));
-            if (effects.soulboundLevel != 0)
-                sender.sendMessage(String.format("  %sSOULBOUND %d (bound to %s)",
-                        YELLOW, effects.soulboundLevel,
-                        (effects.soulboundOwner != null ?
-                                Bukkit.getOfflinePlayer(effects.soulboundOwner).getName()+" - "+effects.soulboundOwner :
-                                "no-one"))
-                );
+            if (effects.expReductionLevel != 0) {
+                double multiplier = Math.max(0, 1 - effects.expReductionLevel * Config.enchExpReductionReductionPerLevel) * 100;
+                sender.spigot().sendMessage(new ComponentBuilder("  ")
+                        .append(Config.enchExpReductionName + " " + effects.expReductionLevel)
+                        .append(" (", NONE)
+                        .append("%.2f".formatted(multiplier) + "% exp consumption)")
+                        .create());
+            }
+            if (effects.soulboundLevel != 0) {
+                var builder = new ComponentBuilder("  ")
+                        .append(Config.enchSoulboundName + " " + effects.soulboundLevel);
+                if (effects.soulboundOwner != null) {
+                    String name = Bukkit.getOfflinePlayer(effects.soulboundOwner).getName();
+                    builder.append("(" + (name != null ? name : effects.soulboundOwner.toString()) + ")", NONE)
+                            .event(CommandUtils.showEntity(EntityType.PLAYER, effects.soulboundOwner,
+                                    name != null ? new TextComponent(name) : null));
+                } else {
+                    builder.append("(not bound to a player)", NONE);
+                }
+                sender.spigot().sendMessage(builder.create());
+            }
         }
         if (Config.nerfExpLevelsPerMinute > 0) {
             double perMinute = effects.calcExpPerMinute();
             String expUnit = " levels";
-            if (sender instanceof Player) {
-                TextComponent consumptionText = new TextComponent();
-                consumptionText.setExtra(Arrays.asList(
+            if (showHoverMessages) {
+                TextComponent consumptionText = new TextComponent(
                         new ComponentBuilder(String.format("%.2f%s/min", perMinute, expUnit)).color(YELLOW)
                                 .append(" [hover for details]").color(GRAY)
                                 .create()
-                ));
+                );
                 String consumptionHoverText = YELLOW + "Consumes " +
                         String.format(GREEN + "%.1f%3$s" + YELLOW + " / " + AQUA + "%.1f%3$s", perMinute / 16, perMinute * 60, expUnit) +
                         YELLOW + " per " + GREEN + "3.75s" + YELLOW + " / " + AQUA + "hour\n" +
@@ -436,25 +452,115 @@ public class CommandPortableBeacons implements TabExecutor {
         }
     }
 
-    static void editPlayers(CommandSender sender, List<Player> players, Predicate<BeaconEffects> modifier,
-                            boolean silent, boolean modifyAll) {
-        List<Player> succeeded = new ArrayList<>();
-        List<Player> failedPlayers = new ArrayList<>();
+    public void doItem(CommandSender sender, String[] args, String label) {
+        CommandUtils.ArgumentParser parser = CommandUtils.parse(sender, label, ITEM_USAGE, args, 1);
+
+        String[] operationWithFlags = parser.popWord().split("-");
+        if (operationWithFlags[0].equals("remove"))
+            operationWithFlags[0] = "subtract";
+
+        String operation = operationWithFlags[0];
+        assertPermission(sender, "item." + operation);
+        boolean silent = false, modifyAll = false;
+        for (int i = 1; i < operationWithFlags.length; i++) {
+            String flag = operationWithFlags[i];
+            if ("silently".equalsIgnoreCase(flag)) {
+                silent = true;
+            } else if ("all".equalsIgnoreCase(flag) && "modify".equalsIgnoreCase(operationWithFlags[i - 1])) {
+                modifyAll = true;
+                sender.sendMessage(YELLOW + "Name of the flag '-modify-all' is subject to change.");
+            } else if (!"modify".equalsIgnoreCase(flag)) {
+                sender.sendMessage(RED + "Unknown flag -" + flag);
+            }
+        }
+
+        List<Player> players = parser.popPlayers(false);
+
+        Predicate<BeaconEffects> modification;
+        switch (operation) {
+            case "give" -> {
+                parser.updateUsage("item give <players> <effects...>");
+                BeaconEffects beaconEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), false);
+                ItemStack stack = ItemUtils.createStack(beaconEffects);
+                Set<Player> failedPlayers = new HashSet<>();
+                for (Player p : players) {
+                    Map<Integer, ItemStack> unfit = p.getInventory().addItem(stack);
+                    if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
+                        failedPlayers.add(p);
+                    else if (!silent)
+                        p.sendMessage(GREEN + "You were given a portable beacon!");
+                }
+
+                sender.sendMessage(GREEN + "Given " + players.stream()
+                        .filter(player -> !failedPlayers.contains(player))
+                        .map(Player::getName)
+                        .collect(Collectors.joining(", "))
+                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore()));
+                if (failedPlayers.size() != 0)
+                    sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
+                            " couldn't be given a portable beacon because their inventory is full.");
+                return; // don't need to modify inventory
+            }
+            case "update" -> modification = ignored -> true;
+            case "setowner" -> {
+                parser.updateUsage("item setowner <players> <ownerUUID/ownerName>");
+                UUID uuid;
+                try {
+                    uuid = UUID.fromString(parser.popWord());
+                } catch (IllegalArgumentException ignored) {
+                    Player newOwner = Bukkit.getPlayer(parser.popWord());
+                    if (newOwner != null) {
+                        uuid = newOwner.getUniqueId();
+                    } else {
+                        throw parser.throwUsage("Invalid UUID or player name '" + args[3] + "'");
+                    }
+                }
+                UUID finalUuid = uuid;
+                modification = effects -> {
+                    effects.soulboundOwner = finalUuid;
+                    return true;
+                };
+            }
+            case "filter" -> {
+                parser.updateUsage("item filter <players> <allow/block> <filters...>");
+                boolean whitelist = parser.popWord().equalsIgnoreCase("allow");
+                String[] filtersString = parser.popRemainingInput();
+                Set<BeaconEffectsFilter> filters = new HashSet<>();
+                for (String filterString : filtersString) {
+                    try {
+                        filters.add(BeaconEffectsFilter.fromString(filterString));
+                    } catch (IllegalArgumentException e) {
+                        throw parser.throwUsage("Invalid filter " + filterString + ": " + e.getMessage());
+                    }
+                }
+                modification = effects -> {
+                    effects.filter(filters, whitelist);
+                    return true;
+                };
+            }
+            default -> {
+                parser.updateUsage("item " + args[1] + " <players> <effects...>");
+                var modificationType = BeaconModification.Type.parseType(operation);
+
+                BeaconEffects virtual = CommandUtils.parseEffects(sender, parser.popRemainingInput(), true);
+                modification = new BeaconModification(modificationType, virtual, true);
+            }
+        }
+        Set<Player> failedPlayers = new LinkedHashSet<>();
 
         for (Player player : players) {
             if (modifyAll) { // modify inventory
                 boolean success = false;
                 for (ListIterator<ItemStack> iterator = player.getInventory().iterator(); iterator.hasNext(); ) {
                     ItemStack stack = iterator.next();
-                    if (!ItemUtils.isPortableBeacon(stack))
-                        continue;
                     BeaconEffects effects = ItemUtils.getEffects(stack);
-                    success = modifier.test(effects);
+                    if (effects == null)
+                        continue;
+                    success = modification.test(effects);
                     if (success)
                         iterator.set(ItemUtils.createStackCopyItemData(effects, stack));
                 }
                 if (success) {
-                    succeeded.add(player);
                     if (!silent)
                         player.sendMessage(GREEN + "One or more of your portable beacon was modified!");
                 } else {
@@ -469,9 +575,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
-                if (modifier.test(effects)) {
+                if (modification.test(effects)) {
                     inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
-                    succeeded.add(player);
                     if (!silent)
                         player.sendMessage(GREEN + "Your portable beacon was modified!");
                 } else {
@@ -480,189 +585,44 @@ public class CommandPortableBeacons implements TabExecutor {
             }
         }
 
-        succeeded.removeAll(failedPlayers);
-
-        if (succeeded.size() != 0)
-            sender.sendMessage(GREEN + "Modified " +
-                    (modifyAll ? "beacons on " : "held beacon of ") +
-                    succeeded.stream().map(Player::getName).collect(Collectors.joining(", ")));
+        sender.sendMessage(GREEN + "Modified " + (modifyAll ? "beacons on " : "held beacon of ") +
+                players.stream()
+                        .filter(player -> !failedPlayers.contains(player))
+                        .map(Player::getName)
+                        .collect(Collectors.joining(", ")));
         if (failedPlayers.size() != 0)
-            sender.sendMessage(RED + "Failed to apply the operation on " +
-                    failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
-                    " because they " +
-                    (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon.")
-            );
-    }
-
-    public void doItem(CommandSender sender, String[] args, String label) {
-        if (args.length < 3) {
-            throw promptUsage(label, ITEM_USAGE);
-        }
-
-        String[] operationWithFlags = args[1].split("-");
-        if (operationWithFlags[0].equals("remove"))
-            operationWithFlags[0] = "subtract";
-
-        String operation = operationWithFlags[0];
-        if (!checkPermission(sender, "item." + operation))
-            return;
-        boolean silent = false, modifyAll = false;
-        for (int i = 1; i < operationWithFlags.length; i++) {
-            String flag = operationWithFlags[i];
-            if ("silently".equalsIgnoreCase(flag)) {
-                silent = true;
-            } else if ("all".equalsIgnoreCase(flag) && "modify".equalsIgnoreCase(operationWithFlags[i - 1])) {
-                modifyAll = true;
-                sender.sendMessage(YELLOW + "Name of the flag '-modify-all' is subject to change.");
-            } else if (!"modify".equalsIgnoreCase(flag)) {
-                sender.sendMessage(RED + "Unknown flag -" + flag);
-            }
-        }
-
-        List<Player> players;
-        if (sender.hasPermission("minecraft.command.selector")) {
-            players = Bukkit.selectEntities(sender, args[2]).stream()
-                    .map(entity -> entity instanceof Player player ? player : null)
-                    .filter(Objects::nonNull)
-                    .toList();
-        } else {
-            Player player = Bukkit.getPlayer(args[2]);
-            players = player != null ? List.of(player) : List.of();
-        }
-
-        if (players.size() == 0) {
-            sender.sendMessage(RED + "No player selected");
-            return;
-        }
-
-        switch (operation) {
-            case "give" -> {
-                if (args.length < 4) {
-                    throw promptUsage(label, "item "  + args[1] + " <players> <effects...>");
-                }
-                BeaconEffects beaconEffects = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), false);
-                ItemStack stack = ItemUtils.createStack(beaconEffects);
-                Set<Player> failedPlayers = new HashSet<>();
-
-                for (Player p : players) {
-                    Map<Integer, ItemStack> unfit = p.getInventory().addItem(stack);
-                    if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
-                        failedPlayers.add(p);
-                    else if (!silent)
-                        p.sendMessage(GREEN + "You were given a portable beacon!");
-                }
-
-                sender.sendMessage(GREEN + "Given " +
-                        players.stream()
-                                .filter(player -> !failedPlayers.contains(player))
-                                .map(Player::getName)
-                                .collect(Collectors.joining(", "))
-                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore()));
-                if (failedPlayers.size() != 0)
-                    sender.sendMessage(RED +
-                            failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
-                            " couldn't be given a portable beacon because their inventory is full.");
-            }
-            case "update" -> editPlayers(sender, players, ignored -> true, silent, modifyAll);
-            case "setowner" -> {
-                if (args.length < 4) {
-                    throw promptUsage(label, "item "  + args[1] + " <players> <ownerUUID/ownerName>");
-                }
-                UUID uuid;
-                try {
-                    uuid = UUID.fromString(args[3]);
-                } catch (IllegalArgumentException ignored) {
-                    Player newOwner = Bukkit.getPlayer(args[3]);
-                    if (newOwner != null) {
-                        uuid = newOwner.getUniqueId();
-                    } else {
-                        sender.sendMessage(RED + "Couldn't find UUID or online player '" + args[3] + "'!");
-                        throw promptUsage(label, "item setowner <players> <ownerUUID/ownerName>");
-                    }
-                }
-                UUID finalUuid = uuid;
-                editPlayers(sender, players, effects -> {
-                    effects.soulboundOwner = finalUuid;
-                    return true;
-                }, silent, modifyAll);
-            }
-            case "filter" -> {
-                if (args.length < 5) {
-                    throw promptUsage(label, "item filter <players> <allow/block> <filters...>");
-                }
-                boolean whitelist = args[3].equalsIgnoreCase("allow");
-                String[] filtersString = Arrays.copyOfRange(args, 4, args.length);
-                Set<BeaconEffectsFilter> filters = new HashSet<>();
-                for (String filterString : filtersString) {
-                    try {
-                        filters.add(BeaconEffectsFilter.fromString(filterString));
-                    } catch (IllegalArgumentException e) {
-                        sender.sendMessage(RED + "Invalid filter " + filterString + ": " + e.getMessage());
-                        return;
-                    }
-                }
-                editPlayers(sender, players, effects -> {
-                    effects.filter(filters, whitelist);
-                    return true;
-                }, silent, modifyAll);
-            }
-            default -> {
-                var modificationType = BeaconModification.Type.parseType(operation);
-                if (modificationType == null) {
-                    throw promptUsage(label, ITEM_USAGE);
-                } else if (args.length < 4) {
-                    throw promptUsage(label, "item "  + args[1] + " <players> <effects...>");
-                }
-
-                BeaconEffects virtual = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 3, args.length), true);
-                BeaconModification modification = new BeaconModification(modificationType, virtual, true);
-                editPlayers(sender, players, modification, silent, modifyAll);
-            }
-        }
+            sender.sendMessage(RED + "Failed to apply the operation on " + failedPlayers.stream()
+                    .map(Player::getName)
+                    .collect(Collectors.joining(", ")) +
+                    " because they " + (modifyAll ? "did not own a portable beacon" : "were not holding a portable beacon."));
     }
 
     public void doRecipe(CommandSender sender, String[] args, String label) {
-        if (args.length < 2)
-            throw promptUsage(label, RECIPE_USAGE);
-        switch (args[1]) {
+        CommandUtils.ArgumentParser parser = CommandUtils.parse(sender, label, RECIPE_USAGE, args, 1);
+        switch (parser.popWord()) {
+            default -> throw parser.throwUsage();
             case "list" -> {
-                if (!checkPermission(sender, "recipe.list"))
-                    return;
+                assertPermission(sender, "recipe.list");
                 sender.sendMessage(GREEN + "Enabled recipes:");
                 for (var entry : RecipeManager.RECIPES.entrySet())
                     sender.sendMessage("  " + entry.getKey());
-                sender.sendMessage(RED + "Disabled recipes:");
-                for (var entry : RecipeManager.DISABLED_RECIPES)
-                    sender.sendMessage("  " + entry);
+                if (RecipeManager.DISABLED_RECIPES.size() != 0) {
+                    sender.sendMessage(RED + "Disabled recipes:");
+                    for (var entry : RecipeManager.DISABLED_RECIPES)
+                        sender.sendMessage("  " + entry);
+                }
             }
             case "create" -> {
-                if (!checkPermission(sender, "recipe.create"))
-                    return;
-                if (args.length < 7)
-                    throw promptUsage(label, RECIPE_CREATE_USAGE);
-                String id = args[2];
-                InventoryType type = InventoryType.valueOf(args[3].toUpperCase(Locale.ENGLISH));
-                ItemStack stack;
-                // check if args[3] is an ItemStack
-                int argOffset = 0;
-                try {
-                    stack = Bukkit.getItemFactory().createItemStack(args[4]);
-                    // is ItemStack, check if there are enough additional arguments
-                    argOffset = 1;
-                    if (args.length < 7 + argOffset)
-                        throw promptUsage(label, RECIPE_CREATE_USAGE);
-                } catch (IllegalArgumentException ex) {
-                    // not ItemStack
-                    if (!(sender instanceof Player player))
-                        throw promptUsage(label, RECIPE_CREATE_USAGE, "Must provide item when running in console");
-                    stack = player.getInventory().getItemInMainHand();
-                }
-                if (stack.getType().isAir())
-                    throw promptUsage(label, RECIPE_CREATE_USAGE, "item must not be air");
+                assertPermission(sender, "recipe.create");
 
-                ExpCostCalculator expCost = ExpCostCalculator.deserialize(args[4 + argOffset]);
-                BeaconModification.Type action = BeaconModification.Type.parseType(args[5 + argOffset]);
-                BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, Arrays.copyOfRange(args, 6 + argOffset, args.length), true);
+                parser.updateUsage(RECIPE_CREATE_USAGE);
+                String id = parser.popWord();
+                InventoryType type = InventoryType.valueOf(parser.popWord().toUpperCase(Locale.ENGLISH));
+                ItemStack stack = parser.tryPopItemStack();
+
+                ExpCostCalculator expCost = ExpCostCalculator.deserialize(parser.popWord());
+                BeaconModification.Type action = BeaconModification.Type.parseType(parser.popWord());
+                BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), true);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
 
                 SimpleRecipe recipe = new SimpleRecipe(id, type, stack, List.of(modification), expCost);
@@ -682,11 +642,10 @@ public class CommandPortableBeacons implements TabExecutor {
                                    YELLOW + "To apply your changes, do /" + label + " reload");
             }
             case "enable", "disable" -> {
-                if (!checkPermission(sender, "recipe." + args[1]))
-                    return;
-                if (args.length < 3)
-                    throw promptUsage(label, "recipe " + args[1] + " <id>");
-                String id = args[2];
+                assertPermission(sender, "recipe." + args[1]);
+
+                parser.updateUsage("recipe " + args[1] + " <id>");
+                String id = parser.popWord();
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
                 if (!yaml.isConfigurationSection("recipes." + id))
                     throw new IllegalArgumentException("Can't find recipe with ID " + id);
@@ -701,37 +660,40 @@ public class CommandPortableBeacons implements TabExecutor {
                                    YELLOW + "To apply your changes, do /" + label + " reload");
             }
             case "testinput" -> {
-                if (!checkPermission(sender, "recipe.testinput"))
-                    return;
-                if (args.length < 3)
-                    throw promptUsage(label, "recipe testinput <id> [item]");
-                String id = args[2];
+                assertPermission(sender, "recipe.testinput");
+
+                parser.updateUsage("recipe testinput <id> [item]");
+                String id = parser.popWord();
+                ItemStack stack = parser.tryPopItemStack();
+
                 BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
                 if (!(recipe instanceof SimpleRecipe simpleRecipe))
                     throw new IllegalArgumentException("Can't find recipe with ID " + id);
-                ItemStack stack;
-                if (args.length == 4) {
-                    stack = Bukkit.getItemFactory().createItemStack(args[3]);
-                } else if (sender instanceof Player player) {
-                    stack = player.getInventory().getItemInMainHand();
-                } else {
-                    throw promptUsage(label, "recipe testinput <id> <item>", "Must hold or provide item");
-                }
                 // ensure stack size
                 stack.setAmount(simpleRecipe.input().getAmount());
                 if (simpleRecipe.isApplicableTo(new ItemStack(Material.BEACON), stack)) {
-                    sender.sendMessage(GREEN + "Recipe " + id + " would accept " + BLUE + stack);
+                    sender.spigot().sendMessage(
+                            new ComponentBuilder("Recipe " + id + " would accept ").color(GREEN)
+                                    .append(displayItem(stack)).color(BLUE).create()
+                    );
                 } else {
-                    sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
-                            YELLOW + simpleRecipe.input());
+                    if (Config.debug) // show Bukkit ItemMeta info
+                        sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
+                                YELLOW + simpleRecipe.input());
+                    else
+                        sender.spigot().sendMessage(
+                                new ComponentBuilder("Recipe " + id + " would reject ").color(RED)
+                                        .append(displayItem(stack)).color(BLUE)
+                                        .append(" because it wants ", NONE).color(RED)
+                                        .append(displayItem(simpleRecipe.input())).color(YELLOW).create()
+                        );
                 }
             }
             case "info" -> {
-                if (!checkPermission(sender, "recipe.info"))
-                    return;
-                if (args.length < 3)
-                    throw promptUsage(label, "recipe info <id>");
-                String id = args[2];
+                assertPermission(sender, "recipe.info");
+                parser.updateUsage("recipe info <id>");
+
+                String id = parser.popWord();
                 BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
                 var builder = new ComponentBuilder("Recipe " + id + "\n").color(GREEN);
                 if (recipe instanceof CombinationRecipe combinationRecipe) {
@@ -741,9 +703,9 @@ public class CommandPortableBeacons implements TabExecutor {
                             "additively" : "like enchantments") + "\n").color(YELLOW);
                 } else if (recipe instanceof SimpleRecipe simpleRecipe) {
                     builder.append("Type: Simple Recipe\n" +
-                            "Recipe type: " + simpleRecipe.type().name().toLowerCase(Locale.ENGLISH)).color(YELLOW);
+                            "Recipe type: " + simpleRecipe.type()).color(YELLOW);
                     builder.append("\nAccepts: ").color(WHITE)
-                            .append(CommandUtils.showItem(simpleRecipe.input()))
+                            .append(displayItem(simpleRecipe.input()))
                             .append("\n").color(WHITE);
                     for (var modification : simpleRecipe.modifications()) {
                         builder.append(modification.type().name() + "s:\n").color(BLUE);

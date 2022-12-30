@@ -12,7 +12,7 @@ recipes:
     combine-effects-additively: true
     exp-cost: dynamic
 
-  # Default anvil recipes
+  # The recipe for Experience Efficiency
   exp-reduction:
     # Crafting station of the recipe, can be anvil or smithing
     type: anvil
@@ -21,8 +21,9 @@ recipes:
     input: minecraft:enchanted_book{StoredEnchantments:[{id:mending,lvl:1}]}
     input-amount: 1
     # The cost of this recipe, in levels. (Default: 0)
-    # Use "dynamic" for dynamic experience cost subject to vanilla limits (max 39 levels)
     # Use "dynamic-unrestricted" for dynamic experience cost
+    # Use "dynamic-max[level]" for dynamic experience cost with the specified maximum cost
+    # Use "dynamic" for vanilla limits (equivalent to dynamic-max39)
     exp-cost: dynamic
     # Modifications to the beacon, similar to the /pb item command. For example, given the commands
     # "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:
@@ -35,6 +36,7 @@ recipes:
       add:
         exp-reduction: 1
 
+  # The recipe for Soulbound
   soulbound:
     type: anvil
     enabled: true

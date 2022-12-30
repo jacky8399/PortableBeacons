@@ -85,7 +85,9 @@ public record SimpleRecipe(String id,
     public Map<String, Object> save() {
         var map = new LinkedHashMap<String, Object>();
         map.put("type", type.name().toLowerCase(Locale.ENGLISH));
-        map.put("input", input);
+        var inputClone = input.clone();
+        inputClone.setAmount(1);
+        map.put("input", inputClone); // store amount ourselves
         map.put("input-amount", input.getAmount());
         var modMap = new HashMap<String, Object>();
         for (var mod : modifications) {

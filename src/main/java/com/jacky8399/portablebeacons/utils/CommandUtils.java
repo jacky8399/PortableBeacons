@@ -5,15 +5,21 @@ import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
+import net.md_5.bungee.api.chat.hover.content.Entity;
 import net.md_5.bungee.api.chat.hover.content.Item;
+import net.md_5.bungee.api.chat.hover.content.Text;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -23,28 +29,6 @@ import static net.md_5.bungee.api.ChatColor.RED;
 import static net.md_5.bungee.api.ChatColor.YELLOW;
 
 public class CommandUtils {
-
-    public static BaseComponent showItem(ItemStack stack) {
-        var material = stack.getType();
-        var materialKey = material.getKey().toString();
-        var meta = stack.getItemMeta();
-        var itemTag = stack.hasItemMeta() ?
-                ItemTag.ofNbt(meta.getAsString()) :
-                null;
-        var hoverContent = new Item(materialKey, stack.getAmount(), itemTag);
-        var hover = new HoverEvent(HoverEvent.Action.SHOW_ITEM, hoverContent);
-        BaseComponent component;
-        if (meta.hasDisplayName()) {
-            component = new TextComponent(meta.getDisplayName());
-        } else {
-            var langKey = (material.isBlock() ? "block." : "item.") + materialKey.replace(':', '.');
-            component = new TranslatableComponent(langKey);
-        }
-        component.setHoverEvent(hover);
-        component.setColor(ChatColor.YELLOW);
-        return component;
-    }
-
     // Potion effect type autocomplete
     private static final List<String> VALID_MODIFICATIONS = Stream.concat(
             PotionEffectUtils.getValidPotionNames().stream(),
@@ -177,28 +161,190 @@ public class CommandUtils {
         return beaconEffects;
     }
 
-    private static void serializeComponentRecursively(List<BaseComponent> components, StringBuilder builder) {
-        for (var component : components) {
-            if (component instanceof TextComponent text) {
-                builder.append(text.getText());
-            } else if (component instanceof TranslatableComponent translatable) {
-                builder.append(translatable.getTranslate());
+    // Components
+
+    public static HoverEvent showText(BaseComponent... components) {
+        return new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(components));
+    }
+
+    public static HoverEvent showItem(Material material, int amount, @Nullable String itemTag) {
+        var hoverContent = new Item(material.getKey().toString(), amount, itemTag != null ? ItemTag.ofNbt(itemTag) : null);
+        return new HoverEvent(HoverEvent.Action.SHOW_ITEM, hoverContent);
+    }
+
+    public static HoverEvent showItem(ItemStack stack) {
+        ItemMeta meta = stack.getItemMeta();
+        return showItem(stack.getType(), stack.getAmount(), meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
+    }
+
+    public static HoverEvent showEntity(EntityType entityType, UUID uuid, @Nullable BaseComponent displayName) {
+        var hoverContent = new Entity(entityType.getKey().toString(), uuid.toString(), displayName);
+        return new HoverEvent(HoverEvent.Action.SHOW_ENTITY, hoverContent);
+    }
+
+    public static BaseComponent displayItem(ItemStack stack) {
+        var material = stack.getType();
+        var materialKey = material.getKey().toString();
+        var meta = stack.getItemMeta();
+        var hover = showItem(material, stack.getAmount(),
+                meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
+        BaseComponent component;
+        if (meta != null && meta.hasDisplayName()) {
+            component = new TextComponent(meta.getDisplayName());
+        } else {
+            var langKey = (material.isBlock() ? "block." : "item.") + materialKey.replace(':', '.');
+            component = new TranslatableComponent(langKey);
+        }
+        component.setHoverEvent(hover);
+        component.setColor(ChatColor.YELLOW);
+        return component;
+    }
+
+    public static ArgumentParser parse(CommandSender sender, String label, String usage, String[] args, int fromIndex) {
+        return new ArgumentParser(sender, label, usage, args, fromIndex);
+    }
+
+    public static class ArgumentParser {
+        private final CommandSender sender;
+        private final String label;
+        private String usage;
+        private String[] arguments;
+        private final String[] input;
+        private int index;
+
+        private ArgumentParser(CommandSender sender, String label, String usage, String[] input, int fromIndex) {
+            this.sender = sender;
+            this.label = label;
+            updateUsage(usage);
+            this.input = input;
+            this.index = fromIndex;
+        }
+
+        private void checkSize() {
+            if (index == input.length) {
+                String expected = arguments[index];
+                throw new IllegalArgumentException(RED + "Expected " + expected + " at position " + index + "\n" +
+                                                   RED + "Usage: /" + label + " " + usage);
             }
-            if (component.getExtra() != null) {
-                serializeComponentRecursively(component.getExtra(), builder);
+        }
+
+        private IllegalArgumentException wrapException(Exception ex) {
+            index--;
+            String expected = arguments.length > index ? arguments[index] : arguments[arguments.length - 1];
+            return new IllegalArgumentException(RED + "Expected " + expected + " at position " + index + ", " +
+                                               "but got input " + input[index] + "\n" +
+                                               RED + "Usage: /" + label + " " + usage, ex);
+        }
+
+        public IllegalArgumentException throwUsage() {
+            return wrapException(null);
+        }
+
+        public IllegalArgumentException throwUsage(String cause) {
+            return wrapException(new IllegalArgumentException(cause));
+        }
+
+        public void updateUsage(String usage) {
+            this.usage = usage;
+            this.arguments = usage.split(" ");
+        }
+
+        public boolean hasNext() {
+            return index < input.length;
+        }
+
+        public String popWord() {
+            checkSize();
+            return input[index++];
+        }
+
+        public String[] getRemainingInput() {
+            if (index == input.length)
+                return new String[0];
+            return Arrays.copyOfRange(input, index, input.length);
+        }
+
+        // ensures that there is at least one unparsed argument
+        public String[] popRemainingInput() {
+            checkSize();
+            return Arrays.copyOfRange(input, index, input.length);
+        }
+
+
+        public String popRest() {
+            String result = String.join(" ", popRemainingInput());
+            index = input.length;
+            return result;
+        }
+
+        public int popInt() {
+            checkSize();
+            try {
+                return Integer.parseInt(input[index++]);
+            } catch (NumberFormatException ex) {
+                throw wrapException(ex);
             }
+        }
+
+        public boolean popBoolean() {
+            checkSize();
+            return Boolean.parseBoolean(input[index++]);
+        }
+
+        public ItemStack popItemStack() {
+            checkSize();
+            ItemStack stack;
+            try {
+                stack = Bukkit.getItemFactory().createItemStack(input[index++]);
+                if (hasNext()) {
+                    int amount = Integer.parseInt(input[index++]);
+                    if (amount <= 0)
+                        throw new IllegalArgumentException("Item count must be > 0");
+                    stack.setAmount(amount);
+                }
+            } catch (IllegalArgumentException ex) {
+                throw wrapException(ex);
+            }
+            return stack;
+        }
+
+        public ItemStack tryPopItemStack() {
+            int curIndex = index;
+            ItemStack stack;
+            try {
+                stack = popItemStack();
+            } catch (Exception ex) {
+                if (!(sender instanceof Player player)) {
+                    if (input.length >= curIndex + 1) // provided invalid item
+                        throw ex;
+                    else
+                        throw wrapException(new IllegalArgumentException("Console must provide item"));
+                }
+                index = curIndex + 2;
+                stack = player.getInventory().getItemInMainHand().clone();
+            }
+            return stack;
+        }
+
+        public List<Player> popPlayers(boolean allowEmpty) {
+            String selector = popWord();
+            List<Player> players;
+            if (sender.hasPermission("minecraft.command.selector")) {
+                players = Bukkit.selectEntities(sender, selector).stream()
+                        .map(entity -> entity instanceof Player player ? player : null)
+                        .filter(Objects::nonNull)
+                        .toList();
+            } else {
+                Player player = Bukkit.getPlayer(selector);
+                players = player != null ? List.of(player) : List.of();
+            }
+
+            if (!allowEmpty && players.size() == 0) {
+                throw wrapException(new IllegalArgumentException("No player selected by player selector" + selector));
+            }
+
+            return players;
         }
     }
 
-    public static String serializeComponentPlain(BaseComponent component) {
-        var builder = new StringBuilder();
-        serializeComponentRecursively(List.of(component), builder);
-        return builder.toString();
-    }
-
-    public static String serializeComponentPlain(BaseComponent @NotNull... components) {
-        var builder = new StringBuilder();
-        serializeComponentRecursively(Arrays.asList(components), builder);
-        return builder.toString();
-    }
 }

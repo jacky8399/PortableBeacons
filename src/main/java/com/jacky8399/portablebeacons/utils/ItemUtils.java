@@ -27,6 +27,8 @@ public class ItemUtils {
     }
 
     public static BeaconEffects getEffects(ItemStack stack) {
+        if (stack == null || stack.getType() != Material.BEACON)
+            return null;
         return stack.getItemMeta().getPersistentDataContainer().get(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE);
     }
 
@@ -120,7 +122,7 @@ public class ItemUtils {
 
         if (ITEM_META_DISPLAY_NAME == null) {
             // failed to find displayName field
-            meta.setDisplayName(CommandUtils.serializeComponentPlain(components));
+            meta.setDisplayName(BaseComponent.toLegacyText(components));
         } else {
             String json = ComponentSerializer.toString(components);
             ITEM_META_DISPLAY_NAME.set(meta, json);
@@ -134,7 +136,7 @@ public class ItemUtils {
         }
 
         if (ITEM_META_LORE == null) {
-            meta.setLore(lore.stream().map(CommandUtils::serializeComponentPlain).toList());
+            meta.setLore(lore.stream().map(component -> component.toLegacyText()).toList());
         } else {
             List<String> newLore = lore.stream().map(ComponentSerializer::toString).toList();
             ITEM_META_LORE.set(meta, newLore);
