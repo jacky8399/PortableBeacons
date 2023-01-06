@@ -100,9 +100,9 @@ public class BeaconEffects implements Cloneable {
         for (BeaconEffectsFilter filter : filters) {
             if (filter.contains(effects)) {
                 if (whitelist)
-                    map.put(filter.type, effects.get(filter.type));
+                    map.put(filter.type(), effects.get(filter.type()));
                 else
-                    map.remove(filter.type);
+                    map.remove(filter.type());
             }
         }
         setEffects(map);

@@ -16,9 +16,11 @@ beacon-item:
   # Show a glowing outline around nearby beacons to players who can perform a ritual
   creation-reminder:
     enabled: true
-    message: '&aYou feel that something is resonating with the beacon...' # Message in chat, set to empty string to disable
+    # Message in chat, set to empty string to disable
+    message: '&aAn item in your inventory is resonating with a nearby beacon...'
     radius: 8 # Scan radius
-    disable-if-already-own-beacon-item: true # Don't remind player if they already have a beacon in their inventory
+    # Skip player if they already have a portable beacon in their inventory
+    disable-if-already-own-beacon-item: true
 
   # Enchantments to further enhance the effects of a portable beacon
   # See recipes.yml
@@ -33,7 +35,7 @@ beacon-item:
       name: '&dExperience Efficiency {level}&8 (-{exp-reduction} exp consumption)'
       reduction-per-level: 0.2 # -20% exp consumption per level
       max-level: 5
-    # Retain item on death
+    # Retain beacon item on death
     soulbound:
       enabled: true
       # {level} can be used just like in the effects section. Additionally,

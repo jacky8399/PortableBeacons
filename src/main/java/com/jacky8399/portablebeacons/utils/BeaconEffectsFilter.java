@@ -5,24 +5,16 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Integer> {
-    public final PotionEffectType type;
-    @Nullable
-    public final Operator operator;
-    public final int constraint;
-
-    private BeaconEffectsFilter(PotionEffectType type, @Nullable Operator operator, int constraint) {
-        this.type = type;
-        this.operator = operator;
-        this.constraint = constraint;
-    }
+public record BeaconEffectsFilter(PotionEffectType type,
+                                  @Nullable Operator operator,
+                                  int constraint) implements BiPredicate<PotionEffectType, Integer> {
 
     public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_:]+)(?:(=|<>|<|<=|>|>=)(\\d+))?$");
+
     public static BeaconEffectsFilter fromString(String input) {
         PotionEffectType simplePotion = PotionEffectUtils.parsePotion(input);
         if (simplePotion != null)
@@ -54,13 +46,8 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(type, operator, constraint);
-    }
-
-    @Override
     public boolean test(PotionEffectType type, Integer integer) {
-        return this.type == type && (operator == null || operator.predicate.test(integer, constraint));
+        return this.type.equals(type) && (operator == null || operator.predicate.test(integer, constraint));
     }
 
     public boolean contains(Map<PotionEffectType, Integer> map) {
@@ -71,19 +58,23 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
     }
 
     public enum Operator {
-        EQ("=", Integer::equals), NEQ("<>", EQ.predicate.negate()),
-        LT("<", (lvl, req) -> lvl.compareTo(req) < 0), GT(">", (lvl, req) -> lvl.compareTo(req) > 0),
-        LTE("<=", GT.predicate.negate()), GTE(">=", LT.predicate.negate());
+        EQ("=", (a, b) -> a == b), NEQ("<>", (a, b) -> a != b),
+        LT("<", (a, b) -> a < b), GT(">", (a, b) -> a > b),
+        LTE("<=", (a, b) -> a <= b), GTE(">=", (a, b) -> a >= b);
 
         public final String operator;
-        /** arguments: level, constraint */
-        public final BiPredicate<Integer, Integer> predicate;
-        Operator(@Nullable String operator, BiPredicate<Integer, Integer> predicate) {
+        /**
+         * arguments: level, constraint
+         */
+        public final BiIntPredicate predicate;
+
+        Operator(@Nullable String operator, BiIntPredicate predicate) {
             this.operator = operator;
             this.predicate = predicate;
         }
 
         public static final ImmutableMap<String, Operator> STRING_MAP;
+
         static {
             ImmutableMap.Builder<String, Operator> builder = ImmutableMap.builder();
             for (Operator op : Operator.values()) {
@@ -95,5 +86,10 @@ public class BeaconEffectsFilter implements BiPredicate<PotionEffectType, Intege
         public static Operator getByString(String operator) {
             return STRING_MAP.get(operator);
         }
+    }
+
+    @FunctionalInterface
+    public interface BiIntPredicate {
+        boolean test(int a, int b);
     }
 }

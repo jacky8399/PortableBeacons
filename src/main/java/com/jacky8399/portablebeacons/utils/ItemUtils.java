@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 
 public class ItemUtils {
     public static boolean isPortableBeacon(ItemStack stack) {
-        return stack != null && stack.getType() == Material.BEACON && stack.hasItemMeta() &&
+        return stack != null && stack.getType() == Material.BEACON &&
                 stack.getItemMeta().getPersistentDataContainer().has(BeaconEffects.BeaconEffectsDataType.STORAGE_KEY, BeaconEffects.BeaconEffectsDataType.STORAGE_TYPE);
     }
 
@@ -156,7 +156,8 @@ public class ItemUtils {
         return ITEM_META_LORE != null ? (List<String>) ITEM_META_LORE.get(meta) : meta.getLore();
     }
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{(.+?)}");
+    // reject quotation marks to avoid parsing JSON
+    private static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{([^\"]+?)}");
     public static String replacePlaceholders(@Nullable Player player, String input, ContextLevel level, Map<String, Context> contexts) {
         if (input.indexOf('{') == -1) {
             return input + level.doReplacement();
@@ -165,8 +166,10 @@ public class ItemUtils {
             String[] args = match.group(2).split("\\|");
             String contextName = args[0];
             Context context = contextName.equals("level") ? level : contexts.get(contextName);
-            if (context == null)
-                return "[Unknown placeholder " + contextName + "]";
+            if (context == null) {
+                // ignore
+                return match.group();
+            }
             args = Arrays.copyOfRange(args, 1, args.length);
             boolean prependSpace = match.group(1) != null && !context.shouldRemovePrecedingSpace(args);
             String replacement = context.doReplacement(args);
