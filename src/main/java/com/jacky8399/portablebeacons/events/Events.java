@@ -33,6 +33,7 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.BlockDataMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
@@ -222,40 +223,47 @@ public final class Events implements Listener {
         if (!canBuildEvent.isBuildable())
             return true;
         ItemStack fakeStack = new ItemStack(state.getMaterial());
+        BlockDataMeta meta = (BlockDataMeta) fakeStack.getItemMeta();
+        meta.setBlockData(state);
+        fakeStack.setItemMeta(meta);
         BlockPlaceEvent placeEvent = new BlockPlaceEvent(toPlace, toPlace.getState(), placedAgainst, fakeStack, player, true, hand);
         Bukkit.getPluginManager().callEvent(placeEvent);
         return placeEvent.canBuild() && !placeEvent.isCancelled();
     }
 
     private static final float HARDNESS_THRESHOLD = Material.BEACON.getHardness();
-    private static boolean canPyramidReplace(Block block) {
-        Material type = block.getType();
+    private static boolean canPyramidReplace(BlockState state) {
+        Material type = state.getType();
         float hardness = type.getHardness();
         // hard block and not beacon base
         if ((hardness < 0 || hardness >= HARDNESS_THRESHOLD) && !Tag.BEACON_BASE_BLOCKS.isTagged(type))
             return false;
         // tile entities
-        return !(block.getState() instanceof TileState);
+        return !(state instanceof TileState);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onPlacePyramid(BlockPlaceEvent e) {
         ItemStack stack = e.getItemInHand();
-        if (!ItemUtils.isPortableBeacon(stack)) {
+        BeaconEffects effects = ItemUtils.getEffects(stack);
+        if (effects == null) {
             return; // ignore non-beacon items
         }
         e.setCancelled(true);
-        if (!ItemUtils.isPyramid(stack)) {
+        BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
+        if (pyramid == null) {
             return; // can't be placed
         }
         Player player = e.getPlayer();
         EquipmentSlot hand = e.getHand();
         Block placeLocation = e.getBlockPlaced();
         Block placedAgainst = e.getBlockAgainst();
-        BeaconEffects effects = ItemUtils.getEffects(stack);
-        BeaconPyramid pyramid = ItemUtils.getPyramid(stack);
         Block beaconLocation = placeLocation.getRelative(0, pyramid.tier, 0);
         if (!checkBlockPlaceEvent(player, hand, placedAgainst, beaconLocation, Material.BEACON.createBlockData())) {
+            if (Config.debug)
+                PortableBeacons.INSTANCE.logger.info(
+                        "Placing pyramid failed for %s: cannot place beacon block at %s".formatted(player.getName(), beaconLocation)
+                );
             return;
         }
         // group by Y level to stagger creation
@@ -267,10 +275,20 @@ public final class Events implements Listener {
                 continue;
             }
             Block relative = beaconBase.getBlockRelativeTo(beaconLocation);
-            if (!canPyramidReplace(relative)) {
+            // when the event is called, the block is already a beacon block
+            BlockState replacedState = relative.equals(placeLocation) ? e.getBlockReplacedState() : relative.getState();
+            if (!canPyramidReplace(replacedState)) {
+                if (Config.debug)
+                    PortableBeacons.INSTANCE.logger.info(
+                            "Placing pyramid failed for %s: block %s (%s) cannot be replaced".formatted(player.getName(), relative, replacedState)
+                    );
                 return; // don't break unbreakable or blocks like obsidian
             }
             if (!checkBlockPlaceEvent(player, hand, placedAgainst, relative, blockData)) {
+                if (Config.debug)
+                    PortableBeacons.INSTANCE.logger.info(
+                            "Placing pyramid failed for %s: cannot place beacon base at %s".formatted(player.getName(), relative)
+                    );
                 return;
             }
             // group by relative Y
@@ -317,6 +335,7 @@ public final class Events implements Listener {
         }, (pyramid.tier - 1) * 4L);
         // needs to cancel event to prevent error in console
         stack.setAmount(stack.getAmount() - 1);
+        player.getInventory().setItem(e.getHand(), stack);
     }
 
     @EventHandler
@@ -325,13 +344,16 @@ public final class Events implements Listener {
                 ItemUtils.isPortableBeacon(e.getItem())) {
             Player player = e.getPlayer();
             if (player.isSneaking() && e.useItemInHand() != Event.Result.DENY) {
-                e.setUseInteractedBlock(Event.Result.DENY);
-                e.setUseItemInHand(Event.Result.ALLOW);
+                e.setCancelled(true);
                 ItemStack stack = e.getItem();
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 boolean isReadOnly = !Config.effectsToggleEnabled ||
-                        (Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
+                        (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
                 Inventories.openInventory(player, new InventoryTogglePotion(stack, isReadOnly));
+            } else if (!ItemUtils.isPyramid(e.getItem())) {
+                // prevent beacon deactivation sound
+                e.setCancelled(true);
+                e.getPlayer().updateInventory();
             }
         }
     }

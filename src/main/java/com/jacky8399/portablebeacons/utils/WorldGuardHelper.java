@@ -6,18 +6,18 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.LocalPlayer;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
-import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.flags.*;
 import com.sk89q.worldguard.protection.flags.registry.FlagConflictException;
 import com.sk89q.worldguard.protection.flags.registry.FlagRegistry;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+import com.sk89q.worldguard.protection.regions.RegionQuery;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class WorldGuardHelper {
@@ -47,52 +47,69 @@ public class WorldGuardHelper {
         return true;
     }
 
-    public static boolean canUseBeacons(Player player) {
-        World world = player.getWorld();
-        Location loc = player.getLocation();
-        RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
-        RegionManager manager = container.get(BukkitAdapter.adapt(world));
-        if (manager != null) {
-            ApplicableRegionSet set = manager.getApplicableRegions(BukkitAdapter.adapt(loc).toVector().toBlockPoint());
-            if (!set.isVirtual()) {
-                return set.testState(WorldGuardPlugin.inst().wrapPlayer(player), PORTABLE_BEACONS);
-            }
-        }
-        return true;
+    /**
+     * Checks if the player should bypass WorldGuard flags
+     * @param player The player
+     * @return Whether the player should bypass WorldGuard flags
+     */
+    public static boolean canBypass(Player player) {
+        var wgPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+        return WorldGuard.getInstance().getPlatform().getSessionManager().hasBypass(wgPlayer, wgPlayer.getWorld());
     }
 
-    public static BeaconEffects filterBeaconEffects(Player player, BeaconEffects effects) {
-        World world = player.getWorld();
+    /**
+     * Checks if the player is in a WorldGuard region where beacon use is disabled
+     * @param player The player
+     * @return Whether the player can use beacons
+     */
+    public static boolean canUseBeacons(Player player) {
         Location loc = player.getLocation();
         RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
-        RegionManager manager = container.get(BukkitAdapter.adapt(world));
-        if (manager != null) {
-            ApplicableRegionSet set = manager.getApplicableRegions(BukkitAdapter.adapt(loc).toVector().toBlockPoint());
-            if (!set.isVirtual()) {
-                LocalPlayer wgPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
-                BeaconEffects newEffects = effects.clone();
-                Set<String> allowedEffects = set.queryValue(wgPlayer, PB_ALLOWED_EFFECTS);
-                if (allowedEffects != null) {
-                    Set<BeaconEffectsFilter> actualSet = new HashSet<>();
-                    for (String allowed : allowedEffects) {
-                        actualSet.add(BeaconEffectsFilter.fromString(allowed));
-                    }
-                    newEffects.filter(actualSet, true);
-                }
-                Set<String> blockedEffects = set.queryValue(wgPlayer, PB_BLOCKED_EFFECTS);
-                if (blockedEffects != null) {
-                    Set<BeaconEffectsFilter> actualSet = new HashSet<>();
-                    for (String allowed : blockedEffects) {
-                        actualSet.add(BeaconEffectsFilter.fromString(allowed));
-                    }
-                    newEffects.filter(actualSet, false);
-                }
-                return newEffects;
+        RegionQuery query = container.createQuery();
+        return query.testState(BukkitAdapter.adapt(loc), WorldGuardPlugin.inst().wrapPlayer(player), PORTABLE_BEACONS);
+    }
+
+    /**
+     * Filters the given beacon effects
+     * @param player The associated player
+     * @param effects The effects to filter
+     * @return The filtered effects, or the original effects if no filters were applied
+     */
+    @NotNull
+    public static BeaconEffects filterBeaconEffects(Player player, BeaconEffects effects) {
+        Location loc = player.getLocation();
+        RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
+
+        RegionQuery query = container.createQuery();
+
+        var wgLocation = BukkitAdapter.adapt(loc);
+        LocalPlayer wgPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+        Set<String> allowedEffects = query.queryValue(wgLocation, wgPlayer, PB_ALLOWED_EFFECTS);
+        List<BeaconEffectsFilter> allowedFilters = null;
+        if (allowedEffects != null) {
+            allowedFilters = new ArrayList<>(allowedEffects.size());
+            for (String allowed : allowedEffects) {
+                allowedFilters.add(BeaconEffectsFilter.fromString(allowed));
             }
+        }
+        Set<String> blockedEffects = query.queryValue(wgLocation, wgPlayer, PB_BLOCKED_EFFECTS);
+        List<BeaconEffectsFilter> blockedFilters = null;
+        if (blockedEffects != null) {
+            blockedFilters = new ArrayList<>(blockedEffects.size());
+            for (String allowed : blockedEffects) {
+                blockedFilters.add(BeaconEffectsFilter.fromString(allowed));
+            }
+        }
+        if (allowedFilters != null || blockedFilters != null) {
+            BeaconEffects newEffects = effects.clone();
+            newEffects.filter(allowedFilters, blockedFilters);
+            return newEffects;
         }
         return effects;
     }
 
+    // I forgot why this was changed to Flag<String>
+    // surely there is a perfectly valid reason
     public static class BeaconEffectsFilterFlag extends Flag<String> {
         protected BeaconEffectsFilterFlag(String name) {
             super(name);

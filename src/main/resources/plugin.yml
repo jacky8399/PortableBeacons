@@ -24,14 +24,11 @@ permissions:
   portablebeacons.admin:
     default: false
     children:
-      portablebeacons.bypass.*: true
-      portablebeacons.command: true
-      portablebeacons.command.*: true
+      portablebeacons.*: true
 
   portablebeacons.*:
     default: op
     children:
-      portablebeacons.bypass.*: true
       portablebeacons.command: true
       portablebeacons.command.*: true
       portablebeacons.effects-toggle: true
@@ -82,7 +79,3 @@ permissions:
       portablebeacons.command.recipe.disable: true
       portablebeacons.command.recipe.testinput: true
       portablebeacons.command.recipe.info: true
-
-  portablebeacons.bypass.*:
-    children:
-      portablebeacons.bypass.world-guard-limit: true

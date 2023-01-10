@@ -95,14 +95,34 @@ public class BeaconEffects implements Cloneable {
         return isOwner(player.getUniqueId());
     }
 
-    public void filter(Set<BeaconEffectsFilter> filters, boolean whitelist) {
-        Map<PotionEffectType, Integer> map = whitelist ? new TreeMap<>(effects.comparator()) : new TreeMap<>(effects);
+    public void filter(Collection<? extends BeaconEffectsFilter> filters, boolean whitelist) {
+        Map<PotionEffectType, Integer> map = whitelist ? new HashMap<>() : new HashMap<>(effects);
         for (BeaconEffectsFilter filter : filters) {
             if (filter.contains(effects)) {
                 if (whitelist)
                     map.put(filter.type(), effects.get(filter.type()));
                 else
                     map.remove(filter.type());
+            }
+        }
+        setEffects(map);
+    }
+
+    public void filter(@Nullable Collection<? extends BeaconEffectsFilter> allowed,
+                       @Nullable Collection<? extends BeaconEffectsFilter> blocked) {
+        Map<PotionEffectType, Integer> map = allowed != null ? new HashMap<>() : new HashMap<>(effects);
+        if (allowed != null) {
+            for (BeaconEffectsFilter filter : allowed) {
+                if (filter.contains(effects)) {
+                    map.put(filter.type(), effects.get(filter.type()));
+                }
+            }
+        }
+        if (blocked != null) {
+            for (BeaconEffectsFilter filter : blocked) {
+                if (filter.contains(map)) {
+                    map.remove(filter.type());
+                }
             }
         }
         setEffects(map);
@@ -160,16 +180,19 @@ public class BeaconEffects implements Cloneable {
                     Map.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
             ));
         }
-        return Arrays.asList(loreBuilder.toString().split("\n"));
+        return loreBuilder.toString().lines().toList();
     }
 
     public double calcExpPerMinute() {
         if (Config.nerfExpLevelsPerMinute == 0)
             return 0;
-        int totalEffects = effects.entrySet().stream()
-                .filter(entry -> !disabledEffects.contains(entry.getKey()))
-                .mapToInt(Map.Entry::getValue)
-                .sum();
+        int totalEffects = 0;
+        for (var entry : effects.entrySet()) {
+            if (!disabledEffects.contains(entry.getKey())) {
+                int value = entry.getValue();
+                totalEffects += value;
+            }
+        }
         double expMultiplier = Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
         return Math.max(0, totalEffects * Config.nerfExpLevelsPerMinute * expMultiplier);
@@ -179,9 +202,9 @@ public class BeaconEffects implements Cloneable {
         return needsUpdate || !Objects.equals(Config.itemCustomVersion, customDataVersion);
     }
 
-    public BeaconEffects fixOpEffects() {
+    public BeaconEffects cloneAndValidate() {
         BeaconEffects ret = clone();
-        HashMap<PotionEffectType, Integer> newEffects = new HashMap<>(effects);
+        HashMap<PotionEffectType, Integer> newEffects = new LinkedHashMap<>(effects);
         Iterator<Map.Entry<PotionEffectType, Integer>> iterator = newEffects.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<PotionEffectType, Integer> entry = iterator.next();

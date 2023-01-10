@@ -525,7 +525,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 parser.updateUsage("item filter <players> <allow/block> <filters...>");
                 boolean whitelist = parser.popWord().equalsIgnoreCase("allow");
                 String[] filtersString = parser.popRemainingInput();
-                Set<BeaconEffectsFilter> filters = new HashSet<>();
+                var filters = new ArrayList<BeaconEffectsFilter>(filtersString.length);
                 for (String filterString : filtersString) {
                     try {
                         filters.add(BeaconEffectsFilter.fromString(filterString));

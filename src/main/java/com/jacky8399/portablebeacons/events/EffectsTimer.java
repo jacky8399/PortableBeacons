@@ -9,9 +9,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.scheduler.BukkitRunnable;
-
-import java.util.ListIterator;
 
 public class EffectsTimer extends BukkitRunnable {
     public static final double CYCLE_TIME_MULTIPLIER = 0.5;
@@ -28,60 +27,79 @@ public class EffectsTimer extends BukkitRunnable {
     }
 
     public void applyEffects(Player player) {
-        boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled;
+        boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled &&
+                !WorldGuardHelper.canBypass(player);
         // world check
         if (Config.nerfDisabledWorlds.contains(player.getWorld().getName()))
             return;
 
-        if (doWorldGuard && !player.hasPermission("portablebeacons.bypass.world-guard-limit") &&
-                !WorldGuardHelper.canUseBeacons(player))
+        if (doWorldGuard && !WorldGuardHelper.canUseBeacons(player))
             return;
 
-        ListIterator<ItemStack> iterator = player.getInventory().iterator();
-        while (iterator.hasNext()) {
-            int nextIdx = iterator.nextIndex();
-            ItemStack is = iterator.next(); // lol
-            if (nextIdx > 8 && Config.nerfOnlyApplyInHotbar) {
-                continue; // out of hotbar
+        boolean checkSoulbound = Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly;
+
+        PlayerInventory inventory = player.getInventory();
+        if (Config.nerfOnlyApplyInHotbar) {
+            for (int i : new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 40}) {
+                ItemStack stack = inventory.getItem(i);
+                tickItem(stack, player, inventory, i, doWorldGuard, checkSoulbound);
             }
-            if (!ItemUtils.isPortableBeacon(is))
-                continue;
-            BeaconEffects beaconEffects = ItemUtils.getEffects(is);
-            // effects for calculation purposes
-            BeaconEffects actualEffects = beaconEffects;
-            // owner check
-            if (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly &&
-                    beaconEffects.soulboundOwner != null && !player.getUniqueId().equals(beaconEffects.soulboundOwner)) {
-                continue;
+        } else {
+            // inventory slots (excluding armor and offhand)
+            ItemStack[] items = inventory.getStorageContents();
+            for (int i = 0; i < items.length; i++) {
+                ItemStack stack = items[i];
+                tickItem(stack, player, inventory, i, doWorldGuard, checkSoulbound);
             }
-
-            // filter effects
-            if (doWorldGuard)
-                actualEffects = WorldGuardHelper.filterBeaconEffects(player, beaconEffects);
-
-            // check levels
-            if (!tryDeductExp(player, actualEffects))
-                continue;
-
-            player.addPotionEffects(actualEffects.toEffects());
-
-            boolean needsUpdate = beaconEffects.shouldUpdate();
-            if (needsUpdate) {
-                BeaconEffects newEffects;
-                // force downgrade
-                if (Config.nerfForceDowngrade)
-                    newEffects = beaconEffects.fixOpEffects();
-                else
-                    newEffects = beaconEffects.clone();
-                newEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
-                iterator.set(ItemUtils.createStackCopyItemData(newEffects, is));
-                if (Config.debug)
-                    PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
+            // armor (inventory slots 36-39)
+            items = inventory.getArmorContents();
+            for (int i = 0; i < items.length; i++) {
+                ItemStack stack = items[i];
+                tickItem(stack, player, inventory, 36 + i, doWorldGuard, checkSoulbound);
             }
+            // offhand (inventory slot 40)
+            tickItem(inventory.getItemInOffHand(), player, inventory, 40, doWorldGuard, checkSoulbound);
         }
     }
 
-    boolean tryDeductExp(Player player, BeaconEffects effects) {
+    private static void tickItem(ItemStack stack, Player player, PlayerInventory inventory, int index,
+                          boolean doWorldGuard, boolean checkSoulbound) {
+        BeaconEffects beaconEffects = ItemUtils.getEffects(stack);
+        if (beaconEffects == null)
+            return;
+        // owner check
+        if (checkSoulbound && !beaconEffects.isOwner(player)) {
+            return;
+        }
+
+        // filtered effects
+        BeaconEffects actualEffects = beaconEffects;
+        // filter effects
+        if (doWorldGuard)
+            actualEffects = WorldGuardHelper.filterBeaconEffects(player, beaconEffects);
+
+        // check levels
+        if (!tryDeductExp(player, actualEffects))
+            return;
+
+        player.addPotionEffects(actualEffects.toEffects());
+
+        boolean needsUpdate = beaconEffects.shouldUpdate();
+        if (needsUpdate) {
+            BeaconEffects newEffects;
+            // force downgrade
+            if (Config.nerfForceDowngrade)
+                newEffects = beaconEffects.cloneAndValidate();
+            else
+                newEffects = beaconEffects.clone();
+            newEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
+            inventory.setItem(index, ItemUtils.createStackCopyItemData(newEffects, stack));
+            if (Config.debug)
+                PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
+        }
+    }
+
+    static boolean tryDeductExp(Player player, BeaconEffects effects) {
         // don't deduct xp from creative players
         if (player.getGameMode() == GameMode.CREATIVE)
             return true;

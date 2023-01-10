@@ -12,6 +12,7 @@ import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.util.BlockVector;
 
 import java.util.ArrayList;
@@ -75,13 +76,14 @@ public class ReminderOutline implements Listener {
             cleanUp();
             return;
         }
+        ItemStack ritualItem = Config.ritualItem;
+        boolean shouldCheckBeacon = Config.creationReminderDisableIfOwned;
         player:
         for (Player player : Bukkit.getOnlinePlayers()) {
-            ItemStack ritualItem = Config.ritualItem;
-            boolean shouldCheckBeacon = Config.creationReminderDisableIfOwned;
             int ritualItemAmount = 0;
 
-            for (ItemStack stack : player.getInventory().getStorageContents()) {
+            PlayerInventory inventory = player.getInventory();
+            for (ItemStack stack : inventory.getStorageContents()) {
                 // check if already own beacon item
                 if (shouldCheckBeacon && ItemUtils.isPortableBeacon(stack)) {
                     removeOutlines(player);
@@ -90,6 +92,15 @@ public class ReminderOutline implements Listener {
                     ritualItemAmount += stack.getAmount();
                 }
             }
+            // of course getStorageContents() doesn't include offhand
+            ItemStack offhand = inventory.getItemInOffHand();
+            if (shouldCheckBeacon && ItemUtils.isPortableBeacon(offhand)) {
+                removeOutlines(player);
+                continue;
+            } else if (ritualItem.isSimilar(offhand)) {
+                ritualItemAmount += offhand.getAmount();
+            }
+
             if (ritualItemAmount < ritualItem.getAmount()) {
                 removeOutlines(player);
                 continue;
