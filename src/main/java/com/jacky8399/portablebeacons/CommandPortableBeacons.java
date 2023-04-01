@@ -6,6 +6,7 @@ import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.data.BlockData;
@@ -624,6 +625,10 @@ public class CommandPortableBeacons implements TabExecutor {
                 BeaconModification.Type action = BeaconModification.Type.parseType(parser.popWord());
                 BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), true);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
+
+                if (type == InventoryType.SMITHING) {
+                    sender.sendMessage(ChatColor.YELLOW + "SMITHING recipes are deprecated due to changes to Smithing Tables in 1.20!");
+                }
 
                 SimpleRecipe recipe = new SimpleRecipe(id, type, stack, List.of(modification), expCost);
 

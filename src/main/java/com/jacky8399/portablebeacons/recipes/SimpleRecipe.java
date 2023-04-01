@@ -1,6 +1,7 @@
 package com.jacky8399.portablebeacons.recipes;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
+import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.BeaconModification;
 import com.jacky8399.portablebeacons.utils.BeaconPyramid;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
@@ -129,6 +130,9 @@ public record SimpleRecipe(String id,
                 specialOps.add(special);
         }
 
+        if (type == InventoryType.SMITHING) {
+            PortableBeacons.INSTANCE.logger.warning("Loading SMITHING recipe " + id + ". Smithing recipes are deprecated due to changes to Smithing Tables in 1.20.");
+        }
         return new SimpleRecipe(id, type, stack, modifications, expCost, specialOps);
     }
 

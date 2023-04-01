@@ -1,6 +1,5 @@
 package com.jacky8399.portablebeacons;
 
-import com.jacky8399.portablebeacons.events.EffectsTimer;
 import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.events.ReminderOutline;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;

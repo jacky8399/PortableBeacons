@@ -1,8 +1,5 @@
-package com.jacky8399.portablebeacons.events;
+package com.jacky8399.portablebeacons;
 
-import com.jacky8399.portablebeacons.BeaconEffects;
-import com.jacky8399.portablebeacons.Config;
-import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bukkit.Bukkit;
@@ -10,13 +7,12 @@ import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
-import org.bukkit.scheduler.BukkitRunnable;
 
-public class EffectsTimer extends BukkitRunnable {
+public class EffectsTimer implements Runnable {
     public static final double CYCLE_TIME_MULTIPLIER = 0.5;
 
     public void register() {
-        this.runTaskTimer(PortableBeacons.INSTANCE, 0, (int) (150 * CYCLE_TIME_MULTIPLIER));
+        Bukkit.getScheduler().runTaskTimer(PortableBeacons.INSTANCE, this, 0, (int) (150 * CYCLE_TIME_MULTIPLIER));
     }
 
     @Override
@@ -26,6 +22,7 @@ public class EffectsTimer extends BukkitRunnable {
         }
     }
 
+    private static final int[] HOTBAR_SLOTS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 40};
     public void applyEffects(Player player) {
         boolean doWorldGuard = Config.worldGuard && PortableBeacons.INSTANCE.worldGuardInstalled &&
                 !WorldGuardHelper.canBypass(player);
@@ -40,7 +37,7 @@ public class EffectsTimer extends BukkitRunnable {
 
         PlayerInventory inventory = player.getInventory();
         if (Config.nerfOnlyApplyInHotbar) {
-            for (int i : new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 40}) {
+            for (int i : HOTBAR_SLOTS) {
                 ItemStack stack = inventory.getItem(i);
                 tickItem(stack, player, inventory, i, doWorldGuard, checkSoulbound);
             }
@@ -68,8 +65,17 @@ public class EffectsTimer extends BukkitRunnable {
         if (beaconEffects == null)
             return;
         // owner check
-        if (checkSoulbound && !beaconEffects.isOwner(player)) {
+        if (checkSoulbound && !beaconEffects.isOwner(player))
             return;
+
+        if (beaconEffects.shouldUpdate()) {
+            // downgrade OP effects
+            if (Config.nerfForceDowngrade)
+                beaconEffects.validateEffects();
+            beaconEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
+            inventory.setItem(index, ItemUtils.createStackCopyItemData(beaconEffects, stack));
+            if (Config.debug)
+                PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
         }
 
         // filtered effects
@@ -84,19 +90,6 @@ public class EffectsTimer extends BukkitRunnable {
 
         player.addPotionEffects(actualEffects.toEffects());
 
-        boolean needsUpdate = beaconEffects.shouldUpdate();
-        if (needsUpdate) {
-            BeaconEffects newEffects;
-            // force downgrade
-            if (Config.nerfForceDowngrade)
-                newEffects = beaconEffects.cloneAndValidate();
-            else
-                newEffects = beaconEffects.clone();
-            newEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
-            inventory.setItem(index, ItemUtils.createStackCopyItemData(newEffects, stack));
-            if (Config.debug)
-                PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
-        }
     }
 
     static boolean tryDeductExp(Player player, BeaconEffects effects) {
