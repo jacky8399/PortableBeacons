@@ -24,13 +24,15 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
     }
 
     public enum Type {
-        ADD(Integer::sum),
-        SET((left, right) -> right),
-        SUBTRACT((left, right) -> left - right);
+        ADD(Integer::sum, false),
+        SET((left, right) -> right, true),
+        SUBTRACT((left, right) -> left - right, false);
 
         public final IntBinaryOperator merger;
-        Type(IntBinaryOperator merger) {
+        public final boolean allowVirtual;
+        Type(IntBinaryOperator merger, boolean allowVirtual) {
             this.merger = merger;
+            this.allowVirtual = allowVirtual;
         }
 
         Integer mapMerge(Integer oldValue, Integer newValue) {

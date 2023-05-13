@@ -67,12 +67,14 @@ public class PotionEffectUtils {
     private static final Set<PotionEffectType> NEGATIVE_EFFECTS =
             Set.of(PotionEffectType.SLOW, PotionEffectType.SLOW_DIGGING, PotionEffectType.WEAKNESS, PotionEffectType.HARM,
                     PotionEffectType.CONFUSION, PotionEffectType.BLINDNESS, PotionEffectType.HUNGER, PotionEffectType.POISON,
-                    PotionEffectType.WITHER, PotionEffectType.LEVITATION,
+                    PotionEffectType.WITHER, PotionEffectType.LEVITATION, PotionEffectType.UNLUCK,
                     // neutral according to minecraft wiki
-                    PotionEffectType.GLOWING, PotionEffectType.BAD_OMEN, PotionEffectType.UNLUCK);
+                    PotionEffectType.GLOWING, PotionEffectType.BAD_OMEN);
+    // 1.19
+    private static final Set<String> NEGATIVE_EFFECT_IDS = Set.of("darkness");
 
     public static boolean isNegative(PotionEffectType potion) {
-        return NEGATIVE_EFFECTS.contains(potion);
+        return NEGATIVE_EFFECTS.contains(potion) || NEGATIVE_EFFECT_IDS.contains(potion.getKey().getKey());
     }
 
     public static int getRequiredTier(PotionEffect potion) {

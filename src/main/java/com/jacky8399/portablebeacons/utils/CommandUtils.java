@@ -3,6 +3,7 @@ package com.jacky8399.portablebeacons.utils;
 import com.google.common.base.Preconditions;
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.PortableBeacons;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Entity;
@@ -25,15 +26,14 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static net.md_5.bungee.api.ChatColor.RED;
-import static net.md_5.bungee.api.ChatColor.YELLOW;
+import static net.md_5.bungee.api.ChatColor.*;
 
 public class CommandUtils {
     private static class Completions {
         // Potion effect type autocomplete
         private static final List<String> VALID_MODIFICATIONS = Stream.concat(
                 PotionEffectUtils.getValidPotionNames().stream(),
-                Stream.of("exp-reduction", "soulbound", "all")
+                Stream.of("exp-reduction", "soulbound", "all", "all-positive", "all-negative")
         ).toList();
     }
     public static Stream<String> listModifications(String input, boolean allowVirtual) {
@@ -51,7 +51,7 @@ public class CommandUtils {
             // valid input, show amplifiers
             Config.PotionEffectInfo info = Config.getInfo(potion);
             maxAmplifier = info.getMaxAmplifier();
-        } else if (input.equalsIgnoreCase("all")) {
+        } else if (input.toLowerCase(Locale.ENGLISH).startsWith("all")) {
             maxAmplifier = 9;
         } else if (input.equalsIgnoreCase("exp-reduction")) {
             maxAmplifier = Config.enchExpReductionMaxLevel;
@@ -146,6 +146,9 @@ public class CommandUtils {
         beaconEffects.expReductionLevel = minLevel - 1; // to ensure no level -1 with item give
         beaconEffects.soulboundLevel = minLevel - 1;
         HashMap<PotionEffectType, Integer> effects = new HashMap<>();
+
+        List<String> skipped = new ArrayList<>();
+
         for (String s : input) {
             try {
                 String potionName = s;
@@ -156,35 +159,99 @@ public class CommandUtils {
                         seenEqualsPrompt = true;
                         sender.sendMessage(YELLOW + "Consider using type=level for consistency with other formats.");
                     }
-                    String[] split = s.split(splitChar);
+                    String[] split = s.split(splitChar, 3);
                     Preconditions.checkState(split.length == 2, "Invalid format, correct format is type" + splitChar + "level");
                     potionName = split[0];
                     level = Integer.parseInt(split[1]);
                 }
+                // Check level
+                if (level == 0 && !allowVirtual) // more specific message for when virtual effects are not support
+                    throw new IllegalArgumentException("Level 0 given, which is not allowed with this command.");
+                if (level < minLevel)
+                    throw new IllegalArgumentException("Level " + level + " is negative");
 
-                if (potionName.equalsIgnoreCase("exp-reduction")) {
-                    beaconEffects.expReductionLevel = level;
-                    continue;
-                } else if (potionName.equalsIgnoreCase("soulbound")) {
-                    beaconEffects.soulboundLevel = level;
-                    continue;
-                } else if (potionName.equalsIgnoreCase("all")) {
-                    for (PotionEffectType potionEffectType : PotionEffectType.values()) {
-                        effects.put(potionEffectType, level);
+                switch (potionName.toLowerCase(Locale.ENGLISH)) {
+                    case "exp-reduction" -> beaconEffects.expReductionLevel = level;
+                    case "soulbound" -> beaconEffects.soulboundLevel = level;
+                    case "all" -> {
+                        for (var effect : PotionEffectType.values()) {
+                            effects.put(effect, level);
+                        }
                     }
-                    continue;
+                    case "all-positive" -> {
+                        for (var effect : PotionEffectType.values()) {
+                            if (!PotionEffectUtils.isNegative(effect)) {
+                                effects.put(effect, level);
+                            }
+                        }
+                    }
+                    case "all-negative" -> {
+                        for (var effect : PotionEffectType.values()) {
+                            if (PotionEffectUtils.isNegative(effect)) {
+                                effects.put(effect, level);
+                            }
+                        }
+                    }
+                    default -> {
+                        PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
+                        if (type == null)
+                            throw new IllegalArgumentException(s + " is not a valid potion effect or enchantment");
+                        effects.put(type, level);
+                    }
                 }
-                PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
-                if (type == null)
-                    throw new IllegalArgumentException(s + " is not a valid potion effect or enchantment");
-                Preconditions.checkArgument(level >= minLevel, "Level is negative");
-                effects.put(type, level);
             } catch (IllegalArgumentException e) {
-                sender.sendMessage(RED + String.format("Skipped '%s' as it is not a valid potion effect (%s)", s, e.getMessage()));
+                skipped.add(s + ": " + e.getMessage());
             }
         }
         beaconEffects.setEffects(effects);
         return beaconEffects;
+    }
+
+    private static final Pattern DESC_SPLIT_PATTERN = Pattern.compile("[{}]");
+    public static TextComponent parseHelpDescription(String desc, String label) {
+        if (desc.isBlank())
+            return new TextComponent();
+        // strip trailing newline
+        if (desc.charAt(desc.length() - 1) == '\n')
+            desc = desc.substring(0, desc.length() - 1);
+        String[] components = DESC_SPLIT_PATTERN.split(desc);
+        List<BaseComponent> children = new ArrayList<>();
+        for (String component : components) {
+            // check @tag
+            String[] tagSplit = component.split(" ", 2);
+            if (tagSplit.length == 2 && tagSplit[0].length() != 0 && tagSplit[0].charAt(0) == '@') {
+                String tag = tagSplit[0].substring(1);
+                String input = tagSplit[1];
+                switch (tag) {
+                    case "color" -> {
+                        String[] colorSplit = input.split(" ", 2);
+                        ChatColor color = ChatColor.of(colorSplit[0]);
+                        String str = colorSplit[1];
+                        var textComponent = new TextComponent(str);
+                        textComponent.setColor(color);
+                        children.add(textComponent);
+                    }
+                    case "arg" -> {
+                        var textComponent = new TextComponent(input);
+                        textComponent.setColor(AQUA);
+                        textComponent.setHoverEvent(showText(new TextComponent("This is an argument to this command")));
+                        children.add(textComponent);
+                    }
+                    case "command" -> {
+                        String command = "/" + label + " " + input;
+                        children.add(displayCommandSuggestion(command));
+                    }
+                    default -> PortableBeacons.INSTANCE.logger.warning("Ignoring invalid @tag " + component);
+                }
+            } else {
+                // simple text
+                children.add(new TextComponent(component));
+            }
+        }
+        var textComponent = new TextComponent();
+        textComponent.setColor(YELLOW);
+        textComponent.setExtra(children);
+        return textComponent;
     }
 
     // Components
@@ -224,6 +291,23 @@ public class CommandUtils {
         component.setHoverEvent(hover);
         component.setColor(ChatColor.YELLOW);
         return component;
+    }
+
+    public static BaseComponent displayCommandSuggestion(String command) {
+        var textComponent = new TextComponent(command);
+        textComponent.setColor(AQUA);
+        textComponent.setBold(false);
+        textComponent.setUnderlined(true);
+        textComponent.setHoverEvent(showText(new TextComponent("Click to copy command to chat box")));
+        textComponent.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command));
+        var copyComponent = new TextComponent(" [C]");
+        copyComponent.setColor(DARK_AQUA);
+        copyComponent.setBold(false);
+        copyComponent.setUnderlined(false);
+        copyComponent.setHoverEvent(showText(new TextComponent("Click to copy command to clipboard")));
+        copyComponent.setClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, command));
+        textComponent.setExtra(List.of(copyComponent));
+        return textComponent;
     }
 
     public static ArgumentParser parse(CommandSender sender, String label, String usage, String[] args, int fromIndex) {

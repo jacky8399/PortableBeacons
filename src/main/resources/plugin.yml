@@ -52,6 +52,7 @@ permissions:
       portablebeacons.command.info: true
       portablebeacons.command.recipe: true
       portablebeacons.command.recipe.*: true
+      portablebeacons.command.help: true
 
   portablebeacons.command.item.*:
     default: op

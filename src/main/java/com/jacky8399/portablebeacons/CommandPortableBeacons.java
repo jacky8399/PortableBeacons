@@ -21,6 +21,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -39,8 +40,8 @@ public class CommandPortableBeacons implements TabExecutor {
     private static final String COMMAND_PERM = "portablebeacons.command.";
 
 
-    private static final String ITEM_USAGE = "item <give/add/set/subtract/setowner/filter>[-silently/-modify-all] <players> <...>";
-    private static final String RECIPE_USAGE = "recipe <list/create/info/enable/disable/testinput> [...]";
+    private static final String ITEM_USAGE = "item <operation>[-silently/-modify-all] <players> [...]";
+    private static final String RECIPE_USAGE = "recipe <...> [...]";
     private static final String RECIPE_CREATE_USAGE = "recipe create <id> <type> [item] [itemAmount] <expCost> <action> <modifications...>";
 
     @Override
@@ -60,7 +61,7 @@ public class CommandPortableBeacons implements TabExecutor {
     private static final String[] ITEM_OP_FLAGS = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
     private Stream<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length <= 1) {
-            return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle", "recipe")
+            return Stream.of("help", "setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle", "recipe")
                     .filter(subcommand -> sender.hasPermission(COMMAND_PERM + subcommand));
         } else if (args[0].equalsIgnoreCase("item") && sender.hasPermission(COMMAND_PERM + "item")) {
             String operationInput = args[1];
@@ -99,7 +100,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     return CommandUtils.listFilter(input);
                 }
             }
-            return CommandUtils.listModifications(args[args.length - 1], !"give".equalsIgnoreCase(args[1]));
+            return CommandUtils.listModifications(args[args.length - 1], "set".equalsIgnoreCase(args[1]));
         } else if (args[0].equalsIgnoreCase("inspect") && args.length == 2 &&
                 sender.hasPermission(COMMAND_PERM + "inspect")) {
             return listPlayers(sender);
@@ -156,6 +157,26 @@ public class CommandPortableBeacons implements TabExecutor {
                     return RecipeManager.RECIPES.keySet().stream();
                 }
             }
+        } else if (args[0].equalsIgnoreCase("help")) {
+            return switch (args.length) {
+                case 2 -> HELP_TOPICS.entrySet().stream()
+                        // also check perms
+                        .filter(entry -> entry.getValue().node == null ||
+                                sender.hasPermission(COMMAND_PERM + entry.getValue().node))
+                        .map(Map.Entry::getKey);
+                case 3 -> {
+                    HelpTopic topic = HELP_TOPICS.get(args[1]);
+                    // also check perms
+                    if (topic == null || topic.childrenTopics == null ||
+                            (topic.node != null && !sender.hasPermission(COMMAND_PERM + topic.node)))
+                        yield null;
+                    yield topic.childrenTopics.entrySet().stream()
+                            .filter(entry -> topic.node == null || entry.getValue().node == null ||
+                                    sender.hasPermission(COMMAND_PERM + topic.node + "." + entry.getValue().node))
+                            .map(Map.Entry::getKey);
+                }
+                default -> null;
+            };
         }
         return null;
     }
@@ -223,7 +244,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (!checkPermission(sender, "toggle"))
                     return;
                 if (args.length < 2)
-                    throw promptUsage(label, "toggle <toggleName> [true/false]");
+                    throw promptUsage(label, "toggle <feature> [true/false]");
                 if ("anvil-combination".equalsIgnoreCase(args[1])) {
                     sender.sendMessage(YELLOW + "Please use /" + label + " recipe disable anvil-combination");
                     return;
@@ -326,7 +347,12 @@ public class CommandPortableBeacons implements TabExecutor {
                     return;
                 doRecipe(sender, args, label);
             }
-            default -> throw promptUsage(label, "<reload/setritualitem/updateitems/inspect/item/toggle/recipe> [...]");
+            case "help" -> {
+                if (!checkPermission(sender, "help"))
+                    return;
+                doHelp(sender, args, label);
+            }
+            default -> throw promptUsage(label, "<help/reload/setritualitem/updateitems/inspect/item/toggle/recipe> [...]");
         }
     }
 
@@ -553,7 +579,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 parser.updateUsage("item " + args[1] + " <players> <effects...>");
                 var modificationType = BeaconModification.Type.parseType(operation);
 
-                BeaconEffects virtual = CommandUtils.parseEffects(sender, parser.popRemainingInput(), true);
+                BeaconEffects virtual = CommandUtils.parseEffects(sender, parser.popRemainingInput(), modificationType.allowVirtual);
                 modification = new BeaconModification(modificationType, virtual, true);
             }
         }
@@ -633,7 +659,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
                 ExpCostCalculator expCost = ExpCostCalculator.deserialize(parser.popWord());
                 BeaconModification.Type action = BeaconModification.Type.parseType(parser.popWord());
-                BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), true);
+                BeaconEffects virtualEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), action.allowVirtual);
                 BeaconModification modification = new BeaconModification(action, virtualEffects, false);
 
                 if (type == InventoryType.SMITHING) {
@@ -744,4 +770,259 @@ public class CommandPortableBeacons implements TabExecutor {
             }
         }
     }
+
+
+    public void doHelp(CommandSender sender, String[] args, String label) {
+        String topicName = (args.length != 1 ? String.join(" ", Arrays.copyOfRange(args, 1, args.length)) + " " : "");
+        String permPrefix;
+        String desc;
+        String fullCommand;
+        Map<String, HelpTopic> children;
+
+        if (args.length == 1) { // /pb help
+            desc = "";
+            fullCommand = null;
+            children = HELP_TOPICS;
+            permPrefix = COMMAND_PERM;
+        } else { // /pb help <topic>
+            HelpTopic topic = HELP_TOPICS.get(args[1]);
+            // also check permission
+            if (topic == null || (topic.node != null && !sender.hasPermission(COMMAND_PERM + topic.node)))
+                throw new IllegalArgumentException("Topic " + args[1] + " not found");
+
+            desc = topic.desc;
+            fullCommand = topic.fullCommand;
+            children = topic.childrenTopics;
+            permPrefix = topic.node != null ? COMMAND_PERM + topic.node + "." : COMMAND_PERM;
+
+            if (args.length == 3) { // /pb help <topic> [innerTopic]
+                HelpTopic innerTopic;
+                // also check permission
+                if (children == null || (innerTopic = children.get(args[2])) == null ||
+                        (topic.node != null && innerTopic.node != null &&
+                                !sender.hasPermission(permPrefix + innerTopic.node)))
+                    throw new IllegalArgumentException("Topic " + String.join(".", args) + " not found");
+
+                desc = innerTopic.desc;
+                fullCommand = innerTopic.fullCommand;
+                children = null;
+            }
+        }
+
+        // I miss Adventure :(
+        var newLineText = new TextComponent("\n");
+
+        var components = new ArrayList<BaseComponent>();
+        var topicText = new TextComponent("/" + label + " " + topicName);
+        topicText.setColor(YELLOW);
+        var titleText = new TextComponent(new TextComponent("==== "), topicText, new TextComponent("help ====\n"));
+        titleText.setColor(GOLD);
+        components.add(titleText);
+
+        if (fullCommand != null) {
+            components.add(displayCommandSuggestion("/" + label + " " + fullCommand));
+            components.add(newLineText);
+        }
+
+        if (!desc.isBlank()) {
+            components.add(CommandUtils.parseHelpDescription(desc, label));
+            components.add(newLineText);
+        }
+
+        if (children != null) {
+            var seeMoreText = new TextComponent("Click on a topic or do /" + label + " help [subcommand] to see more.\n");
+            seeMoreText.setColor(GRAY);
+            components.add(seeMoreText);
+
+            boolean firstLine = true;
+            HoverEvent seeMoreHover = showText(new TextComponent("Click to view this topic"));
+            for (var entry : children.entrySet()) {
+                String id = entry.getKey();
+                HelpTopic topic = entry.getValue();
+                if (topic.node != null && !sender.hasPermission(permPrefix + topic.node))
+                    continue;
+
+                var component = new TextComponent();
+                if (topic.fullCommand != null) {
+                    component.setText("  " + topic.fullCommand);
+                    component.setColor(AQUA);
+                } else {
+                    component.setText("  " + id);
+                    component.setColor(YELLOW);
+                }
+                component.setHoverEvent(seeMoreHover);
+                component.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/" + label + " help " + topicName + id));
+
+                if (!firstLine)
+                    components.add(newLineText);
+                firstLine = false;
+                components.add(component);
+            }
+        }
+        var endHelpText = new TextComponent("\n========");
+        endHelpText.setColor(GOLD);
+        components.add(endHelpText);
+
+        sender.spigot().sendMessage(new TextComponent(components.toArray(new BaseComponent[0])));
+    }
+
+    // Help topics
+
+    private record HelpTopic(@Nullable String node, @Nullable String fullCommand, String desc, @Nullable Map<String, HelpTopic> childrenTopics) {}
+
+    private static HelpTopic topic(String desc) {
+        return new HelpTopic(null, null, desc, null);
+    }
+
+    private static HelpTopic topic(@Nullable String node, String fullCommand, String desc) {
+        return new HelpTopic(node, fullCommand, desc, null);
+    }
+
+    private static HelpTopic topic(@Nullable String node, String fullCommand, String desc, @NotNull Map<String, HelpTopic> childrenTopics) {
+        return new HelpTopic(node, fullCommand, desc, childrenTopics);
+    }
+
+    private static final HelpTopic ITEM_TOPIC = topic("item", ITEM_USAGE, """
+            Manipulates portable beacons in players' inventories. Run {@command help item} for more info.
+            """, Map.of(
+            "modifications", topic("""
+                    Modifications are potion effects/enchantments in the format of type or type=level.
+                    Three special values are also accepted:
+                        {@color green all}: Targets all potion effects.
+                        {@color green all-positive}: Targets all positive potion effects.
+                        {@color green all-negative}: Targets all negative potion effects. Note that \
+                    bad_omen and glowing are considered negative potion effects across the plugin.
+                                       
+                    Some commands may additionally accept 0 as the level.
+                    For example, {@command item set @s wither=0} will remove the wither effect from your beacon.
+                    """),
+            "flags", topic("""
+                    All item subcommands accept flags to change their behaviour.
+                    Flags:
+                        {@color green silently}: By default, all item subcommands will notify the target that \
+                    their beacons were modified. To suppress these notifications, add the {@color green -silently} flag.
+                        {@color green modify-all}:  By default, all item subcommands will only modify the \
+                    portable beacons held in targets' main hands. To modify all items in targets' inventories, add the \
+                    {@color green -modify-all} flag.
+                    
+                    For example, {@command item give-silently @a speed} will give all players a speed 1 beacon silently.
+                    {@command item set-silently-modify-all @a exp-reduction=0} will remove exp-reduction from all \
+                    players' beacons silently.
+                    """),
+            "add", topic("add", "item add <players> <modifications...>", """
+                    Modifies beacons by adding the specified level onto the current level.
+                    
+                    For example, for a speed=2 beacon:
+                        {@command item add jump_boost} will add jump_boost 1 to the beacon;
+                        {@command item add speed=2} will set speed to 4.
+                    """),
+            "set", topic("set", "item set <players> <modifications...>", """
+                    Modifies beacons by overriding the level.
+                    
+                    For example, for a speed=2 beacon:
+                        {@command item set speed} will set speed to 1;
+                        {@command item set speed=0} will remove speed.
+                    """),
+            "subtract", topic("subtract", "item subtract <players> <modifications...>", """
+                    Modifies beacons by subtracting the specified level from the current level.
+                    
+                    For example, for a speed=2 beacon:
+                        {@command item subtract speed} will set speed to 1;
+                        {@command item subtract speed=2} will remove speed;
+                        {@command item subtract jump_boost} will do nothing.
+                    """),
+            "filter", topic("filter", "item filter <allow/block> <conditions...>", """
+                    Filters the effects on beacons so that it is compliant with the specified conditions.
+                    Uses the same conditions (type[op + level]) as WorldGuard flags.
+                    
+                    For example, for a speed=2 jump_boost=3 beacon:
+                        {@command item filter allow speed} will remove jump_boost;
+                        {@command item filter allow speed<=1} will remove jump_boost and downgrade speed to 1;
+                        {@command item filter block jump_boost>2} will downgrade jump_boost to 1;
+                        {@command item filter block wither} will do nothing.
+                    """),
+            "setowner", topic("setowner", "item setowner <players> <soulboundPlayer>",
+                    "Sets the soulbound owner. Accepts player names or UUIDs."),
+            "update", topic("update", "item update <players>",
+                    "Immediately updates the beacon item.")
+    ));
+
+    private static final HelpTopic RECIPE_TOPIC = topic("recipe", RECIPE_USAGE, """
+            Manages recipes. Run {@command help recipe} for more info.
+            """, Map.of(
+            "create", topic("create", RECIPE_CREATE_USAGE, """
+                    Creates a new recipe.
+                                                        
+                    {@color blue Arguments}
+                    {@arg id}: The identifier of the recipe.
+                    {@arg type}: The recipe type. Usually the crafting station.
+                    {@arg item}: The sacrificial item. Defaults to the item you are holding.
+                    {@arg itemAmount}: The amount required for the recipe.
+                    {@arg expCost}: The experience cost.  Can be a number or one of these special values:
+                        {@color green dynamic}: Calculate the cost dynamically, \
+                    but disallow going beyond level 39. Equivalent to {@color green dynamic-max39}.
+                        {@color green dynamic-max[level]}: Calculate the cost dynamically, \
+                    but disallow going beyond the level specified.
+                        {@color green dynamic-unrestricted}: Calculate the cost dynamically.
+                    {@arg action}: The action to perform (add/subtract/set beacon effects)
+                    {@arg modifications...}: The modifications to apply. \
+                    See {@command help item modifications} for more info.
+                    """),
+            "disable", topic("disable", "recipe disable <id>", "Disables a recipe temporarily."),
+            "enable", topic("enable", "recipe enable <id>", "Enables a recipe temporarily."),
+            "info", topic("info", "recipe info <id>", "Shows the details of a recipe."),
+            "list", topic("list", "recipe list", "Lists all recipes."),
+            "testinput", topic("testinput", "recipe testinput <id> [item]", """
+                    Tests whether an item is accepted as the sacrificial item of a recipe.
+                                                
+                    {@color blue Arguments}
+                    {@arg item}: The item to test. Defaults to the item you are holding.
+                    """)
+    ));
+    private static final Map<String, HelpTopic> HELP_TOPICS = Map.of(
+            "help", topic("help", "help [subcommand]", """
+                    Shows this help message.
+                    Use {@command help [subcommand]} for more info on a subcommand.
+                    """),
+            "reload", topic("reload", "reload", "Reloads plugin configuration and recipes."),
+            "saveconfig", topic("saveconfig", "saveconfig", "Saves the configuration."),
+            "setritualitem", topic("setritualitem", "setritualitem [item] [amount]", """
+                    Sets the ritual item.
+                    
+                    Note that this command {@color dark_red CANNOT} turn off the ritual, as the ritual item affects world-pickup.
+                    To {@color red TURN OFF} the ritual, use {@command toggle ritual off}.
+                    When the ritual item is set to air, and world-pickup is enabled,
+                    the player will be able to create portable beacons by breaking existing beacons.
+                    
+                    {@color blue Arguments}
+                    {@arg item}: Item to set as the ritual item. Accepts NBT tags. Defaults to the item in the player's hand.
+                    {@arg amount}: Amount required. Defaults to 1 or the amount of item in the player's hand.
+                    """),
+            "updateitems", topic("updateitems", "updateitems", """
+                    Request that all portable beacons be updated.
+                    
+                    The following will be updated:
+                    - Item lore
+                    - Custom model data
+                    - Beacon effects (if force-downgrade is enabled)
+                    
+                    The following will not be updated:
+                    - Item name
+                    """),
+            "inspect", topic("inspect", "inspect [player]", """
+                    Inspects a player's held portable beacon. If player is not specified, defaults to the command sender.
+                    """),
+            "item", ITEM_TOPIC,
+            "toggle", topic("toggle", "toggle <feature> [true/false]", """
+                    Toggles a feature temporarily. To save your changes, run {@command saveconfig} afterwards.
+                    
+                    {@color blue Features and their corresponding config value:}
+                        {@color green ritual}: ritual.enabled
+                        {@color green toggle-gui}: effects.toggle.enabled
+                        {@color green creation-reminder}: creation-reminder.enabled
+                        {@color green world-placement}: world-interactions.placement-enabled
+                        {@color green world-pickup}: world-interactions.pickup-enabled
+                    """),
+            "recipe", RECIPE_TOPIC
+    );
 }
