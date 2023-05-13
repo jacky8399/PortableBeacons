@@ -29,11 +29,13 @@ import static net.md_5.bungee.api.ChatColor.RED;
 import static net.md_5.bungee.api.ChatColor.YELLOW;
 
 public class CommandUtils {
-    // Potion effect type autocomplete
-    private static final List<String> VALID_MODIFICATIONS = Stream.concat(
-            PotionEffectUtils.getValidPotionNames().stream(),
-            Stream.of("exp-reduction", "soulbound", "all")
-    ).toList();
+    private static class Completions {
+        // Potion effect type autocomplete
+        private static final List<String> VALID_MODIFICATIONS = Stream.concat(
+                PotionEffectUtils.getValidPotionNames().stream(),
+                Stream.of("exp-reduction", "soulbound", "all")
+        ).toList();
+    }
     public static Stream<String> listModifications(String input, boolean allowVirtual) {
         if (input.isEmpty())
             return PotionEffectUtils.getValidPotionNames().stream();
@@ -62,7 +64,7 @@ public class CommandUtils {
                     .mapToObj(i -> finalInput + "=" + i);
         }
         // show potion effects and enchantments
-        return VALID_MODIFICATIONS.stream();
+        return Completions.VALID_MODIFICATIONS.stream();
     }
 
 
@@ -110,6 +112,30 @@ public class CommandUtils {
         } else {
             return Stream.of("0", "1", "dynamic", "dynamic-unrestricted", "dynamic-max");
         }
+    }
+
+    public static Stream<String> listPlayers(@Nullable CommandSender sender) {
+        var players = Bukkit.getOnlinePlayers().stream();
+        if (sender instanceof Player playerSender) {
+            players = players.filter(playerSender::canSee);
+        }
+        return players.map(Player::getName);
+    }
+
+    public static String SELECTOR_PERMISSION = "minecraft.command.selector";
+    public static Stream<String> listSelectors(@Nullable CommandSender sender) {
+        var players = listPlayers(sender);
+        if (sender != null && !sender.hasPermission(SELECTOR_PERMISSION))
+            return players;
+
+        var playersList = players.toList();
+        var completions = new ArrayList<String>(playersList.size() + 3);
+        completions.addAll(playersList);
+        completions.add("@a");
+        completions.add("@p");
+        completions.add("@s");
+
+        return completions.stream();
     }
 
     @NotNull
@@ -222,18 +248,20 @@ public class CommandUtils {
 
         private void checkSize() {
             if (index == input.length) {
-                String expected = arguments[index];
-                throw new IllegalArgumentException(RED + "Expected " + expected + " at position " + index + "\n" +
-                                                   RED + "Usage: /" + label + " " + usage);
+                int pos = Math.min(index, arguments.length - 1);
+                String expected = arguments[pos];
+                throw new IllegalArgumentException(RED + "Expected " + expected + " at position " + pos + ", got nothing\n" +
+                        RED + "Usage: /" + label + " " + usage);
             }
         }
 
         private IllegalArgumentException wrapException(Exception ex) {
             index--;
-            String expected = arguments.length > index ? arguments[index] : arguments[arguments.length - 1];
-            return new IllegalArgumentException(RED + "Expected " + expected + " at position " + index + ", " +
-                                               "but got input " + input[index] + "\n" +
-                                               RED + "Usage: /" + label + " " + usage, ex);
+            int pos = Math.min(index, arguments.length - 1);
+            String expected = arguments[pos];
+            return new IllegalArgumentException(RED + "Expected " + expected + " at position " + pos +
+                    ", got input " + input[index] + "\n" +
+                    RED + "Usage: /" + label + " " + usage, ex);
         }
 
         public IllegalArgumentException throwUsage() {

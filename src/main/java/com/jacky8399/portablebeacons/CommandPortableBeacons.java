@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.jacky8399.portablebeacons.utils.CommandUtils.displayItem;
+import static com.jacky8399.portablebeacons.utils.CommandUtils.*;
 import static net.md_5.bungee.api.ChatColor.*;
 import static net.md_5.bungee.api.chat.ComponentBuilder.FormatRetention.NONE;
 
@@ -55,37 +55,42 @@ public class CommandPortableBeacons implements TabExecutor {
     }
 
     private static final Pattern EXP_COST_PATTERN = Pattern.compile("^\\d+|dy");
+
+    private static final String[] ITEM_OPS = {"give", "add", "subtract", "set", "filter", "setowner", "update"};
+    private static final String[] ITEM_OP_FLAGS = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
     private Stream<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length <= 1) {
             return Stream.of("setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle", "recipe")
                     .filter(subcommand -> sender.hasPermission(COMMAND_PERM + subcommand));
         } else if (args[0].equalsIgnoreCase("item") && sender.hasPermission(COMMAND_PERM + "item")) {
-            String operationArg = args[1].split("-", 2)[0];
+            String operationInput = args[1];
+            String operationArg = operationInput.split("-", 2)[0];
             if (args.length == 2) {
-                String[] operations = {"give", "add", "subtract", "set", "filter", "setowner", "update"};
-                String[] flags = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
                 List<String> completions = new ArrayList<>();
-                for (String operation : operations) {
+                for (String operation : ITEM_OPS) {
                     // check perm
                     if (!sender.hasPermission(COMMAND_PERM + "item." + operation))
                         continue;
                     // flags
                     if (operation.equalsIgnoreCase(operationArg)) {
                         completions.add(operation);
-                        for (String flag : flags) {
+                        for (String flag : ITEM_OP_FLAGS) {
                             completions.add(operation + flag);
                         }
-                    } else if (operation.startsWith(args[1])) {
+                    } else if (operation.startsWith(operationInput)) {
                         completions.add(operation);
                     }
                 }
                 return completions.stream();
             } else if (args.length == 3) {
-                return Stream.concat(Stream.of("@a", "@s", "@p"), Bukkit.getOnlinePlayers().stream().map(Player::getName));
+                return listSelectors(sender);
             }
             // Enchantment autocomplete
-            if (operationArg.startsWith("setowner") && args.length == 4) {
-                return Bukkit.getOnlinePlayers().stream().map(Player::getName);
+            if (operationArg.startsWith("setowner")) {
+                if (args.length == 4)
+                    return listPlayers(sender);
+                else
+                    return Stream.empty();
             } else if (operationArg.startsWith("filter")) { // filter autocomplete
                 if (args.length == 4) {
                     return Stream.of("allow", "block");
@@ -97,7 +102,7 @@ public class CommandPortableBeacons implements TabExecutor {
             return CommandUtils.listModifications(args[args.length - 1], !"give".equalsIgnoreCase(args[1]));
         } else if (args[0].equalsIgnoreCase("inspect") && args.length == 2 &&
                 sender.hasPermission(COMMAND_PERM + "inspect")) {
-            return Bukkit.getOnlinePlayers().stream().map(Player::getName);
+            return listPlayers(sender);
         } else if (args[0].equalsIgnoreCase("toggle") && sender.hasPermission(COMMAND_PERM + "toggle")) {
             if (args.length == 2) {
                 return Config.TOGGLES.keySet().stream()
@@ -144,9 +149,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     };
                 }
                 case "enable", "disable", "testinput", "info" -> {
-                    if (!sender.hasPermission(COMMAND_PERM + "recipe." + args[1]))
-                        return null;
                     if (args.length != 3)
+                        return null;
+                    if (!sender.hasPermission(COMMAND_PERM + "recipe." + args[1]))
                         return null;
                     return RecipeManager.RECIPES.keySet().stream();
                 }
@@ -185,11 +190,15 @@ public class CommandPortableBeacons implements TabExecutor {
         } catch (Exception ex) {
             sender.sendMessage(RED + ex.getMessage());
             Throwable cause = ex.getCause();
-            while (cause != null) {
-                sender.sendMessage(RED + "(Caused by " + cause.getClass().getSimpleName() + ": " + cause.getMessage() + ")");
-                cause = cause.getCause();
+            if (cause != null) {
+                sender.sendMessage(RED + cause.getMessage());
             }
             if (Config.debug) {
+                while (cause != null) {
+                    sender.sendMessage(RED + "(Caused by " + cause.getClass().getSimpleName() + ": " + cause.getMessage() + ")");
+                    cause = cause.getCause();
+                }
+                sender.sendMessage(YELLOW + "Refer to the console for more details.");
                 ex.printStackTrace();
             }
         }
@@ -506,10 +515,11 @@ public class CommandPortableBeacons implements TabExecutor {
             case "setowner" -> {
                 parser.updateUsage("item setowner <players> <ownerUUID/ownerName>");
                 UUID uuid;
+                String input = parser.popWord();
                 try {
-                    uuid = UUID.fromString(parser.popWord());
+                    uuid = UUID.fromString(input);
                 } catch (IllegalArgumentException ignored) {
-                    Player newOwner = Bukkit.getPlayer(parser.popWord());
+                    Player newOwner = Bukkit.getPlayer(input);
                     if (newOwner != null) {
                         uuid = newOwner.getUniqueId();
                     } else {
