@@ -7,20 +7,23 @@ import com.jacky8399.portablebeacons.utils.BeaconPyramid;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public record SimpleRecipe(String id,
+public record SimpleRecipe(@NotNull NamespacedKey id,
                            @NotNull InventoryType type,
                            @NotNull ItemStack input,
+                           @Nullable ItemStack template,
                            @NotNull List<BeaconModification> modifications,
                            @NotNull ExpCostCalculator expCost,
-                           @NotNull EnumSet<SpecialOps> specialOperations) implements BeaconRecipe {
+                           @NotNull Set<SpecialOps> specialOperations) implements BeaconRecipe {
 
     public SimpleRecipe {
         if (type != InventoryType.ANVIL && type != InventoryType.SMITHING)
@@ -31,8 +34,10 @@ public record SimpleRecipe(String id,
                         @NotNull InventoryType type,
                         @NotNull ItemStack input,
                         @NotNull List<BeaconModification> modifications,
-                        @NotNull ExpCostCalculator expCost) {
-        this(id, type, input, modifications, expCost, EnumSet.noneOf(SpecialOps.class));
+                        @NotNull ExpCostCalculator expCost,
+                        @NotNull Set<SpecialOps> specialOperations) {
+        this(Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id),
+                type, input, null, modifications, expCost, specialOperations);
     }
 
     @Override
@@ -90,6 +95,10 @@ public record SimpleRecipe(String id,
         inputClone.setAmount(1);
         map.put("input", inputClone); // store amount ourselves
         map.put("input-amount", input.getAmount());
+
+        if (type == InventoryType.SMITHING && template != null)
+            map.put("template", template);
+
         var modMap = new HashMap<String, Object>();
         for (var mod : modifications) {
             modMap.putAll(mod.save());
@@ -102,22 +111,35 @@ public record SimpleRecipe(String id,
         return map;
     }
 
+    private static ItemStack loadStack(Object o) {
+        if (o instanceof String inputStr)
+            return Bukkit.getItemFactory().createItemStack(inputStr);
+        else if (o instanceof ItemStack stack1) // apparently it can do that??
+            return stack1;
+        else
+            return ItemStack.deserialize((Map<String, Object>) o);
+    }
+
     public static SimpleRecipe load(String id, Map<String, Object> map) throws IllegalArgumentException {
+        NamespacedKey key = NamespacedKey.fromString(id, PortableBeacons.INSTANCE);
+        if (key == null) {
+            key = new NamespacedKey(PortableBeacons.INSTANCE, UUID.randomUUID().toString().replace("-", ""));
+            PortableBeacons.INSTANCE.logger.warning(id + " is not a valid key! The recipe will be loaded as " + key +". To remove this warning, replace the key with a valid one.");
+        }
+
         InventoryType type = InventoryType.valueOf(
                 Objects.requireNonNull((String) map.get("type"), "type cannot be null").toUpperCase(Locale.ENGLISH));
-        ItemStack stack;
+
         Object inputObj = Objects.requireNonNull(map.get("input"), "input cannot be null");
-        if (inputObj instanceof String inputStr)
-            stack = Bukkit.getItemFactory().createItemStack(inputStr);
-        else if (inputObj instanceof ItemStack stack1) // apparently it can do that??
-            stack = stack1;
-        else
-            stack = ItemStack.deserialize((Map<String, Object>) inputObj);
+        ItemStack stack = loadStack(inputObj);
         int amount = (Integer) map.getOrDefault("input-amount", 1);
         stack.setAmount(amount);
 
+        Object templateObj = map.get("template");
+        ItemStack template = templateObj != null ? loadStack(templateObj) : null;
+
         var modificationsMap = (Map<String, Map<String, Object>>) map.get("modifications");
-        if (modificationsMap == null || modificationsMap.size() == 0) {
+        if (modificationsMap == null || modificationsMap.isEmpty()) {
             throw new IllegalArgumentException("modifications cannot be null or empty");
         }
         var modifications = modificationsMap.entrySet().stream()
@@ -130,10 +152,10 @@ public record SimpleRecipe(String id,
                 specialOps.add(special);
         }
 
-        if (type == InventoryType.SMITHING) {
-            PortableBeacons.INSTANCE.logger.warning("Loading SMITHING recipe " + id + ". Smithing recipes are deprecated due to changes to Smithing Tables in 1.20.");
-        }
-        return new SimpleRecipe(id, type, stack, modifications, expCost, specialOps);
+//        if (type == InventoryType.SMITHING) {
+//            PortableBeacons.INSTANCE.logger.warning("Loading SMITHING recipe " + id + ". Smithing recipes are deprecated due to changes to Smithing Tables in 1.20.");
+//        }
+        return new SimpleRecipe(key, type, stack, template, modifications, expCost, specialOps);
     }
 
     public enum SpecialOps {

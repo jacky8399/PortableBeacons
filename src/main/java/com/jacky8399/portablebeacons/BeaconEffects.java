@@ -42,6 +42,16 @@ public class BeaconEffects implements Cloneable {
         this.effects = ImmutableSortedMap.copyOf(effects, PotionEffectUtils.POTION_COMPARATOR);
     }
 
+    public BeaconEffects(BeaconEffects other) {
+        this.effects = other.effects;
+        this.disabledEffects = other.disabledEffects;
+        this.expReductionLevel = other.expReductionLevel;
+        this.soulboundOwner = other.soulboundOwner;
+        this.soulboundLevel = other.soulboundLevel;
+        this.customDataVersion = other.customDataVersion;
+        this.needsUpdate = other.needsUpdate;
+    }
+
     @NotNull
     private ImmutableSortedMap<PotionEffectType, Integer> effects;
     @NotNull

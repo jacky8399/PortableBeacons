@@ -20,7 +20,7 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
 
     @Override
     public boolean test(BeaconEffects effects) {
-        return modify(effects);
+        return modify(effects.clone());
     }
 
     public enum Type {

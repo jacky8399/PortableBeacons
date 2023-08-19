@@ -2,7 +2,9 @@ package com.jacky8399.portablebeacons.recipes;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
@@ -11,13 +13,13 @@ import org.jetbrains.annotations.Nullable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BinaryOperator;
 
-public record CombinationRecipe(String id,
+public record CombinationRecipe(NamespacedKey id,
                                 int maxEffects,
                                 boolean combineEffectsAdditively,
-                                ExpCostCalculator expCost,
-                                boolean showErrorPrompt) implements BeaconRecipe {
+                                ExpCostCalculator expCost) implements BeaconRecipe {
 
     @Override
     public @Nullable RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
@@ -73,7 +75,6 @@ public record CombinationRecipe(String id,
         map.put("max-effects", maxEffects);
         map.put("combine-effects-additively", combineEffectsAdditively);
         map.put("exp-cost", expCost.serialize());
-//        map.put("display-error-prompt", showErrorPrompt);
         return map;
     }
 
@@ -89,7 +90,8 @@ public record CombinationRecipe(String id,
         } else {
             expCost = ExpCostCalculator.deserialize(map.get("exp-cost"));
         }
-//        boolean showErrorPrompt = ((Boolean) map.getOrDefault("show-error-prompt", false));
-        return new CombinationRecipe(id, maxEffects, combineEffectsAdditively, expCost, false);
+        NamespacedKey key = Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id);
+
+        return new CombinationRecipe(key, maxEffects, combineEffectsAdditively, expCost);
     }
 }

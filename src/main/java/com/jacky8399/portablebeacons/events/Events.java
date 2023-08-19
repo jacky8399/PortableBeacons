@@ -350,7 +350,7 @@ public final class Events implements Listener {
                 boolean isReadOnly = !Config.effectsToggleEnabled ||
                         (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
                 Inventories.openInventory(player, new InventoryTogglePotion(stack, isReadOnly));
-            } else if (!ItemUtils.isPyramid(e.getItem())) {
+            } else if (!ItemUtils.isPyramid(e.getItem()) && e.useInteractedBlock() != Event.Result.DENY) {
                 // prevent beacon deactivation sound
                 e.setCancelled(true);
                 e.getPlayer().updateInventory();

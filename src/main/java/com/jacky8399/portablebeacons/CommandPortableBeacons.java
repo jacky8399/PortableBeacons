@@ -4,6 +4,7 @@ import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.recipes.*;
 import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.*;
+import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -23,9 +24,11 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -58,7 +61,7 @@ public class CommandPortableBeacons implements TabExecutor {
     private static final Pattern EXP_COST_PATTERN = Pattern.compile("^\\d+|dy");
 
     private static final String[] ITEM_OPS = {"give", "add", "subtract", "set", "filter", "setowner", "update"};
-    private static final String[] ITEM_OP_FLAGS = {"", "-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
+    private static final String[] ITEM_OP_FLAGS = {"-silently", "-modify-all", "-silently-modify-all", "-modify-all-silently"};
     private Stream<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length <= 1) {
             return Stream.of("help", "setritualitem", "item", "reload", "saveconfig", "updateitems", "inspect", "toggle", "recipe")
@@ -627,7 +630,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         .filter(player -> !failedPlayers.contains(player))
                         .map(Player::getName)
                         .collect(Collectors.joining(", ")));
-        if (failedPlayers.size() != 0)
+        if (!failedPlayers.isEmpty())
             sender.sendMessage(RED + "Failed to apply the operation on " + failedPlayers.stream()
                     .map(Player::getName)
                     .collect(Collectors.joining(", ")) +
@@ -643,17 +646,19 @@ public class CommandPortableBeacons implements TabExecutor {
                 sender.sendMessage(GREEN + "Enabled recipes:");
                 for (var entry : RecipeManager.RECIPES.entrySet())
                     sender.sendMessage("  " + entry.getKey());
-                if (RecipeManager.DISABLED_RECIPES.size() != 0) {
+                if (!RecipeManager.DISABLED_RECIPES.isEmpty()) {
                     sender.sendMessage(RED + "Disabled recipes:");
                     for (var entry : RecipeManager.DISABLED_RECIPES)
                         sender.sendMessage("  " + entry);
                 }
             }
             case "create" -> {
+                // TODO fix create command
+
                 assertPermission(sender, "recipe.create");
 
                 parser.updateUsage(RECIPE_CREATE_USAGE);
-                String id = parser.popWord();
+                NamespacedKey id = Objects.requireNonNull(NamespacedKey.fromString(parser.popWord(), PortableBeacons.INSTANCE));
                 InventoryType type = InventoryType.valueOf(parser.popWord().toUpperCase(Locale.ENGLISH));
                 ItemStack stack = parser.tryPopItemStack();
 
@@ -666,7 +671,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(ChatColor.YELLOW + "SMITHING recipes are deprecated due to changes to Smithing Tables in 1.20!");
                 }
 
-                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, List.of(modification), expCost);
+                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, null, List.of(modification), expCost, Set.of());
 
                 // save in YAML
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
@@ -747,7 +752,13 @@ public class CommandPortableBeacons implements TabExecutor {
                             "Recipe type: " + simpleRecipe.type()).color(YELLOW);
                     builder.append("\nAccepts: ").color(WHITE)
                             .append(displayItem(simpleRecipe.input()))
-                            .append("\n").color(WHITE);
+                            .append("\n", NONE);
+                    if (simpleRecipe.template() != null) {
+                        builder.append("Smithing Template: ").color(net.md_5.bungee.api.ChatColor.of(new Color(0x1a1e1a)))
+                                .append(displayItem(simpleRecipe.template()))
+                                .append("\n", NONE);
+                    }
+
                     for (var modification : simpleRecipe.modifications()) {
                         builder.append(modification.type().name() + "s:\n").color(BLUE);
                         var effects = modification.virtualEffects().save(true);

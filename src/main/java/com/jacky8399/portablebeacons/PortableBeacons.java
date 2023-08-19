@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 public final class PortableBeacons extends JavaPlugin {
 
     public static PortableBeacons INSTANCE;
+    public static Logger LOGGER;
 
     public Logger logger = getLogger();
     public EffectsTimer effectsTimer;
@@ -40,6 +41,7 @@ public final class PortableBeacons extends JavaPlugin {
     @Override
     public void onEnable() {
         INSTANCE = this;
+        LOGGER = logger;
         try {
             Metrics metrics = new Metrics(this, 10409);
         } catch (Exception ignored) {}
@@ -79,5 +81,6 @@ public final class PortableBeacons extends JavaPlugin {
     @Override
     public void onDisable() {
         ReminderOutline.cleanUp();
+        RecipeManager.cleanUp();
     }
 }

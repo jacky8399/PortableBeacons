@@ -1,12 +1,17 @@
 package com.jacky8399.portablebeacons.recipes;
 
+import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
+import com.jacky8399.portablebeacons.utils.RecipeUtils;
+import com.jacky8399.portablebeacons.utils.SmithingUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConstructor;
 import org.bukkit.configuration.file.YamlRepresenter;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -17,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
 public final class RecipeManager {
 
@@ -29,15 +35,18 @@ public final class RecipeManager {
     public static final File RECIPES_FILE = new File(PLUGIN.getDataFolder(), "recipes.yml");
 
     // lookup tables
-    private static CombinationRecipe combinationRecipe;
+    private static CombinationRecipe beaconCombinationRecipe;
     private static final Map<Material, List<SimpleRecipe>> anvilRecipes = new HashMap<>();
     private static final Map<Material, List<SimpleRecipe>> smithingRecipes = new HashMap<>();
 
     @Nullable
     public static BeaconRecipe findRecipeFor(InventoryType type, ItemStack beacon, ItemStack right) {
+        if (Config.debug)
+            PortableBeacons.LOGGER.info("[RecipeManager] Finding %s recipe for beacon=%s, input=%s".formatted(type, beacon, right));
+
         if (type == InventoryType.ANVIL && ItemUtils.isPortableBeacon(right) &&
-            combinationRecipe.isApplicableTo(beacon, right))
-            return combinationRecipe;
+            beaconCombinationRecipe.isApplicableTo(beacon, right))
+            return beaconCombinationRecipe;
         Map<Material, List<SimpleRecipe>> recipeLookupMap = switch (type) {
             case ANVIL -> anvilRecipes;
             case SMITHING -> smithingRecipes;
@@ -57,17 +66,39 @@ public final class RecipeManager {
     public static void cleanUp() {
         RECIPES.clear();
         DISABLED_RECIPES.clear();
-        combinationRecipe = null;
+        beaconCombinationRecipe = null;
         anvilRecipes.clear();
+
+        smithingRecipes.values().forEach(recipes -> recipes.forEach(recipe -> {
+            if (!Bukkit.removeRecipe(recipe.id()))
+                PortableBeacons.INSTANCE.logger.warning("Failed to remove smithing recipe " + recipe.id());
+        }));
+
         smithingRecipes.clear();
     }
 
     private static void addRecipe(SimpleRecipe simpleRecipe) {
-        Map<Material, List<SimpleRecipe>> recipes = switch (simpleRecipe.type()) {
-            case ANVIL -> anvilRecipes;
-            case SMITHING -> smithingRecipes;
-            default -> throw new IllegalStateException();
-        };
+        Map<Material, List<SimpleRecipe>> recipes;
+        if (simpleRecipe.type() == InventoryType.SMITHING) {
+            recipes = smithingRecipes;
+
+            var bukkitRecipe = SmithingUtils.makeSmithingRecipe(
+                    simpleRecipe.id(),
+                    simpleRecipe.template() != null ?
+                            new RecipeChoice.ExactChoice(simpleRecipe.template()) :
+                            new RecipeChoice.MaterialChoice(Material.AIR),
+                    new RecipeChoice.ExactChoice(simpleRecipe.input()),
+                    simpleRecipe.modifications()
+            );
+            try {
+                boolean result = Bukkit.addRecipe(bukkitRecipe);
+                PortableBeacons.INSTANCE.logger.info("Result: " + result + ", Bukkit recipe: " + bukkitRecipe);
+            } catch (IllegalStateException ex) {
+                PortableBeacons.INSTANCE.logger.log(Level.WARNING, "Failed to register smithing recipe " + simpleRecipe.id(), ex);
+            }
+        } else {
+            recipes = anvilRecipes;
+        }
         recipes.computeIfAbsent(simpleRecipe.input().getType(), ignored -> new ArrayList<>()).add(simpleRecipe);
     }
 
@@ -92,37 +123,41 @@ public final class RecipeManager {
                         DISABLED_RECIPES.add(recipeName); // don't really need to store the recipe
                     }
                     if (recipe instanceof CombinationRecipe newCombinationRecipe) {
-                        if (RecipeManager.combinationRecipe != null) {
-                            plugin.logger.severe("Cannot have more than one anvil combination recipes! Skipping " + recipeName + ".");
+                        if (RecipeManager.beaconCombinationRecipe != null) {
+                            plugin.logger.severe("Cannot have more than one beacon combination recipes! Skipping " + recipeName + ".");
                         } else {
-                            RecipeManager.combinationRecipe = newCombinationRecipe;
+                            RecipeManager.beaconCombinationRecipe = newCombinationRecipe;
                         }
                     } else if (recipe instanceof SimpleRecipe simpleRecipe) {
                         addRecipe(simpleRecipe);
                     }
 
                 } catch (Exception ex) {
-                    plugin.logger.warning("Failed to load recipe " + recipeName);
-                    ex.printStackTrace();
+                    plugin.logger.log(Level.WARNING, "Failed to load recipe " + recipeName, ex);
                 }
             }
             plugin.logger.info("Loaded " + RECIPES.size() + " recipes");
         } catch (IOException ex) {
             plugin.logger.severe("Failed to open recipes.yml: " + ex);
         }
+
+        // try sending the new recipes or something
+        if (!smithingRecipes.isEmpty())
+            Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, RecipeUtils::updateRecipes);
     }
 
     // use Bukkit defaults
     private static final Supplier<? extends Yaml> YAML_SUPPLIER = () -> {
-        var constructor = new YamlConstructor();
-        var representer = new YamlRepresenter();
-        representer.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        var constructor = new YamlConstructor(new LoaderOptions().setProcessComments(true));
 
         var yamlDumperOptions = new DumperOptions();
+        yamlDumperOptions.setProcessComments(true);
         yamlDumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        var yamlLoaderOptions = new LoaderOptions();
 
-        return new Yaml(constructor, representer, yamlDumperOptions, yamlLoaderOptions);
+        var representer = new YamlRepresenter(yamlDumperOptions);
+        representer.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+
+        return new Yaml(constructor, representer, yamlDumperOptions, constructor.getLoadingConfig());
     };
 
 }

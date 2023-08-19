@@ -296,7 +296,7 @@ public class Config {
 
     @SuppressWarnings("ConstantConditions")
     public static void readEffects(FileConfiguration config) {
-        effects = new HashMap<>();
+        effects.clear();
         // of course getValues doesn't work
         ConfigurationSection effectsSection = config.getConfigurationSection("effects");
         Set<String> keys = new LinkedHashSet<>(config.getDefaults().getConfigurationSection("effects").getKeys(false));
@@ -492,7 +492,7 @@ public class Config {
     @SuppressWarnings("NotNullFieldNotInitialized")
     @NotNull
     private static PotionEffectInfo effectsDefault;
-    private static HashMap<PotionEffectType, PotionEffectInfo> effects;
+    private static HashMap<PotionEffectType, PotionEffectInfo> effects = new HashMap<>();
     private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null);
     @NotNull
     public static PotionEffectInfo getInfo(PotionEffectType potion) {

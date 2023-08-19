@@ -1,5 +1,6 @@
 package com.jacky8399.portablebeacons.recipes;
 
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +27,7 @@ public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
 
     Map<String, Object> save();
 
-    String id();
+    NamespacedKey id();
 
     ExpCostCalculator expCost();
 
