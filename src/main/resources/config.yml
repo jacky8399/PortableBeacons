@@ -9,6 +9,10 @@ config-version: 1
 beacon-item:
 
   name: Portable Beacon # Note: players can of course rename the item in anvils
+
+  # Supports PlaceholderAPI placeholders.
+  # Note that placeholders will only be updated
+  # when an item update is triggered (/pb updateitems or /pb item update <players>)
   lore:
     - '&7Shift+right click to configure potion effects'
   custom-model-data: -1 # Custom model data; Set to -1 to disable

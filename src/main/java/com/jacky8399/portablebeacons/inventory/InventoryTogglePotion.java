@@ -25,7 +25,12 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class InventoryTogglePotion implements InventoryProvider {
-
+    public static final ItemStack BORDER = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+    static {
+        ItemMeta borderMeta = BORDER.getItemMeta();
+        borderMeta.setDisplayName(ChatColor.BLACK.toString());
+        BORDER.setItemMeta(borderMeta);
+    }
     private final boolean readOnly;
     private ItemStack stack;
     private ItemStack displayStack;
@@ -55,12 +60,12 @@ public class InventoryTogglePotion implements InventoryProvider {
         expStack.setItemMeta(expMeta);
     }
 
-    private void updateItem() {
+    private void updateItem(Player player) {
         BeaconEffects effects = ItemUtils.getEffects(stack);
         effects.setEffects(this.effects);
         effects.setDisabledEffects(disabledEffects);
         // mildly inefficient
-        ItemStack temp = ItemUtils.createStackCopyItemData(effects, stack);
+        ItemStack temp = ItemUtils.createStackCopyItemData(player, effects, stack);
         ItemMeta tempMeta = temp.getItemMeta();
         stack.setItemMeta(tempMeta);
         // all effects are disabled
@@ -89,10 +94,6 @@ public class InventoryTogglePotion implements InventoryProvider {
 
     @Override
     public void populate(Player player, InventoryAccessor inventory) {
-        ItemStack border = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta borderMeta = border.getItemMeta();
-        borderMeta.setDisplayName(ChatColor.BLACK.toString());
-        border.setItemMeta(borderMeta);
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
                 inventory.set(4, displayStack, readOnly ? InventoryTogglePotion::playCantEdit : e -> {
@@ -110,7 +111,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                         disabledEffects.removeIf(type -> checkToggleable(player, type));
                     }
                     playEdit(e);
-                    updateItem();
+                    updateItem(player);
                     inventory.requestRefresh(player);
                 });
             } else if (i == 0 && (player.hasPermission(ADD_POTION_PERM) || player.hasPermission(REMOVE_POTION_PERM))) {
@@ -129,7 +130,7 @@ public class InventoryTogglePotion implements InventoryProvider {
             } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
                 inventory.set(8, expStack);
             } else {
-                inventory.set(i, border);
+                inventory.set(i, BORDER);
             }
         }
 
@@ -194,7 +195,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                 disabledEffects.remove(type);
             }
             playEdit(e);
-            updateItem();
+            updateItem(clicked);
             inventory.requestRefresh(clicked);
         };
     }
@@ -221,7 +222,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                 }
             }
             playEdit(e);
-            updateItem();
+            updateItem(clicked);
             inventory.requestRefresh(clicked);
         };
     }

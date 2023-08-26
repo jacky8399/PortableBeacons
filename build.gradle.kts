@@ -15,6 +15,7 @@ repositories {
         url = uri("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
     }
     maven("https://maven.enginehub.org/repo/")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
     mavenLocal()
 }
 
@@ -23,6 +24,7 @@ dependencies {
     compileOnly("net.md-5:bungeecord-chat:1.16-R0.4")
     compileOnly("org.jetbrains:annotations:23.0.0")
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.6")
+    compileOnly("me.clip:placeholderapi:2.11.0")
     implementation("org.bstats:bstats-bukkit:2.2.1")
 }
 

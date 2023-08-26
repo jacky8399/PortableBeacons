@@ -156,10 +156,6 @@ public class BeaconEffects implements Cloneable {
         return enabledEffects;
     }
 
-    public List<String> toLore() {
-        return toLore(true, true);
-    }
-
     public List<String> toLore(boolean showEffects, boolean showEnchants) {
         var loreBuilder = new StringBuilder();
 
@@ -181,13 +177,13 @@ public class BeaconEffects implements Cloneable {
         }
 
         if (hasExpReduction) {
-            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(null, Config.enchExpReductionName,
+            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(Config.enchExpReductionName,
                     new ItemUtils.ContextLevel(expReductionLevel),
                     Map.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
             ));
         }
         if (hasSoulbound) {
-            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(null, Config.enchSoulboundName,
+            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(Config.enchSoulboundName,
                     new ItemUtils.ContextLevel(soulboundLevel),
                     Map.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
             ));

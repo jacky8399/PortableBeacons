@@ -5,6 +5,7 @@ api-version: '1.18'
 prefix: PortableBeacons
 softdepend:
   - WorldGuard
+  - PlaceholderAPI
 commands:
   portablebeacons:
     description: "PortableBeacons commands"

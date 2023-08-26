@@ -107,7 +107,6 @@ public class RecipeEvents implements Listener {
             // check template
             ItemStack template = simpleRecipe.template();
             ItemStack stack = smithingInventory.getItem(0);
-            LOGGER.info("Template: " + template + ", stack: " + stack);
             if (template == null) {
                 if (stack != null && stack.getType() != Material.AIR) {
                     resultSetter.accept(null);

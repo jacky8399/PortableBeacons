@@ -13,7 +13,7 @@ import java.util.List;
 
 public class RecipeUtils {
 
-    private static final ItemStack EMPTY_BEACON = ItemUtils.createStack(new BeaconEffects());
+    private static final ItemStack EMPTY_BEACON = ItemUtils.createStack(null, new BeaconEffects());
 
     public static RecipeChoice getBeaconPlaceholder() {
         return new RecipeChoice.ExactChoice(EMPTY_BEACON.clone());
@@ -24,7 +24,7 @@ public class RecipeUtils {
         for (BeaconModification modification : modifications) {
             modification.modify(effects);
         }
-        return ItemUtils.createStack(effects);
+        return ItemUtils.createStack(null, effects);
     }
 
     private static final @Nullable MethodHandle UPDATE_RECIPES;

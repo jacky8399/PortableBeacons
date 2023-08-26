@@ -7,6 +7,7 @@ import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
 import com.jacky8399.portablebeacons.utils.BeaconModification;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
@@ -291,6 +292,8 @@ public class Config {
 
         worldGuard = config.getBoolean("world-guard");
 
+        placeholderApi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
+
         logger.info("Config loaded");
     }
 
@@ -488,6 +491,8 @@ public class Config {
     public static boolean nerfForceDowngrade;
 
     public static boolean worldGuard;
+
+    public static boolean placeholderApi;
 
     @SuppressWarnings("NotNullFieldNotInitialized")
     @NotNull

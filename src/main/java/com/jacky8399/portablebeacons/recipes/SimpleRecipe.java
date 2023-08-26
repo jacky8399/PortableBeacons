@@ -51,7 +51,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         if (specialOperations.contains(SpecialOps.SET_SOULBOUND_OWNER))
             effects.soulboundOwner = player.getUniqueId();
 
-        var stack = ItemUtils.createStackCopyItemData(effects, beacon);
+        var stack = ItemUtils.createStackCopyItemData(player, effects, beacon);
         // copy pyramid
         BeaconPyramid pyramid;
         if ((pyramid = ItemUtils.getPyramid(beacon)) != null)

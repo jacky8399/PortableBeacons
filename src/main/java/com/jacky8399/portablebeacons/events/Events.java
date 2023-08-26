@@ -93,7 +93,9 @@ public final class Events implements Listener {
                 // play sound to complement block break effects
                 item.getWorld().playSound(item.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1);
 
-                ItemStack stack = ItemUtils.createStack(new BeaconEffects(effects));
+                Player initiator = item.getThrower() != null ? Bukkit.getPlayer(item.getThrower()) : null;
+
+                ItemStack stack = ItemUtils.createStack(initiator, new BeaconEffects(effects));
                 ItemUtils.setPyramid(stack, pyramid);
                 // check split amount
                 ItemStack currentStack = item.getItemStack();
@@ -208,7 +210,7 @@ public final class Events implements Listener {
             BeaconEffects beaconEffects = new BeaconEffects(effects);
             for (Item item : e.getItems()) {
                 if (item.getItemStack().getType() == Material.BEACON) {
-                    ItemStack stack = ItemUtils.createStack(beaconEffects);
+                    ItemStack stack = ItemUtils.createStack(e.getPlayer(), beaconEffects);
                     ItemUtils.setPyramid(stack, pyramid);
                     item.setItemStack(stack);
                     break;
@@ -375,7 +377,7 @@ public final class Events implements Listener {
                         List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
                         if (Config.enchSoulboundConsumeLevelOnDeath) {
                             effects.soulboundLevel--;
-                            items.add(ItemUtils.createStackCopyItemData(effects, dropped));
+                            items.add(ItemUtils.createStackCopyItemData(player, effects, dropped));
                         } else {
                             items.add(dropped);
                         }

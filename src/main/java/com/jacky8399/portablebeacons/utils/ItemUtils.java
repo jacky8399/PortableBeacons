@@ -3,6 +3,7 @@ package com.jacky8399.portablebeacons.utils;
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.chat.ComponentSerializer;
 import org.bukkit.Bukkit;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.regex.Pattern;
 
 public class ItemUtils {
@@ -57,12 +59,12 @@ public class ItemUtils {
         stack.setItemMeta(meta);
     }
 
-    public static ItemStack createStack(BeaconEffects effects) {
-        return createStackCopyItemData(effects, new ItemStack(Material.BEACON));
+    public static ItemStack createStack(@Nullable Player player, BeaconEffects effects) {
+        return createStackCopyItemData(player, effects, new ItemStack(Material.BEACON));
     }
 
     // preserves item name and things
-    public static ItemStack createStackCopyItemData(BeaconEffects effects, ItemStack stack) {
+    public static ItemStack createStackCopyItemData(@Nullable Player player, BeaconEffects effects, ItemStack stack) {
         ItemMeta meta = Objects.requireNonNull(stack.getItemMeta());
         boolean hideEffects = !meta.getItemFlags().contains(ItemFlag.HIDE_POTION_EFFECTS); // can't use HIDE_ENCHANTS
 
@@ -77,11 +79,20 @@ public class ItemUtils {
         meta.addEnchant(Enchantment.DURABILITY, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         List<String> effectsLore = effects.toLore(hideEffects, hideEffects);
-        if (Config.itemLore.size() != 0) {
+
+        if (!Config.itemLore.isEmpty()) {
             List<String> lore = new ArrayList<>(effectsLore.size() + Config.itemLore.size() + 1);
             lore.addAll(effectsLore);
             lore.add("");
-            lore.addAll(Config.itemLore);
+            if (Config.placeholderApi) {
+                try {
+                    lore.addAll(PlaceholderAPI.setPlaceholders(player, Config.itemLore));
+                } catch (Exception ex) {
+                    PortableBeacons.LOGGER.log(Level.SEVERE, "Failed to parse PlaceholderAPI placeholders for player " + player, ex);
+                }
+            } else {
+                lore.addAll(Config.itemLore);
+            }
             meta.setLore(lore);
         } else {
             meta.setLore(effectsLore);
@@ -158,7 +169,7 @@ public class ItemUtils {
 
     // reject quotation marks to avoid parsing JSON
     private static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{([^\"]+?)}");
-    public static String replacePlaceholders(@Nullable Player player, String input, ContextLevel level, Map<String, Context> contexts) {
+    public static String replacePlaceholders(String input, ContextLevel level, Map<String, Context> contexts) {
         if (input.indexOf('{') == -1) {
             return input + level.doReplacement();
         }
@@ -181,12 +192,12 @@ public class ItemUtils {
         });
     }
 
-    public static String replacePlaceholders(@Nullable Player player, String input, ContextLevel level) {
-        return replacePlaceholders(player, input, level, Collections.emptyMap());
+    public static String replacePlaceholders(String input, ContextLevel level) {
+        return replacePlaceholders(input, level, Collections.emptyMap());
     }
 
-    public static String replacePlaceholders(@Nullable Player player, String input, int level) {
-        return replacePlaceholders(player, input, new ContextLevel(level), Collections.emptyMap());
+    public static String replacePlaceholders(String input, int level) {
+        return replacePlaceholders(input, new ContextLevel(level), Collections.emptyMap());
     }
 
     public static abstract class Context {

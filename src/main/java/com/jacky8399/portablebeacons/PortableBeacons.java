@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class PortableBeacons extends JavaPlugin {
@@ -31,8 +32,7 @@ public final class PortableBeacons extends JavaPlugin {
             logger.info("Registered WorldGuard flag");
         } catch (Exception | NoClassDefFoundError e) {
             if (Bukkit.getPluginManager().getPlugin("WorldGuard") != null) {
-                logger.info("Failed to register WorldGuard flag, but WorldGuard loaded??");
-                e.printStackTrace();
+                logger.log(Level.INFO, "Failed to register WorldGuard flag, but WorldGuard loaded?", e);
                 worldGuardInstalled = true;
             }
         }
@@ -70,8 +70,7 @@ public final class PortableBeacons extends JavaPlugin {
             Files.copy(new File(getDataFolder(), "config.yml").toPath(),
                     new File(getDataFolder(), "config.yml.bak").toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
-            logger.severe("Failed to backup config.yml");
-            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Failed to backup config.yml", ex);
         }
 
         Config.saveConfig();

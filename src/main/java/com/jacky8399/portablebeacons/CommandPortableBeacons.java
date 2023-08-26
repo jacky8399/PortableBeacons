@@ -31,6 +31,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
+import java.util.logging.Level;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -223,7 +224,8 @@ public class CommandPortableBeacons implements TabExecutor {
                     cause = cause.getCause();
                 }
                 sender.sendMessage(YELLOW + "Refer to the console for more details.");
-                ex.printStackTrace();
+                PortableBeacons.LOGGER.log(Level.SEVERE, "Exception while handling command from " + sender + ": " +
+                        "/" + label + " " + String.join(" ", args), ex);
             }
         }
         return true;
@@ -520,11 +522,11 @@ public class CommandPortableBeacons implements TabExecutor {
             case "give" -> {
                 parser.updateUsage("item give <players> <effects...>");
                 BeaconEffects beaconEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), false);
-                ItemStack stack = ItemUtils.createStack(beaconEffects);
                 Set<Player> failedPlayers = new HashSet<>();
                 for (Player p : players) {
+                    ItemStack stack = ItemUtils.createStack(p, beaconEffects);
                     Map<Integer, ItemStack> unfit = p.getInventory().addItem(stack);
-                    if (unfit.size() != 0 && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
+                    if (!unfit.isEmpty() && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
                         failedPlayers.add(p);
                     else if (!silent)
                         p.sendMessage(GREEN + "You were given a portable beacon!");
@@ -534,7 +536,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         .filter(player -> !failedPlayers.contains(player))
                         .map(Player::getName)
                         .collect(Collectors.joining(", "))
-                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore()));
+                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore(true, true)));
                 if (failedPlayers.size() != 0)
                     sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
                             " couldn't be given a portable beacon because their inventory is full.");
@@ -598,7 +600,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         continue;
                     success = modification.test(effects);
                     if (success)
-                        iterator.set(ItemUtils.createStackCopyItemData(effects, stack));
+                        iterator.set(ItemUtils.createStackCopyItemData(player, effects, stack));
                 }
                 if (success) {
                     if (!silent)
@@ -616,7 +618,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
                 if (modification.test(effects)) {
-                    inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(effects, hand));
+                    inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(player, effects, hand));
                     if (!silent)
                         player.sendMessage(GREEN + "Your portable beacon was modified!");
                 } else {
