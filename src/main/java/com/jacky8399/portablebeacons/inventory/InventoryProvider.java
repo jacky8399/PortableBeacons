@@ -14,6 +14,7 @@ public interface InventoryProvider {
     int getRows();
 
     void populate(Player player, InventoryAccessor inventory);
+    default void update(Player player, InventoryAccessor inventory) {}
     default void close(Player player) {}
 
     interface InventoryAccessor {

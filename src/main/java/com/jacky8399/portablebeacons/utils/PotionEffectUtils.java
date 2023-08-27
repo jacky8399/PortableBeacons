@@ -5,6 +5,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -149,5 +150,17 @@ public class PotionEffectUtils {
             name.insert(0, isNegative(effect) ? ChatColor.RED : ChatColor.BLUE).append(levelString);
             return name.toString();
         }
+    }
+
+    private static final Map<PotionEffectType, PotionType> POTION_TYPES;
+    static {
+        // I can't believe turtle master potions would do this to me
+        var uniqueEffectTypes = new HashSet<PotionEffectType>();
+        POTION_TYPES = Arrays.stream(PotionType.values())
+                .filter(type -> type.getEffectType() != null && uniqueEffectTypes.add(type.getEffectType()))
+                .collect(Collectors.toUnmodifiableMap(PotionType::getEffectType, type -> type));
+    }
+    public static PotionType getPotionType(PotionEffectType type) {
+        return POTION_TYPES.getOrDefault(type, PotionType.WATER);
     }
 }

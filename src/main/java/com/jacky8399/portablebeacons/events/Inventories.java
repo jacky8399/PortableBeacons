@@ -23,6 +23,14 @@ import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
 public class Inventories implements Listener {
+
+    public Inventories() {
+        Bukkit.getScheduler().runTaskTimer(PortableBeacons.INSTANCE, () -> playerInventories.forEach((player, inv) -> {
+            InventoryData data = pluginInventories.get(inv);
+            data.provider.update(player, data);
+        }), 0, 1);
+    }
+
     private static WeakHashMap<Player, Inventory> playerInventories = new WeakHashMap<>();
     private static WeakHashMap<Inventory, InventoryData> pluginInventories = new WeakHashMap<>();
 
@@ -122,9 +130,9 @@ public class Inventories implements Listener {
             this.eventHandlers = new ArrayList<>(Collections.nCopies(inv.getSize(), null));
         }
 
-        private Inventory inv;
-        private InventoryProvider provider;
-        private ArrayList<Consumer<InventoryClickEvent>> eventHandlers;
+        private final Inventory inv;
+        private final InventoryProvider provider;
+        private final ArrayList<Consumer<InventoryClickEvent>> eventHandlers;
 
         @Override
         public void set(int slot, ItemStack stack, @Nullable Consumer<InventoryClickEvent> eventHandler) {

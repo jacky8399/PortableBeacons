@@ -26,6 +26,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Config {
@@ -43,7 +44,7 @@ public class Config {
         }
     }
 
-    public static final int CONFIG_VERSION = 1;
+    public static final int CONFIG_VERSION = 2;
 
     public static void saveConfig() {
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
@@ -71,6 +72,7 @@ public class Config {
         int configVersion = config.getInt("config-version", 0);
 
         List<String> migrated = new ArrayList<>();
+        List<String> needsAttention = new ArrayList<>();
         if (configVersion == 0) {
             // ritual.item
             ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
@@ -105,14 +107,33 @@ public class Config {
 
             // anvil recipes
             doAnvilMigrations(config, migrated);
+        } else if (configVersion <= 1) {
+            String expUsageMsg = config.getString("beacon-item.effects-toggle.exp-usage-message");
+            if (expUsageMsg != null && expUsageMsg.contains("{0")) {
+                Pattern pattern = Pattern.compile("\\{0(,number(,.+?)?)?}", Pattern.CASE_INSENSITIVE);
+                expUsageMsg = pattern.matcher(expUsageMsg).replaceAll((match) -> {
+                    if (match.group(1) == null || match.group(2) == null) { // {0} or {0,number}
+                        return "{usage}";
+                    } else { // {0,number,format}
+                        return "{usage|" + match.group(2).substring(1) + "}";
+                    }
+                });
+
+                config.set("beacon-item.effects-toggle.exp-usage-message", expUsageMsg);
+                migrated.add("beacon-item.effects-toggle.exp-usage-message format change");
+            }
         }
 
-        if (migrated.size() != 0) {
+        if (!migrated.isEmpty()) {
             logger.warning("The following legacy config values have been migrated (in memory):");
             migrated.forEach(message -> logger.warning(" - " + message));
             logger.warning("Confirm that the features still work correctly, then run " +
                     "'/portablebeacons saveconfig' to save these changes to disk.");
             logger.warning("Consult documentation and migrate manually if necessary.");
+        }
+        if (!needsAttention.isEmpty()) {
+            logger.severe("Additionally, the following config values need your attention:");
+            needsAttention.forEach(logger::severe);
         }
     }
 

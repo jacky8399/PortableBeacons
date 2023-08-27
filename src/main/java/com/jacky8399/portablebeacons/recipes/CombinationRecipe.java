@@ -46,7 +46,7 @@ public record CombinationRecipe(NamespacedKey id,
         effects.soulboundLevel = anvilAlgorithm(effects.soulboundLevel, e2.soulboundLevel, Config.enchSoulboundMaxLevel);
 
         effects.setEffects(potions);
-        return RecipeOutput.sacrificeInput(ItemUtils.createStackCopyItemData(player, effects, beacon));
+        return RecipeOutput.sacrificeInput(ItemUtils.createMetaCopyItemData(player, effects, beacon));
     }
 
     private int anvilAlgorithm(int s1, int s2, int max) {

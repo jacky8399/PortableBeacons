@@ -351,7 +351,7 @@ public final class Events implements Listener {
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 boolean isReadOnly = !Config.effectsToggleEnabled ||
                         (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
-                Inventories.openInventory(player, new InventoryTogglePotion(stack, isReadOnly));
+                Inventories.openInventory(player, new InventoryTogglePotion(player, stack, isReadOnly));
             } else if (!ItemUtils.isPyramid(e.getItem()) && e.useInteractedBlock() != Event.Result.DENY) {
                 // prevent beacon deactivation sound
                 e.setCancelled(true);
@@ -377,7 +377,7 @@ public final class Events implements Listener {
                         List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
                         if (Config.enchSoulboundConsumeLevelOnDeath) {
                             effects.soulboundLevel--;
-                            items.add(ItemUtils.createStackCopyItemData(player, effects, dropped));
+                            items.add(ItemUtils.createMetaCopyItemData(player, effects, dropped));
                         } else {
                             items.add(dropped);
                         }

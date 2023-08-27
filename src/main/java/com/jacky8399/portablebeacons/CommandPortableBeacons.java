@@ -600,7 +600,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         continue;
                     success = modification.test(effects);
                     if (success)
-                        iterator.set(ItemUtils.createStackCopyItemData(player, effects, stack));
+                        iterator.set(ItemUtils.createMetaCopyItemData(player, effects, stack));
                 }
                 if (success) {
                     if (!silent)
@@ -618,7 +618,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
                 if (modification.test(effects)) {
-                    inventory.setItemInMainHand(ItemUtils.createStackCopyItemData(player, effects, hand));
+                    inventory.setItemInMainHand(ItemUtils.createMetaCopyItemData(player, effects, hand));
                     if (!silent)
                         player.sendMessage(GREEN + "Your portable beacon was modified!");
                 } else {

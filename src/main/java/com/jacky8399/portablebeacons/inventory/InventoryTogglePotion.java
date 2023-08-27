@@ -2,6 +2,7 @@ package com.jacky8399.portablebeacons.inventory;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.events.Inventories;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import net.md_5.bungee.api.ChatColor;
@@ -19,27 +20,21 @@ import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
+import org.jetbrains.annotations.NotNull;
 
-import java.text.MessageFormat;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.function.Consumer;
 
 public class InventoryTogglePotion implements InventoryProvider {
-    public static final ItemStack BORDER = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-    static {
-        ItemMeta borderMeta = BORDER.getItemMeta();
-        borderMeta.setDisplayName(ChatColor.BLACK.toString());
-        BORDER.setItemMeta(borderMeta);
-    }
     private final boolean readOnly;
-    private ItemStack stack;
-    private ItemStack displayStack;
-    private MessageFormat expUsageMessage = new MessageFormat(Config.effectsToggleExpUsageMessage);
-    private ItemStack expStack;
-    private Map<PotionEffectType, Integer> effects;
-    private HashSet<PotionEffectType> disabledEffects;
+    private final ItemStack stack;
+    private final ItemStack displayStack;
+    private final ItemStack expStack;
+    private final TreeMap<PotionEffectType, Integer> effects;
+    private final HashSet<PotionEffectType> disabledEffects;
 
-    public InventoryTogglePotion(ItemStack stack, boolean readOnly) {
+    public InventoryTogglePotion(Player player, ItemStack stack, boolean readOnly) {
         this.readOnly = readOnly;
         if (!ItemUtils.isPortableBeacon(stack)) {
             throw new IllegalArgumentException("stack is not beacon");
@@ -52,29 +47,33 @@ public class InventoryTogglePotion implements InventoryProvider {
 
         // display stack
         displayStack = stack.clone();
-        displayStack.setType(beaconEffects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
-
         expStack = new ItemStack(Material.EXPERIENCE_BOTTLE);
-        ItemMeta expMeta = expStack.getItemMeta();
-        expMeta.setDisplayName(expUsageMessage.format(new Object[]{60 / beaconEffects.calcExpPerMinute()}));
-        expStack.setItemMeta(expMeta);
+
+        updateItem(player);
     }
 
     private void updateItem(Player player) {
         BeaconEffects effects = ItemUtils.getEffects(stack);
         effects.setEffects(this.effects);
         effects.setDisabledEffects(disabledEffects);
-        // mildly inefficient
-        ItemStack temp = ItemUtils.createStackCopyItemData(player, effects, stack);
-        ItemMeta tempMeta = temp.getItemMeta();
+        ItemMeta tempMeta = ItemUtils.createMetaCopyItemData(player, effects, Objects.requireNonNull(stack.getItemMeta()));
         stack.setItemMeta(tempMeta);
-        // all effects are disabled
-        // why does this need to call setItemMeta twice
+        // if all effects are disabled
         displayStack.setType(effects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
         displayStack.setItemMeta(Bukkit.getItemFactory().asMetaFor(tempMeta, displayStack));
 
         ItemMeta expMeta = expStack.getItemMeta();
-        expMeta.setDisplayName(expUsageMessage.format(new Object[]{60 / effects.calcExpPerMinute()}));
+        double expUsage = effects.calcExpPerMinute();
+        Map<String, ItemUtils.Context> contexts = Map.of(
+                "usage", args -> makeFormat(args, "0.#").format(60 / expUsage),
+                "player-level", args -> Integer.toString(player.getLevel()),
+                "remaining-time", args -> makeFormat(args, "#").format(player.getLevel() * 60 / expUsage)
+        );
+        String[] expUsageMsg = ItemUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
+        expMeta.setDisplayName(expUsageMsg[0]);
+        if (expUsageMsg.length > 1) {
+            expMeta.setLore(Arrays.asList(Arrays.copyOfRange(expUsageMsg, 1, expUsageMsg.length)));
+        }
         expStack.setItemMeta(expMeta);
     }
 
@@ -114,23 +113,18 @@ public class InventoryTogglePotion implements InventoryProvider {
                     updateItem(player);
                     inventory.requestRefresh(player);
                 });
-            } else if (i == 0 && (player.hasPermission(ADD_POTION_PERM) || player.hasPermission(REMOVE_POTION_PERM))) {
-                // edit potion effects
-                var stack = new ItemStack(Material.WRITABLE_BOOK);
-                var meta = stack.getItemMeta();
-                meta.setDisplayName(ChatColor.YELLOW + "Edit potion effects (Admin)");
-                var lore = new ArrayList<String>();
-                if (player.hasPermission(ADD_POTION_PERM))
-                    lore.add(ChatColor.GREEN + "Add potion effects by putting potions here");
-                if (player.hasPermission(REMOVE_POTION_PERM))
-                    lore.add(ChatColor.RED + "Remove potion effects by pressing the drop key in the UI");
-                meta.setLore(lore);
-                stack.setItemMeta(meta);
-                inventory.set(0, stack, addPotionEffects(inventory));
-            } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
-                inventory.set(8, expStack);
             } else {
-                inventory.set(i, BORDER);
+                boolean canAddPotions = player.hasPermission(ADD_POTION_PERM);
+                boolean canRemovePotions = player.hasPermission(REMOVE_POTION_PERM);
+                if (i == 0 && (canAddPotions || canRemovePotions)) {
+                    // edit potion effects
+                    var stack = getPotionManagerDisplay(canAddPotions, canRemovePotions);
+                    inventory.set(0, stack, addPotionEffects(inventory));
+                } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
+                    inventory.set(8, expStack);
+                } else {
+                    inventory.set(i, BORDER);
+                }
             }
         }
 
@@ -146,28 +140,54 @@ public class InventoryTogglePotion implements InventoryProvider {
                 Map.Entry<PotionEffectType, Integer> entry = iterator.next();
                 PotionEffectType type = entry.getKey();
                 int level = entry.getValue();
-                String display = PotionEffectUtils.getDisplayName(type, level);
-                ItemStack stack;
-                ItemMeta meta;
-                if (disabledEffects.contains(type)) {
-                    stack = new ItemStack(Material.GLASS_BOTTLE);
-                    meta = stack.getItemMeta();
-                    // strip colour and add strikethrough
-                    display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
-                } else {
-                    stack = new ItemStack(Material.POTION);
-                    meta = stack.getItemMeta();
-                    PotionMeta potionMeta = (PotionMeta) meta;
-                    potionMeta.setColor(type.getColor());
-                    potionMeta.setBasePotionData(new PotionData(PotionType.LUCK)); // to make the potion glow
-                    meta.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS);
-                }
-
-                meta.setDisplayName(display);
-                stack.setItemMeta(meta);
+                ItemStack stack = getPotionDisplay(type, level);
                 inventory.set(slot, stack, togglePotionEffect(inventory, type));
             }
         }
+    }
+
+    @NotNull
+    private static ItemStack getPotionManagerDisplay(boolean canAddPotions, boolean canRemovePotions) {
+        var stack = new ItemStack(Material.WRITABLE_BOOK);
+        var meta = stack.getItemMeta();
+        meta.setDisplayName(ChatColor.YELLOW + "Edit potion effects (Admin)");
+        var lore = new ArrayList<String>();
+        if (canAddPotions)
+            lore.add(ChatColor.GREEN + "Add potion effects by putting potions here");
+        if (canRemovePotions)
+            lore.add(ChatColor.RED + "Remove potion effects by pressing the drop key in the UI");
+        meta.setLore(lore);
+        stack.setItemMeta(meta);
+        return stack;
+    }
+
+    @NotNull
+    private ItemStack getPotionDisplay(PotionEffectType type, int level) {
+        String display = PotionEffectUtils.getDisplayName(type, level);
+        ItemStack stack;
+        ItemMeta meta;
+        if (disabledEffects.contains(type)) {
+            stack = new ItemStack(Material.GLASS_BOTTLE);
+            meta = stack.getItemMeta();
+            // strip colour and add strikethrough
+            display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
+        } else {
+            stack = new ItemStack(Material.POTION);
+            meta = stack.getItemMeta();
+            PotionMeta potionMeta = (PotionMeta) meta;
+
+            PotionType potionType = PotionEffectUtils.getPotionType(type);
+            potionMeta.setBasePotionData(new PotionData(potionType, false, level != 1 && potionType.isUpgradeable()));
+            if (potionType == PotionType.WATER) {
+                potionMeta.setColor(type.getColor());
+            }
+            meta.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS);
+        }
+
+        meta.setDisplayName(display);
+        stack.setItemMeta(meta);
+        stack.setAmount(level);
+        return stack;
     }
 
     private Consumer<InventoryClickEvent> togglePotionEffect(InventoryAccessor inventory, PotionEffectType type) {
@@ -205,6 +225,10 @@ public class InventoryTogglePotion implements InventoryProvider {
             Player clicked = (Player) e.getWhoClicked();
             if (!clicked.hasPermission(ADD_POTION_PERM))
                 return;
+
+            // grow inventory if needed
+            int oldRows = getRows();
+
             var cursor = e.getCursor();
             if (cursor == null || !(cursor.getItemMeta() instanceof PotionMeta potionMeta))
                 return;
@@ -222,13 +246,19 @@ public class InventoryTogglePotion implements InventoryProvider {
                 }
             }
             playEdit(e);
-            updateItem(clicked);
-            inventory.requestRefresh(clicked);
+            if (getRows() > oldRows) {
+                // reopen inventory to resize
+                Inventories.openInventory(clicked, this);
+            } else {
+                updateItem(clicked);
+                inventory.requestRefresh(clicked);
+            }
         };
     }
 
     private static final Sound EDIT_SOUND = Sound.BLOCK_NOTE_BLOCK_BASS;
     private static final Sound CANT_EDIT_SOUND = Sound.ENTITY_VILLAGER_NO;
+
     private static void playCantEdit(InventoryClickEvent e) {
         ((Player) e.getWhoClicked()).playSound(e.getWhoClicked(), CANT_EDIT_SOUND, SoundCategory.PLAYERS, 0.5f, 1);
     }
@@ -242,5 +272,17 @@ public class InventoryTogglePotion implements InventoryProvider {
                 (Config.effectsToggleCanDisableNegativeEffects || !PotionEffectUtils.isNegative(type)) &&
                 (!Config.effectsToggleFineTunePerms ||
                         player.hasPermission("portablebeacons.effect-toggle." + PotionEffectUtils.getName(type)));
+    }
+
+    private static final ItemStack BORDER = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+
+    static {
+        ItemMeta borderMeta = BORDER.getItemMeta();
+        borderMeta.setDisplayName(ChatColor.BLACK.toString());
+        BORDER.setItemMeta(borderMeta);
+    }
+
+    private static DecimalFormat makeFormat(String[] args, String defaultValue) {
+        return new DecimalFormat(args.length != 0 ? args[0] : defaultValue);
     }
 }

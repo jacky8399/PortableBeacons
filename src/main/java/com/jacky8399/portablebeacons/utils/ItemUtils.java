@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.invoke.MethodHandles;
@@ -59,13 +60,23 @@ public class ItemUtils {
         stack.setItemMeta(meta);
     }
 
-    public static ItemStack createStack(@Nullable Player player, BeaconEffects effects) {
-        return createStackCopyItemData(player, effects, new ItemStack(Material.BEACON));
+    @NotNull
+    public static ItemStack createStack(@Nullable Player player, @NotNull BeaconEffects effects) {
+        return createMetaCopyItemData(player, effects, new ItemStack(Material.BEACON));
+    }
+
+    @NotNull
+    public static ItemStack createMetaCopyItemData(@Nullable Player player, @NotNull BeaconEffects effects, @NotNull ItemStack stack) {
+        ItemMeta meta = createMetaCopyItemData(player, effects, Objects.requireNonNull(stack.getItemMeta()));
+        ItemStack newStack = new ItemStack(Material.BEACON);
+        newStack.setItemMeta(meta);
+        newStack.setAmount(stack.getAmount());
+        return newStack;
     }
 
     // preserves item name and things
-    public static ItemStack createStackCopyItemData(@Nullable Player player, BeaconEffects effects, ItemStack stack) {
-        ItemMeta meta = Objects.requireNonNull(stack.getItemMeta());
+    @NotNull
+    public static ItemMeta createMetaCopyItemData(@Nullable Player player, @NotNull BeaconEffects effects, @NotNull ItemMeta meta) {
         boolean hideEffects = !meta.getItemFlags().contains(ItemFlag.HIDE_POTION_EFFECTS); // can't use HIDE_ENCHANTS
 
         // copy lore, enchants and set effects
@@ -98,11 +109,7 @@ public class ItemUtils {
             meta.setLore(effectsLore);
         }
         setEffects(meta, effects);
-
-        ItemStack newIs = new ItemStack(Material.BEACON);
-        newIs.setItemMeta(meta);
-        newIs.setAmount(stack.getAmount());
-        return newIs;
+        return meta;
     }
 
     /*
@@ -112,7 +119,7 @@ public class ItemUtils {
     private static final VarHandle ITEM_META_DISPLAY_NAME;
     private static final VarHandle ITEM_META_LORE;
     static {
-        Class<? extends ItemMeta> clazz = Bukkit.getItemFactory().getItemMeta(Material.STONE).getClass();
+        Class<? extends ItemMeta> clazz = Objects.requireNonNull(Bukkit.getItemFactory().getItemMeta(Material.STONE)).getClass();
         VarHandle itemMetaDisplayName = null;
         VarHandle itemMetaLore = null;
         try {
@@ -120,7 +127,7 @@ public class ItemUtils {
             itemMetaDisplayName = privateLookup.findVarHandle(clazz, "displayName", String.class);
             itemMetaLore = privateLookup.findVarHandle(clazz, "lore", List.class);
         } catch (ReflectiveOperationException ex) {
-            PortableBeacons.INSTANCE.logger.warning("Failed to find displayName/lore field in " + clazz.getName());
+            PortableBeacons.INSTANCE.logger.log(Level.WARNING, "Failed to find displayName/lore field in " + clazz.getName(), ex);
         }
         ITEM_META_DISPLAY_NAME = itemMetaDisplayName;
         ITEM_META_LORE = itemMetaLore;
@@ -193,26 +200,22 @@ public class ItemUtils {
     }
 
     public static String replacePlaceholders(String input, ContextLevel level) {
-        return replacePlaceholders(input, level, Collections.emptyMap());
+        return replacePlaceholders(input, level, Map.of());
     }
 
     public static String replacePlaceholders(String input, int level) {
-        return replacePlaceholders(input, new ContextLevel(level), Collections.emptyMap());
+        return replacePlaceholders(input, new ContextLevel(level), Map.of());
     }
 
-    public static abstract class Context {
-        public boolean shouldRemovePrecedingSpace(String... args) {
+    public interface Context {
+        default boolean shouldRemovePrecedingSpace(String... args) {
             return false;
         }
 
-        public abstract String doReplacement(String... args);
+        String doReplacement(String... args);
     }
 
-    public static class ContextLevel extends Context {
-        public final int level;
-        public ContextLevel(int level) {
-            this.level = level;
-        }
+    public record ContextLevel(int level) implements Context {
 
         @Override
         public boolean shouldRemovePrecedingSpace(String... args) {
@@ -232,7 +235,7 @@ public class ItemUtils {
         {...|<reduction/multiplier>}
         {...|<reduction/multiplier>|<number/percentage>}
      */
-    public static class ContextExpReduction extends Context {
+    public static class ContextExpReduction implements Context {
         public final double expMultiplier;
         public ContextExpReduction(double expMultiplier) {
             this.expMultiplier = expMultiplier;
@@ -264,12 +267,12 @@ public class ItemUtils {
         {...|<name/uuid>}
         {...|name|<fallback>}
      */
-    public static class ContextUUID extends Context {
+    public static class ContextUUID implements Context {
         @Nullable
-        UUID uuid;
+        public final UUID uuid;
         @Nullable
-        String playerName;
-        String fallback;
+        public final String playerName;
+        public final String fallback;
         public ContextUUID(@Nullable UUID uuid, @Nullable String playerName, String fallback) {
             this.uuid = uuid;
             this.playerName = playerName;
