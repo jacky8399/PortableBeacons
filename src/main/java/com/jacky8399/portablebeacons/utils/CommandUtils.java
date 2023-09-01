@@ -33,18 +33,18 @@ public class CommandUtils {
         // Potion effect type autocomplete
         private static final List<String> VALID_MODIFICATIONS = Stream.concat(
                 PotionEffectUtils.getValidPotionNames().stream(),
-                Stream.of("exp-reduction", "soulbound", "all", "all-positive", "all-negative")
+                Stream.of("exp-reduction", "soulbound", "beaconator", "all", "all-positive", "all-negative")
         ).toList();
     }
     public static Stream<String> listModifications(String input, boolean allowVirtual) {
-        if (input.isEmpty())
-            return PotionEffectUtils.getValidPotionNames().stream();
         // try removing equal sign and everything after
         int splitIdx = input.indexOf('=');
         if (splitIdx == -1)
             splitIdx = input.indexOf('*');
         if (splitIdx != -1)
             input = input.substring(0, splitIdx);
+        if (input.isEmpty())
+            return PotionEffectUtils.getValidPotionNames().stream();
         int maxAmplifier = -1;
         PotionEffectType potion = PotionEffectUtils.parsePotion(input);
         if (potion != null) {
@@ -57,6 +57,8 @@ public class CommandUtils {
             maxAmplifier = Config.enchExpReductionMaxLevel;
         } else if (input.equalsIgnoreCase("soulbound")) {
             maxAmplifier = Config.enchSoulboundMaxLevel;
+        } else if (input.equalsIgnoreCase("beaconator")) {
+            maxAmplifier = Config.enchBeaconatorLevels.size();
         }
         if (maxAmplifier != -1) {
             String finalInput = input;
@@ -142,13 +144,8 @@ public class CommandUtils {
     public static BeaconEffects parseEffects(CommandSender sender, String[] input, boolean allowVirtual) {
         boolean seenEqualsPrompt = false;
         int minLevel = allowVirtual ? 0 : 1;
-        BeaconEffects beaconEffects = new BeaconEffects();
-        beaconEffects.expReductionLevel = minLevel - 1; // to ensure no level -1 with item give
-        beaconEffects.soulboundLevel = minLevel - 1;
-        HashMap<PotionEffectType, Integer> effects = new HashMap<>();
 
-        List<String> skipped = new ArrayList<>();
-
+        Map<String, Integer> effects = new LinkedHashMap<>();
         for (String s : input) {
             try {
                 String potionName = s;
@@ -169,42 +166,11 @@ public class CommandUtils {
                     throw new IllegalArgumentException("Level 0 given, which is not allowed with this command.");
                 if (level < minLevel)
                     throw new IllegalArgumentException("Level " + level + " is negative");
-
-                switch (potionName.toLowerCase(Locale.ENGLISH)) {
-                    case "exp-reduction" -> beaconEffects.expReductionLevel = level;
-                    case "soulbound" -> beaconEffects.soulboundLevel = level;
-                    case "all" -> {
-                        for (var effect : PotionEffectType.values()) {
-                            effects.put(effect, level);
-                        }
-                    }
-                    case "all-positive" -> {
-                        for (var effect : PotionEffectType.values()) {
-                            if (!PotionEffectUtils.isNegative(effect)) {
-                                effects.put(effect, level);
-                            }
-                        }
-                    }
-                    case "all-negative" -> {
-                        for (var effect : PotionEffectType.values()) {
-                            if (PotionEffectUtils.isNegative(effect)) {
-                                effects.put(effect, level);
-                            }
-                        }
-                    }
-                    default -> {
-                        PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
-                        if (type == null)
-                            throw new IllegalArgumentException(s + " is not a valid potion effect or enchantment");
-                        effects.put(type, level);
-                    }
-                }
-            } catch (IllegalArgumentException e) {
-                skipped.add(s + ": " + e.getMessage());
+                effects.put(potionName, level);
+            } catch (IllegalArgumentException ignored) {
             }
         }
-        beaconEffects.setEffects(effects);
-        return beaconEffects;
+        return BeaconEffects.load(effects, allowVirtual);
     }
 
     private static final Pattern DESC_SPLIT_PATTERN = Pattern.compile("[{}]");
@@ -219,7 +185,7 @@ public class CommandUtils {
         for (String component : components) {
             // check @tag
             String[] tagSplit = component.split(" ", 2);
-            if (tagSplit.length == 2 && tagSplit[0].length() != 0 && tagSplit[0].charAt(0) == '@') {
+            if (tagSplit.length == 2 && !tagSplit[0].isEmpty() && tagSplit[0].charAt(0) == '@') {
                 String tag = tagSplit[0].substring(1);
                 String input = tagSplit[1];
                 switch (tag) {

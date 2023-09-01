@@ -18,12 +18,17 @@ recipes:
     type: anvil
     enabled: true
     # The sacrificial item
+    # If type = smithing, you can include a template item with template: ...
     input: minecraft:enchanted_book{StoredEnchantments:[{id:mending,lvl:1}]}
     input-amount: 1
     # The cost of this recipe, in levels. (Default: 0)
+    # Can be a number or one of the following:
     # Use "dynamic-unrestricted" for dynamic experience cost
     # Use "dynamic-max[level]" for dynamic experience cost with the specified maximum cost
     # Use "dynamic" for vanilla limits (equivalent to dynamic-max39)
+    # If PlaceholderAPI is enabled, you can use PAPI placeholders. Return a negative number to disallow using the recipe.
+    # The "dynamic-unrestricted" value is available in placeholders as {_dynamic}.
+    # e.g. exp-cost: %math_{_dynamic}^2%
     exp-cost: dynamic
     # Modifications to the beacon, similar to the /pb item command. For example, given the commands
     # "/pb item subtract soulbound=1" and "/pb item add speed=2", the format would be:

@@ -27,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.text.DecimalFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -432,14 +433,13 @@ public class CommandPortableBeacons implements TabExecutor {
             }
         }
         sender.sendMessage(GREEN + "Custom data version: " + YELLOW + effects.customDataVersion);
-        if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0) {
+        if (effects.soulboundLevel != 0 || effects.expReductionLevel != 0 || effects.beaconatorLevel != 0) {
             sender.sendMessage(GREEN + "Enchantments:");
             if (effects.expReductionLevel != 0) {
                 double multiplier = Math.max(0, 1 - effects.expReductionLevel * Config.enchExpReductionReductionPerLevel) * 100;
                 sender.spigot().sendMessage(new ComponentBuilder("  ")
                         .append(Config.enchExpReductionName + " " + effects.expReductionLevel)
-                        .append(" (", NONE)
-                        .append("%.2f".formatted(multiplier) + "% exp consumption)")
+                        .append(" (" + DecimalFormat.getNumberInstance().format(multiplier) + "% exp consumption)", NONE)
                         .create());
             }
             if (effects.soulboundLevel != 0) {
@@ -447,12 +447,19 @@ public class CommandPortableBeacons implements TabExecutor {
                         .append(Config.enchSoulboundName + " " + effects.soulboundLevel);
                 if (effects.soulboundOwner != null) {
                     String name = Bukkit.getOfflinePlayer(effects.soulboundOwner).getName();
-                    builder.append("(" + (name != null ? name : effects.soulboundOwner.toString()) + ")", NONE)
+                    builder.append(" (" + (name != null ? name : effects.soulboundOwner.toString()) + ")", NONE)
                             .event(CommandUtils.showEntity(EntityType.PLAYER, effects.soulboundOwner,
                                     name != null ? new TextComponent(name) : null));
                 } else {
                     builder.append("(not bound to a player)", NONE);
                 }
+                sender.spigot().sendMessage(builder.create());
+            }
+            if (effects.beaconatorLevel != 0) {
+                var builder = new ComponentBuilder("  ")
+                        .append(Config.enchBeaconatorName + " " + effects.beaconatorLevel)
+                        .append(" (" + Config.getBeaconatorLevel(effects.beaconatorLevel,
+                                effects.beaconatorSelectedLevel).radius() + " block radius)", NONE);
                 sender.spigot().sendMessage(builder.create());
             }
         }

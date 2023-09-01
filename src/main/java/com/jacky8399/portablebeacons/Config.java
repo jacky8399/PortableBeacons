@@ -292,6 +292,17 @@ public class Config {
         enchSoulboundConsumeLevelOnDeath = config.getBoolean("beacon-item.custom-enchantments.soulbound.consume-level-on-death");
         enchSoulboundCurseOfBinding = config.getBoolean("beacon-item.custom-enchantments.soulbound.just-for-fun-curse-of-binding");
 
+        // Beaconator
+
+        var enchBeaconator = config.getConfigurationSection("beacon-item.custom-enchantments.beaconator");
+        enchBeaconatorEnabled = enchBeaconator.getBoolean("enabled");
+        enchBeaconatorName = getAndColorizeString(enchBeaconator, "name");
+        enchBeaconatorLevels = enchBeaconator.getMapList("levels").stream()
+                .map(map -> new BeaconatorLevel(((Number) map.get("radius")).intValue(), ExpCostCalculator.deserialize(map.get("exp-cost"))))
+                .toList();
+        if (enchBeaconatorLevels.isEmpty())
+            throw new IllegalArgumentException("beacon-item.custom-enchantments.beaconator.levels cannot be empty");
+
         // Nerfs
 
         nerfExpLevelsPerMinute = getAndCheckDouble(0, config, "beacon-item.nerfs.exp-levels-per-minute");
@@ -396,6 +407,10 @@ public class Config {
             return rootPath + "." + path;
     }
 
+    static String getAndColorizeString(ConfigurationSection config, String path) {
+        return translateColor(config.getString(path));
+    }
+
     @Nullable
     static Integer getAndCheckInteger(int min, int max, ConfigurationSection config, String path) {
         Object obj = config.get(path);
@@ -492,6 +507,11 @@ public class Config {
     public static int enchSoulboundMaxLevel;
     public static String enchSoulboundName;
 
+    public static boolean enchBeaconatorEnabled;
+    public static String enchBeaconatorName;
+    public record BeaconatorLevel(double radius, @Nullable ExpCostCalculator expCost) {}
+    public static List<BeaconatorLevel> enchBeaconatorLevels;
+
     // Nerfs
     public static double nerfExpLevelsPerMinute;
     public static boolean nerfOnlyApplyInHotbar;
@@ -551,5 +571,15 @@ public class Config {
         public boolean isHideParticles() {
             return hideParticles != null ? hideParticles : effectsDefaultHideParticles;
         }
+    }
+
+    public static BeaconatorLevel getBeaconatorLevel(int level, int selectedLevel) {
+        if (selectedLevel == 0) // unselected
+            selectedLevel = level;
+        else
+            selectedLevel = Math.min(selectedLevel, level);
+        if (selectedLevel - 1 >= enchBeaconatorLevels.size())
+            return enchBeaconatorLevels.get(enchBeaconatorLevels.size() - 1);
+        return enchBeaconatorLevels.get(selectedLevel - 1);
     }
 }

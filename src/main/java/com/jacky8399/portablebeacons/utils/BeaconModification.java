@@ -78,6 +78,14 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
                 return false;
             }
         }
+        if (virtualEffects.beaconatorLevel != -1) {
+            int newLevel = type.merger.applyAsInt(effects.beaconatorLevel, virtualEffects.beaconatorLevel);
+            effects.beaconatorLevel = Math.max(newLevel, 0);
+            // check restrictions
+            if (!bypassRestrictions && effects.beaconatorLevel > Config.enchBeaconatorLevels.size()) {
+                return false;
+            }
+        }
         return true;
     }
 

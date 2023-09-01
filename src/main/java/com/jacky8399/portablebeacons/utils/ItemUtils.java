@@ -88,17 +88,19 @@ public class ItemUtils {
 
         meta.addEnchant(Enchantment.DURABILITY, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        List<BaseComponent[]> effectsLore = effects.toLore(hideEffects, hideEffects);
+        List<BaseComponent> effectsLore = effects.toLore(hideEffects, hideEffects);
 
         if (!Config.itemLore.isEmpty()) {
-            List<BaseComponent[]> lore = new ArrayList<>(effectsLore.size() + Config.itemLore.size() + 1);
+            List<BaseComponent> lore = new ArrayList<>(effectsLore.size() + Config.itemLore.size() + 1);
             lore.addAll(effectsLore);
-            lore.add(new BaseComponent[]{(new TextComponent())});
+            lore.add(new TextComponent());
             boolean placeholderApi = Config.placeholderApi;
             try {
                 for (String line : Config.itemLore) {
                     if (placeholderApi) line = PlaceholderAPI.setPlaceholders(player, line);
-                    lore.add(TextComponent.fromLegacyText(Config.translateColor(line)));
+                    TextComponent text = new TextComponent(TextComponent.fromLegacyText(Config.translateColor(line)));
+                    text.setItalic(false);
+                    lore.add(text);
                 }
             } catch (Exception ignored) {
             }
@@ -145,14 +147,14 @@ public class ItemUtils {
         }
     }
 
-    public static void setLore(ItemMeta meta, @Nullable List<BaseComponent[]> lore) {
+    public static void setLore(ItemMeta meta, @Nullable List<BaseComponent> lore) {
         if (lore == null) {
             meta.setLore(null);
             return;
         }
 
         if (ITEM_META_LORE == null) {
-            meta.setLore(lore.stream().map(BaseComponent::toLegacyText).toList());
+            meta.setLore(lore.stream().map(component -> component.toLegacyText()).toList());
         } else {
             List<String> newLore = lore.stream().map(ComponentSerializer::toString).toList();
             ITEM_META_LORE.set(meta, newLore);

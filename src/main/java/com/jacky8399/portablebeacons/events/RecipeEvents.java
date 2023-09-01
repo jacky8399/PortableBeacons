@@ -118,7 +118,7 @@ public class RecipeEvents implements Listener {
             }
         }
 
-        int cost = recipe.expCost().getCost(beacon, right);
+        int cost = recipe.expCost().getCost(player, beacon, right);
         if (cost < 0) { // disallowed
             if (preview) { // Too expensive!
                 if (inv instanceof AnvilInventory anvilInventory) {

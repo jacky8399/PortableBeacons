@@ -101,7 +101,7 @@ public class WorldGuardHelper {
             }
         }
         if (allowedFilters != null || blockedFilters != null) {
-            BeaconEffects newEffects = effects.clone();
+            BeaconEffects newEffects = new BeaconEffects(effects);
             newEffects.filter(allowedFilters, blockedFilters);
             return newEffects;
         }

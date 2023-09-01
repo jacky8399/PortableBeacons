@@ -88,12 +88,6 @@ public class TextUtils {
     }
 
     public record ContextLevel(int level) implements Context {
-
-        @Override
-        public boolean shouldRemovePrecedingSpace(String... args) {
-            return args.length == 0; // {level}
-        }
-
         @Override
         public String doReplacement(String... args) {
             return args.length == 1 && "number".equals(args[0]) ?

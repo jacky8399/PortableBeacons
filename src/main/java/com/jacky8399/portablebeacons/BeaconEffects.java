@@ -1,7 +1,6 @@
 package com.jacky8399.portablebeacons;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
@@ -22,6 +21,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.*;
 
@@ -50,6 +50,8 @@ public class BeaconEffects implements Cloneable {
         this.expReductionLevel = other.expReductionLevel;
         this.soulboundOwner = other.soulboundOwner;
         this.soulboundLevel = other.soulboundLevel;
+        this.beaconatorLevel = other.beaconatorLevel;
+        this.beaconatorSelectedLevel = other.beaconatorSelectedLevel;
         this.customDataVersion = other.customDataVersion;
         this.needsUpdate = other.needsUpdate;
     }
@@ -62,9 +64,19 @@ public class BeaconEffects implements Cloneable {
     @Nullable
     public UUID soulboundOwner = null;
     public int soulboundLevel = 0;
+
+    public int beaconatorLevel = 0;
+    /**
+     * The beaconator level the player chooses to use
+     */
+    public int beaconatorSelectedLevel = 0;
+    @Nullable
+    public String beaconatorMode = null;
+
     public boolean needsUpdate = false;
 
     @Override
+    @Deprecated // use copy constructor
     public BeaconEffects clone() {
         try {
             return (BeaconEffects) super.clone();
@@ -158,12 +170,13 @@ public class BeaconEffects implements Cloneable {
         return enabledEffects;
     }
 
-    public List<BaseComponent[]> toLore(boolean showEffects, boolean showEnchants) {
-        List<BaseComponent[]> lines = new ArrayList<>();
+    public List<BaseComponent> toLore(boolean showEffects, boolean showEnchants) {
+        List<BaseComponent> lines = new ArrayList<>();
 
         boolean hasExpReduction = showEnchants && Config.enchExpReductionEnabled && expReductionLevel != 0;
         boolean hasSoulbound = showEnchants && Config.enchSoulboundEnabled && soulboundLevel != 0;
-        boolean hasEnchants = hasExpReduction || hasSoulbound;
+        boolean hasBeaconator = showEnchants && Config.enchBeaconatorEnabled && beaconatorLevel != 0;
+        boolean hasEnchants = hasExpReduction || hasSoulbound || hasBeaconator;
 
         if (showEffects) {
             for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
@@ -173,35 +186,41 @@ public class BeaconEffects implements Cloneable {
                     display.setColor(ChatColor.GRAY);
                     display.setStrikethrough(true);
                 }
-                lines.add(new BaseComponent[]{display});
+                lines.add(display);
             }
         }
 
         if (hasEnchants) {
-            lines.add(new BaseComponent[]{new TextComponent()});
+            lines.add(new TextComponent());
         }
 
         if (hasExpReduction) {
-            String legacyString = TextUtils.replacePlaceholders(Config.enchExpReductionName,
+            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchExpReductionName,
                     new TextUtils.ContextLevel(expReductionLevel),
                     Map.of("exp-reduction", new TextUtils.ContextExpReduction(expReductionLevel))
-            );
-
-            for (String line : legacyString.split("\n")) {
-                lines.add(TextComponent.fromLegacyText(line));
-            }
+            ));
         }
         if (hasSoulbound) {
-            String legacyString = TextUtils.replacePlaceholders(Config.enchSoulboundName,
+            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchSoulboundName,
                     new TextUtils.ContextLevel(soulboundLevel),
                     Map.of("soulbound-owner", new TextUtils.ContextUUID(soulboundOwner, "???"))
-            );
-
-            for (String line : legacyString.split("\n")) {
-                lines.add(TextComponent.fromLegacyText(line));
-            }
+            ));
+        }
+        if (hasBeaconator) {
+            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchBeaconatorName,
+                    new TextUtils.ContextLevel(beaconatorLevel),
+                    Map.of()
+            ));
         }
         return lines;
+    }
+
+    private static void addLegacyLore(List<BaseComponent> lines, String legacyString) {
+        for (String line : legacyString.split("\n")) {
+            TextComponent text = new TextComponent(TextComponent.fromLegacyText(line));
+            text.setItalic(false);
+            lines.add(text);
+        }
     }
 
     public double calcExpPerMinute() {
@@ -247,41 +266,72 @@ public class BeaconEffects implements Cloneable {
         // downgrade enchantments
         expReductionLevel = Math.min(expReductionLevel, Config.enchExpReductionMaxLevel);
         soulboundLevel = Math.min(soulboundLevel, Config.enchSoulboundMaxLevel);
+        beaconatorLevel = Math.max(beaconatorLevel, Config.enchBeaconatorLevels.size());
+        beaconatorSelectedLevel = Math.min(beaconatorSelectedLevel, beaconatorLevel);
     }
+
+    // Serialization
 
     public Map<String, Object> save(boolean allowVirtual) {
         // only save effects and custom enchants
         int minLevel = allowVirtual ? 0 : 1;
         var map = new LinkedHashMap<String, Object>();
-        effects.forEach((potion, level) -> {
+        for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
+            PotionEffectType potion = entry.getKey();
+            Integer level = entry.getValue();
             if (level >= minLevel)
                 map.put(potion.getKey().toString(), level);
-        });
+        }
         if (expReductionLevel >= minLevel)
             map.put("exp-reduction", expReductionLevel);
         if (soulboundLevel >= minLevel)
             map.put("soulbound", soulboundLevel);
+        if (beaconatorLevel >= minLevel)
+            map.put("beaconator", beaconatorLevel);
         return map;
     }
 
-    public static BeaconEffects load(Map<String, Object> map, boolean allowVirtual) throws IllegalArgumentException {
+    public static BeaconEffects load(Map<String, ?> map, boolean allowVirtual) throws IllegalArgumentException {
         var beaconEffects = new BeaconEffects();
         int minLevel = allowVirtual ? 0 : 1;
         beaconEffects.expReductionLevel = minLevel - 1;
         beaconEffects.soulboundLevel = minLevel - 1;
+        beaconEffects.beaconatorLevel = minLevel - 1;
         var effects = new HashMap<PotionEffectType, Integer>();
         map.forEach((key, obj) -> {
             if (!(obj instanceof Number number) || number.intValue() < minLevel)
                 throw new IllegalArgumentException(obj + " is not a valid value for key " + key);
-            if ("exp-reduction".equals(key)) {
-                beaconEffects.expReductionLevel = number.intValue();
-            } else if ("soulbound".equals(key)) {
-                beaconEffects.soulboundLevel = number.intValue();
-            } else {
-                PotionEffectType type = PotionEffectUtils.parsePotion(key);
-                if (type == null)
-                    throw new IllegalArgumentException(key + " is not a valid key");
-                effects.put(type, number.intValue());
+            String potionName = key.toLowerCase(Locale.ENGLISH);
+            int level = number.intValue();
+            switch (potionName) {
+                case "exp-reduction" -> beaconEffects.expReductionLevel = level;
+                case "soulbound" -> beaconEffects.soulboundLevel = level;
+                case "beaconator" -> beaconEffects.beaconatorLevel = level;
+                case "all" -> {
+                    for (var effect : PotionEffectType.values()) {
+                        effects.put(effect, level);
+                    }
+                }
+                case "all-positive" -> {
+                    for (var effect : PotionEffectType.values()) {
+                        if (!PotionEffectUtils.isNegative(effect)) {
+                            effects.put(effect, level);
+                        }
+                    }
+                }
+                case "all-negative" -> {
+                    for (var effect : PotionEffectType.values()) {
+                        if (PotionEffectUtils.isNegative(effect)) {
+                            effects.put(effect, level);
+                        }
+                    }
+                }
+                default -> {
+                    PotionEffectType type = PotionEffectUtils.parsePotion(potionName);
+                    if (type == null)
+                        throw new IllegalArgumentException(potionName + " is not a valid potion effect or enchantment");
+                    effects.put(type, level);
+                }
             }
         });
         beaconEffects.setEffects(effects);
@@ -304,7 +354,11 @@ public class BeaconEffects implements Cloneable {
                 EFFECTS = key("effects_v3"), DISABLED_EFFECTS = key("disabled_effects"),
                 ENCHANT_EXP_REDUCTION = key("enchant_exp_reduction_level"),
                 ENCHANT_SOULBOUND = key("enchant_soulbound_level"),
-                ENCHANT_SOULBOUND_OWNER = key("enchant_soulbound_owner");
+                ENCHANT_SOULBOUND_OWNER = key("enchant_soulbound_owner"),
+                ENCHANT_BEACONATOR = key("enchant_beaconator"),
+                ENCHANT_BEACONATOR_SELECTED = key("enchant_beaconator_selected"),
+                ENCHANT_BEACONATOR_MODE = key("enchant_beaconator_mode");
+
 
         @Override
         public @NotNull Class<PersistentDataContainer> getPrimitiveType() {
@@ -333,7 +387,7 @@ public class BeaconEffects implements Cloneable {
                     effectsDisabled.set(key, BYTE, (byte) 1);
             }
             container.set(EFFECTS, TAG_CONTAINER, effects);
-            if (effectsDisabled.getKeys().size() != 0)
+            if (!effectsDisabled.getKeys().isEmpty())
                 container.set(DISABLED_EFFECTS, TAG_CONTAINER, effectsDisabled);
             // enchants
             if (complex.expReductionLevel != 0)
@@ -343,6 +397,12 @@ public class BeaconEffects implements Cloneable {
             if (complex.soulboundOwner != null)
                 container.set(ENCHANT_SOULBOUND_OWNER, LONG_ARRAY,
                         new long[]{complex.soulboundOwner.getMostSignificantBits(), complex.soulboundOwner.getLeastSignificantBits()});
+            if (complex.beaconatorLevel != 0) {
+                container.set(ENCHANT_BEACONATOR, INTEGER, complex.beaconatorLevel);
+                container.set(ENCHANT_BEACONATOR_SELECTED, INTEGER, complex.beaconatorSelectedLevel);
+                if (complex.beaconatorMode != null)
+                    container.set(ENCHANT_BEACONATOR_MODE, STRING, complex.beaconatorMode);
+            }
 
             container.set(DATA_VERSION_KEY, INTEGER, DATA_VERSION);
             if (complex.customDataVersion != null)
@@ -369,10 +429,10 @@ public class BeaconEffects implements Cloneable {
                 if (dataVersion == 4) {
                     PersistentDataContainer disabledEffects = primitive.get(DISABLED_EFFECTS, PersistentDataType.TAG_CONTAINER);
                     if (disabledEffects != null) {
-                        ImmutableSet<PotionEffectType> disabledEffectsSet = disabledEffects.getKeys().stream()
+                        var disabledEffectsSet = disabledEffects.getKeys().stream()
                                 .map(PotionEffectUtils::parsePotion)
                                 .filter(Objects::nonNull)
-                                .collect(ImmutableSet.toImmutableSet());
+                                .collect(Collectors.toUnmodifiableSet());
                         ret.setDisabledEffects(disabledEffectsSet);
                     }
                 }
@@ -389,6 +449,12 @@ public class BeaconEffects implements Cloneable {
                 if (bits != null) {
                     // bypass UUID.fromString
                     ret.soulboundOwner = new UUID(bits[0], bits[1]);
+                }
+                Integer enchantBeaconator = primitive.get(ENCHANT_BEACONATOR, INTEGER);
+                if (enchantBeaconator != null) {
+                    ret.beaconatorLevel = enchantBeaconator;
+                    ret.beaconatorSelectedLevel = primitive.get(ENCHANT_BEACONATOR_SELECTED, INTEGER);
+                    ret.beaconatorMode = primitive.get(ENCHANT_BEACONATOR_MODE, STRING);
                 }
                 return ret;
             } else if (dataVersion == 2) {
