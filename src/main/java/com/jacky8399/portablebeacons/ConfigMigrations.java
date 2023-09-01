@@ -1,6 +1,7 @@
 package com.jacky8399.portablebeacons;
 
 import com.jacky8399.portablebeacons.utils.TextUtils;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -64,16 +65,26 @@ public final class ConfigMigrations {
                     }
                     // detect the case where the old name is some substring of the key
                     // e.g. minecraft:speed.name: Speed
-                    if (!key.toLowerCase(Locale.ENGLISH).replace('_', ' ').contains(nameOverride.toLowerCase(Locale.ENGLISH))) {
-                        effect.set("name-override", nameOverride);
+                    if (key.toLowerCase(Locale.ENGLISH).replace('_', ' ').contains(
+                            ChatColor.stripColor(Config.translateColor(nameOverride)).toLowerCase(Locale.ENGLISH))) {
+                        nameOverride = null;
                     }
+
+                    effect.set("name", null);
+
+                    String oldPath = "effects." + key + ".name -> ";
                     if (formatOverride != null) {
                         effect.set("format-override", formatOverride);
-                        logger.migrated.add("effects." + key + ".name -> name-override, format-override");
+                        effect.set("name-override", nameOverride);
+                        logger.migrated.add(oldPath + (nameOverride != null ? "name-override, format-override" : "format-override"));
+                    } else if (nameOverride != null) {
+                        effect.set("name-override", nameOverride);
+                        logger.migrated.add(oldPath + "name-override");
                     } else {
-                        logger.migrated.add("effects." + key + ".name -> name-override");
+                        if (effect.getKeys(false).isEmpty())
+                            section.set(key, null);
+                        logger.migrated.add(oldPath + "REMOVED");
                     }
-                    effect.set("name", null);
                 }
             }
         }

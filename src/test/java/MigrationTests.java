@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,12 +38,16 @@ public class MigrationTests {
 
         @Test
         public void migrateEffectNames() {
-            record Test(String input, String expectedName, String expectedFormat) {}
+            record Test(String input, String expectedName, String expectedFormat) {
+                String error() {
+                    return "For input: " + input + ", migrated: (" + String.join(", ", LOGGER.migrated()) + ")";
+                }
+            }
             Map<String, Test> tests = Map.of(
                     // default will not be migrated
                     "effects.default.name", new Test("DEFAULT", null, null),
-                    "effects.regeneration.name", new Test("REGeneration", null, null),
-                    "effects.speed.name", new Test("speedy uwu", "speedy uwu", null),
+                    "effects.regeneration.name", new Test("&4&4&4REGeneration", null, null),
+                    "effects.speed.name", new Test("&4&4&4speedy uwu", "&4&4&4speedy uwu", null),
                     "effects.jump_boost.name", new Test("JUMP BOOST", null, null),
                     "effects.luck.name", new Test("Luck{level}y", "Lucky", null),
                     "effects.night_vision.name", new Test("NIGHT VIS{level|number}ION", null, "number"),
@@ -60,9 +63,17 @@ public class MigrationTests {
             assertEquals("DEFAULT", config.get("effects.default.name"));
             tests.forEach((key, test) -> {
                 String base = key.substring(0, key.lastIndexOf('.'));
-                ConfigurationSection section = Objects.requireNonNull(config.getConfigurationSection(base));
-                assertEquals(test.expectedName, section.get("name-override"), test.input);
-                assertEquals(test.expectedFormat, section.get("format-override"), test.input);
+                ConfigurationSection section = config.getConfigurationSection(base);
+                // simplification is not applicable to default
+                if (!base.equals("effects.default") && test.expectedName == null && test.expectedFormat == null) {
+                    assertNull(section, () -> test.error() + "\nThe section still contains these entries: " + section.getValues(true));
+                } else {
+                    assertNotNull(section, test::error);
+                }
+                if (section != null) {
+                    assertEquals(test.expectedName, section.get("name-override"), test::error);
+                    assertEquals(test.expectedFormat, section.get("format-override"), test::error);
+                }
             });
         }
     }

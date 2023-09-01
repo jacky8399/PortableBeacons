@@ -116,9 +116,9 @@ public class Config {
         if (!migrated.isEmpty()) {
             logger.warning("The following legacy config values have been migrated (in memory):");
             migrated.forEach(message -> logger.warning(" - " + message));
-            logger.warning("Confirm that the features still work correctly, then run " +
+            logger.severe("Confirm that the features still work correctly, then run " +
                     "'/portablebeacons saveconfig' to save these changes to disk.");
-            logger.warning("Consult documentation and migrate manually if necessary.");
+            logger.severe("Consult documentation and migrate manually if necessary.");
         }
         if (!needsAttention.isEmpty()) {
             logger.severe("Additionally, the following config values need your attention:");
@@ -396,22 +396,21 @@ public class Config {
             return rootPath + "." + path;
     }
 
-    private static final Logger LOGGER = PortableBeacons.INSTANCE.logger;
     @Nullable
     static Integer getAndCheckInteger(int min, int max, ConfigurationSection config, String path) {
         Object obj = config.get(path);
         if (obj == null)
             return null;
         if (!(obj instanceof Integer value)) {
-            LOGGER.severe("Config \"" + getFullPath(config, path) + "\" is not an integer");
+            PortableBeacons.INSTANCE.logger.severe("Config \"" + getFullPath(config, path) + "\" is not an integer");
             return min;
         }
         if (value > max) {
-            LOGGER.severe("Config \"%s\" cannot be larger than %d, got %d."
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %d, got %d."
                     .formatted(getFullPath(config, path), max, value));
             return max;
         } else if (value < min) {
-            LOGGER.severe("Config \"%s\" cannot be smaller than %d, got %d."
+            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %d, got %d."
                     .formatted(getFullPath(config, path), min, value));
             return min;
         } else {
