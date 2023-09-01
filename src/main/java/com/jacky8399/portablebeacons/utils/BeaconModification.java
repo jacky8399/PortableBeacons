@@ -8,19 +8,14 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
-import java.util.function.Predicate;
 
 public record BeaconModification(Type type, BeaconEffects virtualEffects, boolean bypassRestrictions)
-        implements Predicate<BeaconEffects> {
+    implements Function<BeaconEffects, Boolean> {
 
     public BeaconModification(Type type, BeaconEffects virtualEffects) {
         this(type, virtualEffects, false);
-    }
-
-    @Override
-    public boolean test(BeaconEffects effects) {
-        return modify(effects.clone());
     }
 
     public enum Type {
@@ -48,6 +43,11 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
                 default -> throw new IllegalArgumentException(string);
             };
         }
+    }
+
+    @Override
+    public Boolean apply(BeaconEffects beaconEffects) {
+        return modify(beaconEffects);
     }
 
     public boolean modify(BeaconEffects effects) {

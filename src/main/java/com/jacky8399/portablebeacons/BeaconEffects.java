@@ -5,9 +5,11 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
-import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
-import org.bukkit.ChatColor;
+import com.jacky8399.portablebeacons.utils.TextUtils;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.persistence.PersistentDataAdapterContext;
@@ -156,39 +158,50 @@ public class BeaconEffects implements Cloneable {
         return enabledEffects;
     }
 
-    public List<String> toLore(boolean showEffects, boolean showEnchants) {
-        var loreBuilder = new StringBuilder();
+    public List<BaseComponent[]> toLore(boolean showEffects, boolean showEnchants) {
+        List<BaseComponent[]> lines = new ArrayList<>();
 
         boolean hasExpReduction = showEnchants && Config.enchExpReductionEnabled && expReductionLevel != 0;
         boolean hasSoulbound = showEnchants && Config.enchSoulboundEnabled && soulboundLevel != 0;
         boolean hasEnchants = hasExpReduction || hasSoulbound;
 
         if (showEffects) {
-            for (var iterator = effects.entrySet().iterator(); iterator.hasNext();) {
-                var entry = iterator.next();
-                String display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
-                if (disabledEffects.contains(entry.getKey()))
-                    display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
-                loreBuilder.append(display);
-                if (iterator.hasNext() || hasEnchants) {
-                    loreBuilder.append('\n');
+            for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
+                BaseComponent display = PotionEffectUtils.getDisplayName(entry.getKey(), entry.getValue());
+                display.setItalic(false);
+                if (disabledEffects.contains(entry.getKey())) {
+                    display.setColor(ChatColor.GRAY);
+                    display.setStrikethrough(true);
                 }
+                lines.add(new BaseComponent[]{display});
             }
         }
 
+        if (hasEnchants) {
+            lines.add(new BaseComponent[]{new TextComponent()});
+        }
+
         if (hasExpReduction) {
-            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(Config.enchExpReductionName,
-                    new ItemUtils.ContextLevel(expReductionLevel),
-                    Map.of("exp-reduction", new ItemUtils.ContextExpReduction(expReductionLevel))
-            ));
+            String legacyString = TextUtils.replacePlaceholders(Config.enchExpReductionName,
+                    new TextUtils.ContextLevel(expReductionLevel),
+                    Map.of("exp-reduction", new TextUtils.ContextExpReduction(expReductionLevel))
+            );
+
+            for (String line : legacyString.split("\n")) {
+                lines.add(TextComponent.fromLegacyText(line));
+            }
         }
         if (hasSoulbound) {
-            loreBuilder.append('\n').append(ItemUtils.replacePlaceholders(Config.enchSoulboundName,
-                    new ItemUtils.ContextLevel(soulboundLevel),
-                    Map.of("soulbound-owner", new ItemUtils.ContextUUID(soulboundOwner, "???"))
-            ));
+            String legacyString = TextUtils.replacePlaceholders(Config.enchSoulboundName,
+                    new TextUtils.ContextLevel(soulboundLevel),
+                    Map.of("soulbound-owner", new TextUtils.ContextUUID(soulboundOwner, "???"))
+            );
+
+            for (String line : legacyString.split("\n")) {
+                lines.add(TextComponent.fromLegacyText(line));
+            }
         }
-        return loreBuilder.toString().lines().toList();
+        return lines;
     }
 
     public double calcExpPerMinute() {

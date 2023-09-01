@@ -5,7 +5,9 @@ import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.events.Inventories;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
+import com.jacky8399.portablebeacons.utils.TextUtils;
 import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -64,12 +66,12 @@ public class InventoryTogglePotion implements InventoryProvider {
 
         ItemMeta expMeta = expStack.getItemMeta();
         double expUsage = effects.calcExpPerMinute();
-        Map<String, ItemUtils.Context> contexts = Map.of(
+        Map<String, TextUtils.Context> contexts = Map.of(
                 "usage", args -> makeFormat(args, "0.#").format(60 / expUsage),
                 "player-level", args -> Integer.toString(player.getLevel()),
                 "remaining-time", args -> makeFormat(args, "#").format(player.getLevel() * 60 / expUsage)
         );
-        String[] expUsageMsg = ItemUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
+        String[] expUsageMsg = TextUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
         expMeta.setDisplayName(expUsageMsg[0]);
         if (expUsageMsg.length > 1) {
             expMeta.setLore(Arrays.asList(Arrays.copyOfRange(expUsageMsg, 1, expUsageMsg.length)));
@@ -163,14 +165,16 @@ public class InventoryTogglePotion implements InventoryProvider {
 
     @NotNull
     private ItemStack getPotionDisplay(PotionEffectType type, int level) {
-        String display = PotionEffectUtils.getDisplayName(type, level);
+        BaseComponent display = PotionEffectUtils.getDisplayName(type, level);
+        display.setItalic(false);
         ItemStack stack;
         ItemMeta meta;
         if (disabledEffects.contains(type)) {
             stack = new ItemStack(Material.GLASS_BOTTLE);
             meta = stack.getItemMeta();
             // strip colour and add strikethrough
-            display = ChatColor.GRAY.toString() + ChatColor.STRIKETHROUGH + ChatColor.stripColor(display);
+            display.setColor(ChatColor.GRAY);
+            display.setStrikethrough(true);
         } else {
             stack = new ItemStack(Material.POTION);
             meta = stack.getItemMeta();
@@ -184,7 +188,7 @@ public class InventoryTogglePotion implements InventoryProvider {
             meta.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS);
         }
 
-        meta.setDisplayName(display);
+        ItemUtils.setDisplayName(meta, display);
         stack.setItemMeta(meta);
         stack.setAmount(level);
         return stack;

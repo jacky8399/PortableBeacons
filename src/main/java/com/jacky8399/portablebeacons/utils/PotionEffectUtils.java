@@ -1,7 +1,10 @@
 package com.jacky8399.portablebeacons.utils;
 
 import com.jacky8399.portablebeacons.Config;
-import org.bukkit.ChatColor;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.TranslatableComponent;
 import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -9,6 +12,8 @@ import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.*;
+import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -111,45 +116,34 @@ public class PotionEffectUtils {
     public static String toRomanNumeral(int i) {
         return switch (i) {
             case 1 -> "";
-            case 2 -> " II";
-            case 3 -> " III";
-            case 4 -> " IV";
-            case 5 -> " V";
-            case 6 -> " VI";
-            case 7 -> " VII";
-            case 8 -> " VIII";
-            case 9 -> " IX";
-            case 10 -> " X";
-            default -> " " + i;
+            case 2 -> "II";
+            case 3 -> "III";
+            case 4 -> "IV";
+            case 5 -> "V";
+            case 6 -> "VI";
+            case 7 -> "VII";
+            case 8 -> "VIII";
+            case 9 -> "IX";
+            case 10 -> "X";
+            default -> "" + i;
         };
     }
 
     @NotNull
-    public static String getDisplayName(PotionEffectType effect, int level) {
+    public static BaseComponent getDisplayName(PotionEffectType effect, int level) {
         Config.PotionEffectInfo info = Config.getInfo(effect);
-        if (info.displayName() != null) {
-            return ItemUtils.replacePlaceholders(info.displayName(), level);
-        } else {
-            String levelString = toRomanNumeral(level);
 
-            NamespacedKey key = effect.getKey();
-            StringBuilder name = new StringBuilder(key.getKey().length() + levelString.length() + 2);
-            name.append(key.getKey());
-
-            // capitalize string
-            name.setCharAt(0, Character.toUpperCase(name.charAt(0)));
-            for (int i = 1; i < name.length() - 1; i++) {
-                char chr = name.charAt(i);
-                if (chr == '_') {
-                    name.setCharAt(i, ' ');
-                    chr = ' ';
-                }
-                if (chr == ' ')
-                    name.setCharAt(i + 1, Character.toUpperCase(name.charAt(i + 1)));
-            }
-            name.insert(0, isNegative(effect) ? ChatColor.RED : ChatColor.BLUE).append(levelString);
-            return name.toString();
-        }
+        String translationKey = effect.getKey().toString().replace(':', '.');
+        TranslatableComponent translatable = new TranslatableComponent("potion.withAmplifier");
+        BaseComponent potion =
+                info.nameOverride() == null ?
+                        new TranslatableComponent("effect." + translationKey) :
+                        new TextComponent(TextComponent.fromLegacyText(info.nameOverride()));
+        Config.EffectFormatter formatter = info.formatOverride() != null ? info.formatOverride() : Config.EffectFormatter.DEFAULT;
+        TextComponent amplifier = new TextComponent(formatter.format(level));
+        translatable.setColor(ChatColor.of(new Color(effect.getColor().asRGB())));
+        translatable.setWith(List.of(potion, amplifier));
+        return translatable;
     }
 
     private static final Map<PotionEffectType, PotionType> POTION_TYPES;

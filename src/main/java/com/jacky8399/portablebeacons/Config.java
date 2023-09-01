@@ -26,8 +26,6 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class Config {
     public static final Map<String, Field> TOGGLES;
@@ -73,6 +71,9 @@ public class Config {
 
         List<String> migrated = new ArrayList<>();
         List<String> needsAttention = new ArrayList<>();
+
+        ConfigMigrations.MigrationLogger migrationLogger = new ConfigMigrations.MigrationLogger(logger, migrated, needsAttention);
+
         if (configVersion == 0) {
             // ritual.item
             ItemStack legacy = config.getItemStack("item-used", config.getItemStack("item_used"));
@@ -101,27 +102,15 @@ public class Config {
             }
 
             // legacy effects
-            if (loadConfigLegacy(config)) {
+            if (migrateEffectsLegacy(config)) {
                 migrated.add("beacon-item.effects -> effects");
             }
 
             // anvil recipes
             doAnvilMigrations(config, migrated);
         } else if (configVersion <= 1) {
-            String expUsageMsg = config.getString("beacon-item.effects-toggle.exp-usage-message");
-            if (expUsageMsg != null && expUsageMsg.contains("{0")) {
-                Pattern pattern = Pattern.compile("\\{0(,number(,.+?)?)?}", Pattern.CASE_INSENSITIVE);
-                expUsageMsg = pattern.matcher(expUsageMsg).replaceAll((match) -> {
-                    if (match.group(1) == null || match.group(2) == null) { // {0} or {0,number}
-                        return "{usage}";
-                    } else { // {0,number,format}
-                        return "{usage|" + match.group(2).substring(1) + "}";
-                    }
-                });
-
-                config.set("beacon-item.effects-toggle.exp-usage-message", expUsageMsg);
-                migrated.add("beacon-item.effects-toggle.exp-usage-message format change");
-            }
+            ConfigMigrations.V1.migrateExpUsageMessage(migrationLogger, config);
+            ConfigMigrations.V1.migrateEffectNames(migrationLogger, config);
         }
 
         if (!migrated.isEmpty()) {
@@ -133,7 +122,7 @@ public class Config {
         }
         if (!needsAttention.isEmpty()) {
             logger.severe("Additionally, the following config values need your attention:");
-            needsAttention.forEach(logger::severe);
+            needsAttention.forEach(message -> logger.severe(" - " + message));
         }
     }
 
@@ -148,11 +137,12 @@ public class Config {
         if (srcSection == null || destSection == null)
             return;
         for (String key : destSection.getKeys(deep)) {
-            List<String> comments;
-            if ((comments = srcSection.getComments(key)).size() != 0) {
+            List<String> comments = srcSection.getComments(key);
+            if (!comments.isEmpty()) {
                 destSection.setComments(key, comments);
             }
-            if ((comments = srcSection.getInlineComments(key)).size() != 0) {
+            comments = srcSection.getInlineComments(key);
+            if (!comments.isEmpty()) {
                 destSection.setInlineComments(key, comments);
             }
         }
@@ -266,7 +256,7 @@ public class Config {
         itemCustomVersion = config.getString("item-custom-version-do-not-edit");
 
         itemName = translateColor(config.getString("beacon-item.name"));
-        itemLore = config.getStringList("beacon-item.lore").stream().map(Config::translateColor).collect(Collectors.toList());
+        itemLore = config.getStringList("beacon-item.lore");
 
         itemCustomModelData = config.getInt("beacon-item.custom-model-data");
 
@@ -331,33 +321,31 @@ public class Config {
             ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
 
             try {
-                String displayName = translateColor(yaml.getString("name"));
+                String nameOverride = translateColor(yaml.getString("name-override"));
+                String formatOverride = translateColor(yaml.getString("format-override"));
                 Integer maxAmplifier = getAndCheckInteger(0, 255, yaml, "max-amplifier");
                 Integer duration = getAndCheckInteger(0, Integer.MAX_VALUE, yaml, "duration");
                 Boolean hideParticles = (Boolean) yaml.get("hide-particles");
 
                 if (key.equals("default")) {
-                    Objects.requireNonNull(maxAmplifier, "'max-amplifier' in default cannot be null");
-                    Objects.requireNonNull(duration, "'duration' in default cannot be null");
-                    Objects.requireNonNull(hideParticles, "'hide-particles' in default cannot be null");
-                    effectsDefault = new PotionEffectInfo(null, duration, maxAmplifier, hideParticles);
+                    effectsDefaultMaxAmplifier = Objects.requireNonNull(maxAmplifier, "'max-amplifier' in default cannot be null");
+                    effectsDefaultDuration = Objects.requireNonNull(duration, "'duration' in default cannot be null");
+                    effectsDefaultHideParticles = Objects.requireNonNull(hideParticles, "'hide-particles' in default cannot be null");
+
+                    if (nameOverride != null || formatOverride != null)
+                        throw new IllegalArgumentException("The default section cannot have name or format overrides.");
                 } else {
                     PotionEffectType type = Objects.requireNonNull(PotionEffectUtils.parsePotion(key, true),
                             key + " is not a valid potion effect");
-                    effects.put(type, new PotionEffectInfo(displayName, duration, maxAmplifier, hideParticles));
+                    effects.put(type, new PotionEffectInfo(nameOverride, EffectFormatter.parse(formatOverride), duration, maxAmplifier, hideParticles));
                 }
             } catch (Exception e) {
-                PortableBeacons.INSTANCE.logger.severe(String.format("Error while reading config 'effects.%s' (%s), skipping!", key, e.getMessage()));
+                PortableBeacons.INSTANCE.logger.severe("Skipping erroneous config 'effects." + key + "': " + e.getMessage());
             }
-        }
-
-        if (effectsDefault == null) {
-            PortableBeacons.INSTANCE.logger.severe("'effects.default' must be provided");
-            effectsDefault = new PotionEffectInfo(null, 140, 3, false);
         }
     }
 
-    public static boolean loadConfigLegacy(FileConfiguration config) {
+    public static boolean migrateEffectsLegacy(FileConfiguration config) {
         ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
         if (section != null) {
             section.getValues(false).forEach((effect, name) -> {
@@ -365,11 +353,11 @@ public class Config {
                     PotionEffectType type = PotionEffectUtils.parsePotion(effect, true);
                     if (type == null)
                         throw new IllegalArgumentException(effect + " is not a valid potion effect");
-                    String newName = Config.translateColor((String) name);
+//                    String newName = Config.translateColor((String) name);
                     // override PotionEffectInfo
-                    Config.PotionEffectInfo info = Config.effects.get(type);
-                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
-                    Config.effects.put(type, newInfo);
+//                    Config.PotionEffectInfo info = Config.effects.get(type);
+//                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
+//                    Config.effects.put(type, newInfo);
                     config.set("effects." + effect + ".name", name);
                 } catch (IllegalArgumentException ignored) {}
             });
@@ -380,9 +368,9 @@ public class Config {
         return false;
     }
 
-    @Nullable
-    public static String translateColor(@Nullable String raw) {
+    public static String translateColor(String raw) {
         if (raw == null) return null;
+        if (raw.indexOf('&') == -1) return raw;
         // replace RGB codes first
         // use EssentialsX &#RRGGBB format
         StringBuilder builder = new StringBuilder(raw);
@@ -515,34 +503,54 @@ public class Config {
 
     public static boolean placeholderApi;
 
-    @SuppressWarnings("NotNullFieldNotInitialized")
-    @NotNull
-    private static PotionEffectInfo effectsDefault;
-    private static HashMap<PotionEffectType, PotionEffectInfo> effects = new HashMap<>();
-    private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null);
+
+    public static int effectsDefaultDuration;
+
+    public static int effectsDefaultMaxAmplifier;
+
+    public static boolean effectsDefaultHideParticles;
+
+    private static final HashMap<PotionEffectType, PotionEffectInfo> effects = new HashMap<>();
+    private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null, null);
     @NotNull
     public static PotionEffectInfo getInfo(PotionEffectType potion) {
         return effects.getOrDefault(potion, EMPTY_INFO);
     }
 
-    public record PotionEffectInfo(@Nullable String displayName,
+    public interface EffectFormatter {
+        String format(int level);
+
+        EffectFormatter DEFAULT = PotionEffectUtils::toRomanNumeral;
+
+        EffectFormatter NUMBER = Integer::toString;
+
+        @Nullable
+        static EffectFormatter parse(@Nullable String input) throws IllegalArgumentException {
+            if (input == null)
+                return null;
+            if (input.equals("number")) {
+                return NUMBER;
+            }
+            throw new IllegalArgumentException("Unknown format " + input);
+        }
+    }
+
+    public record PotionEffectInfo(@Nullable String nameOverride,
+                                   @Nullable EffectFormatter formatOverride,
                                    @Nullable Integer durationInTicks,
                                    @Nullable Integer maxAmplifier,
                                    @Nullable Boolean hideParticles) {
 
-        @SuppressWarnings("ConstantConditions")
         public int getDuration() {
-            return durationInTicks != null ? durationInTicks : effectsDefault.durationInTicks;
+            return durationInTicks != null ? durationInTicks : effectsDefaultDuration;
         }
 
-        @SuppressWarnings("ConstantConditions")
         public int getMaxAmplifier() {
-            return maxAmplifier != null ? maxAmplifier : effectsDefault.maxAmplifier;
+            return maxAmplifier != null ? maxAmplifier : effectsDefaultMaxAmplifier;
         }
 
-        @SuppressWarnings("ConstantConditions")
         public boolean isHideParticles() {
-            return hideParticles != null ? hideParticles : effectsDefault.hideParticles;
+            return hideParticles != null ? hideParticles : effectsDefaultHideParticles;
         }
     }
 }

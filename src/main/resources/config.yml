@@ -69,7 +69,7 @@ beacon-item:
     # {remaining-time} to get how long the player can sustain the beacon
     # {remaining-time|format} to change the displayed format (Default: "0")
     exp-usage-message: |-
-      &6Consumes 1 level every &e{usage} seconds
+      &6Consumes 1 level every &e{usage}&6 seconds
       &8  Your &7{player-level}&8 levels can sustain 
       &8  this beacon for &7{remaining-time}&8 seconds
     estimated-time-message: "&6"
@@ -107,29 +107,17 @@ effects:
     max-amplifier: 3
     # Set to true to hide particles for the effect, false to use beacon ambient effect
     hide-particles: false
-  regeneration:
-    # How the effect is displayed in the item lore
-    # Use 1.16+ RGB colors with EssentialsX format (&#RRGGBB)
-    # Use {level} for Roman numeral (Regeneration III)
-    # (The space before {level} is removed to avoid extra space when level = 1)
-    # Use {level|number} for decimal (Regeneration 3)
-    # name: '&cRegeneration {level}' will replicate default behavior
-    name: '&cRegeneration'
-  speed:
-    name: '&fSpeed'
-  resistance:
-    name: '&9Resistance'
-  haste:
-    name: '&eHaste'
-  jump_boost:
-    name: '&aJump Boost'
-  strength:
-    name: '&4Strength'
-  # You can override more potion effects. The key must match vanilla names
-  # Specified properties override values from the default section
+  # You can override more potion effects. The key must match vanilla names.
+  # Specified properties override values from the default section.
   # For example, to prevent the night vision effect from flickering:
   night_vision:
-    name: '&1Night Vision'
+    # Additionally, you can override the name and how the level is shown.
+    # By default, potion names depend on the client language,
+    # and use Roman numerals for level 1 - 10.
+    # To override these defaults, uncomment the two properties below.
+    # (Note that you don't need to supply a color, the text will have the potion color by default.)
+    #name-override: Really Good Eyesight
+    #format-override: number
     duration: 400
 
 # Ritual to create portable beacons by dropping an item onto an active beacon

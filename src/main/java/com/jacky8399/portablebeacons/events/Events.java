@@ -377,7 +377,7 @@ public final class Events implements Listener {
                         List<ItemStack> items = soulboundItems.computeIfAbsent(player, key -> new ArrayList<>());
                         if (Config.enchSoulboundConsumeLevelOnDeath) {
                             effects.soulboundLevel--;
-                            items.add(ItemUtils.createMetaCopyItemData(player, effects, dropped));
+                            items.add(ItemUtils.createItemCopyItemData(player, effects, dropped));
                         } else {
                             items.add(dropped);
                         }

@@ -3,8 +3,8 @@ package com.jacky8399.portablebeacons;
 import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.recipes.*;
 import com.jacky8399.portablebeacons.utils.*;
-import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.*;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -27,10 +27,10 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -388,7 +388,7 @@ public class CommandPortableBeacons implements TabExecutor {
             String internalFormat = PotionEffectUtils.getName(type) + (level != 1 ? "=" + level : "");
             BaseComponent[] potionDisplay = new ComponentBuilder()
                     .append("  ") // indentation
-                    .append(TextComponent.fromLegacyText(PotionEffectUtils.getDisplayName(type, level)))
+                    .append(PotionEffectUtils.getDisplayName(type, level), NONE)
                     .append(" ", NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
                     .event(CommandUtils.showText(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create()))
@@ -517,28 +517,34 @@ public class CommandPortableBeacons implements TabExecutor {
 
         List<Player> players = parser.popPlayers(false);
 
-        Predicate<BeaconEffects> modification;
+        Function<BeaconEffects, Boolean> modification;
         switch (operation) {
             case "give" -> {
                 parser.updateUsage("item give <players> <effects...>");
                 BeaconEffects beaconEffects = CommandUtils.parseEffects(sender, parser.popRemainingInput(), false);
-                Set<Player> failedPlayers = new HashSet<>();
+                var successfulPlayers = new ArrayList<String>();
+                var failedPlayers = new ArrayList<String>();
+
+                ItemStack stack = null;
                 for (Player p : players) {
-                    ItemStack stack = ItemUtils.createStack(p, beaconEffects);
+                    stack = ItemUtils.createStack(p, beaconEffects);
                     Map<Integer, ItemStack> unfit = p.getInventory().addItem(stack);
-                    if (!unfit.isEmpty() && unfit.get(0) != null && unfit.get(0).getAmount() != 0)
-                        failedPlayers.add(p);
-                    else if (!silent)
-                        p.sendMessage(GREEN + "You were given a portable beacon!");
+                    if (!unfit.isEmpty() && unfit.get(0) != null && unfit.get(0).getAmount() != 0) {
+                        failedPlayers.add(p.getName());
+                    } else {
+                        successfulPlayers.add(p.getName());
+                        if (!silent)
+                            p.sendMessage(GREEN + "You were given a portable beacon!");
+                    }
                 }
 
-                sender.sendMessage(GREEN + "Given " + players.stream()
-                        .filter(player -> !failedPlayers.contains(player))
-                        .map(Player::getName)
-                        .collect(Collectors.joining(", "))
-                        + " a portable beacon with " + String.join(WHITE + ", ", beaconEffects.toLore(true, true)));
-                if (failedPlayers.size() != 0)
-                    sender.sendMessage(RED + failedPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) +
+                sender.spigot().sendMessage(
+                        new ComponentBuilder("Given " + String.join(", ", successfulPlayers) + " a ").color(GREEN)
+                                .append(TextUtils.toComponent(stack)) // not null since players is never empty
+                                .create()
+                );
+                if (!failedPlayers.isEmpty())
+                    sender.sendMessage(RED + String.join(", ", failedPlayers) +
                             " couldn't be given a portable beacon because their inventory is full.");
                 return; // don't need to modify inventory
             }
@@ -591,16 +597,17 @@ public class CommandPortableBeacons implements TabExecutor {
         Set<Player> failedPlayers = new LinkedHashSet<>();
 
         for (Player player : players) {
+            PlayerInventory inventory = player.getInventory();
             if (modifyAll) { // modify inventory
                 boolean success = false;
-                for (ListIterator<ItemStack> iterator = player.getInventory().iterator(); iterator.hasNext(); ) {
+                for (ListIterator<ItemStack> iterator = inventory.iterator(); iterator.hasNext(); ) {
                     ItemStack stack = iterator.next();
                     BeaconEffects effects = ItemUtils.getEffects(stack);
                     if (effects == null)
                         continue;
-                    success = modification.test(effects);
+                    success = modification.apply(effects);
                     if (success)
-                        iterator.set(ItemUtils.createMetaCopyItemData(player, effects, stack));
+                        iterator.set(ItemUtils.createItemCopyItemData(player, effects, stack));
                 }
                 if (success) {
                     if (!silent)
@@ -609,7 +616,6 @@ public class CommandPortableBeacons implements TabExecutor {
                     failedPlayers.add(player);
                 }
             } else {
-                PlayerInventory inventory = player.getInventory();
                 ItemStack hand = inventory.getItemInMainHand();
                 if (!ItemUtils.isPortableBeacon(hand)) {
                     failedPlayers.add(player);
@@ -617,8 +623,8 @@ public class CommandPortableBeacons implements TabExecutor {
                 }
 
                 BeaconEffects effects = ItemUtils.getEffects(hand);
-                if (modification.test(effects)) {
-                    inventory.setItemInMainHand(ItemUtils.createMetaCopyItemData(player, effects, hand));
+                if (modification.apply(effects)) {
+                    inventory.setItemInMainHand(ItemUtils.createItemCopyItemData(player, effects, hand));
                     if (!silent)
                         player.sendMessage(GREEN + "Your portable beacon was modified!");
                 } else {

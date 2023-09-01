@@ -73,7 +73,7 @@ public class EffectsTimer implements Runnable {
             if (Config.nerfForceDowngrade)
                 beaconEffects.validateEffects();
             beaconEffects.customDataVersion = Config.itemCustomVersion; // actually update custom data version
-            inventory.setItem(index, ItemUtils.createMetaCopyItemData(player, beaconEffects, stack));
+            inventory.setItem(index, ItemUtils.createItemCopyItemData(player, beaconEffects, stack));
             if (Config.debug)
                 PortableBeacons.INSTANCE.logger.info("Updated obsolete beacon item in " + player.getName() + "'s inventory.");
         }

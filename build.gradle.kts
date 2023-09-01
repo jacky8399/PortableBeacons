@@ -19,6 +19,12 @@ repositories {
     mavenLocal()
 }
 
+configurations {
+    testImplementation {
+        extendsFrom(configurations.compileOnly.get())
+    }
+}
+
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT")
     compileOnly("net.md-5:bungeecord-chat:1.16-R0.4")
@@ -26,6 +32,9 @@ dependencies {
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.6")
     compileOnly("me.clip:placeholderapi:2.11.0")
     implementation("org.bstats:bstats-bukkit:2.2.1")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testImplementation("org.mockito:mockito-core:5.5.0")
 }
 
 tasks {
@@ -49,5 +58,9 @@ tasks {
 
     build {
         dependsOn(shadowJar)
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }

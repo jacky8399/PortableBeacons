@@ -451,7 +451,7 @@ public class CommandUtils {
                 players = player != null ? List.of(player) : List.of();
             }
 
-            if (!allowEmpty && players.size() == 0) {
+            if (!allowEmpty && players.isEmpty()) {
                 throw wrapException(new IllegalArgumentException("No player selected by player selector" + selector));
             }
 
