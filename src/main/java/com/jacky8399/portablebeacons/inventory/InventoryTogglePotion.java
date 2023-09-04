@@ -25,6 +25,7 @@ import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 
 import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -65,11 +66,11 @@ public class InventoryTogglePotion implements InventoryProvider {
         displayStack.setItemMeta(Bukkit.getItemFactory().asMetaFor(tempMeta, displayStack));
 
         ItemMeta expMeta = expStack.getItemMeta();
-        double expUsage = effects.calcExpPerMinute();
+        double expUsage = effects.calcExpPerMinute(player);
         Map<String, TextUtils.Context> contexts = Map.of(
-                "usage", args -> makeFormat(args, "0.#").format(60 / expUsage),
+                "usage", args -> makeFormat(args, TextUtils.ONE_DP).format(60 / expUsage),
                 "player-level", args -> Integer.toString(player.getLevel()),
-                "remaining-time", args -> makeFormat(args, "#").format(player.getLevel() * 60 / expUsage)
+                "remaining-time", args -> makeFormat(args, TextUtils.INT).format(player.getLevel() * 60 / expUsage)
         );
         String[] expUsageMsg = TextUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
         expMeta.setDisplayName(expUsageMsg[0]);
@@ -286,7 +287,7 @@ public class InventoryTogglePotion implements InventoryProvider {
         BORDER.setItemMeta(borderMeta);
     }
 
-    private static DecimalFormat makeFormat(String[] args, String defaultValue) {
-        return new DecimalFormat(args.length != 0 ? args[0] : defaultValue);
+    private static NumberFormat makeFormat(String[] args, NumberFormat format) {
+        return args.length != 0 ? new DecimalFormat(args[0]) : format;
     }
 }

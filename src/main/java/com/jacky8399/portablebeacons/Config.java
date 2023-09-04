@@ -26,9 +26,12 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.IntStream;
 
 public class Config {
     public static final Map<String, Field> TOGGLES;
+    public static final Logger LOGGER = PortableBeacons.LOGGER;
+
     static {
         Class<Config> clazz = Config.class;
         try {
@@ -57,8 +60,10 @@ public class Config {
         // warning message
         config.set("ritual.__", "ritual.item is saved by the plugin! If it is empty, the default (32x nether_star) is used.");
         config.setComments("ritual.item", List.of("Saved by the plugin", "To change this value in-game, use /portablebeacons setritualitem"));
-        if (Config.itemCustomVersion != null)
+        if (Config.itemCustomVersion != null) {
             config.set("item-custom-version-do-not-edit", Config.itemCustomVersion);
+            config.setComments("item-custom-version-do-not-edit", List.of("Saved by the plugin", "To change this value in-game, use /portablebeacons updateitems"));
+        }
         config.set("config-version", CONFIG_VERSION);
         config.setComments("config-version", List.of("The configuration version. Shouldn't be modified."));
         config.options().copyDefaults(true).setHeader(List.of("Documentation:",
@@ -66,7 +71,7 @@ public class Config {
     }
 
     public static void doMigrations(FileConfiguration config) {
-        Logger logger = PortableBeacons.INSTANCE.logger;
+        Logger logger = LOGGER;
         int configVersion = config.getInt("config-version", 0);
 
         List<String> migrated = new ArrayList<>();
@@ -102,7 +107,7 @@ public class Config {
             }
 
             // legacy effects
-            if (migrateEffectsLegacy(config)) {
+            if (migrateEffectsLegacy(migrationLogger, config)) {
                 migrated.add("beacon-item.effects -> effects");
             }
 
@@ -149,7 +154,7 @@ public class Config {
     }
 
     static void doAnvilMigrations(FileConfiguration config, List<String> migrated) {
-        Logger logger = PortableBeacons.INSTANCE.logger;
+        Logger logger = LOGGER;
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
         YamlConfiguration defaultYaml;
         try (var reader = new InputStreamReader(Objects.requireNonNull(PortableBeacons.INSTANCE.getResource("recipes.yml")))) {
@@ -230,12 +235,14 @@ public class Config {
     }
 
     public static void loadConfig() {
+        placeholderApi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
+
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
 
         doMigrations(config);
 
         // debug
-        Logger logger = PortableBeacons.INSTANCE.logger;
+        Logger logger = LOGGER;
         debug = config.getBoolean("debug");
 
         // Ritual item
@@ -314,29 +321,38 @@ public class Config {
 
         worldGuard = config.getBoolean("world-guard");
 
-        placeholderApi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
 
         logger.info("Config loaded");
     }
 
     @SuppressWarnings("ConstantConditions")
     public static void readEffects(FileConfiguration config) {
-        effects.clear();
+        var effects = new HashMap<PotionEffectType, PotionEffectInfo>();
         // of course getValues doesn't work
         ConfigurationSection effectsSection = config.getConfigurationSection("effects");
-        Set<String> keys = new LinkedHashSet<>(config.getDefaults().getConfigurationSection("effects").getKeys(false));
+        ConfigurationSection defaultSection = effectsSection.getDefaultSection();
+        Set<String> keys = new LinkedHashSet<>();
+        keys.add("default"); // load default first
         // add keys from actual config later
         // so that user-defined values override defaults
+        keys.addAll(defaultSection.getKeys(false));
         keys.addAll(effectsSection.getKeys(false));
+
+        // ensure that the defaults are set
+        effectsDefaultMaxAmplifier = defaultSection.getInt("max-amplifier");
+        effectsDefaultDuration = defaultSection.getInt("duration");
+        effectsDefaultHideParticles = defaultSection.getBoolean("hide-particles");
+
         for (String key : keys) {
             ConfigurationSection yaml = config.getConfigurationSection("effects." + key);
 
             try {
-                String nameOverride = translateColor(yaml.getString("name-override"));
-                String formatOverride = translateColor(yaml.getString("format-override"));
+                String nameOverride = getAndColorizeString(config, "name-override");
+                String formatOverride = getAndColorizeString(config, "format-override");
                 Integer maxAmplifier = getAndCheckInteger(0, 255, yaml, "max-amplifier");
-                Integer duration = getAndCheckInteger(0, Integer.MAX_VALUE, yaml, "duration");
+                Integer duration = getAndCheckInteger(1, Integer.MAX_VALUE, yaml, "duration");
                 Boolean hideParticles = (Boolean) yaml.get("hide-particles");
+                Object expCost = yaml.get("exp-cost");
 
                 if (key.equals("default")) {
                     effectsDefaultMaxAmplifier = Objects.requireNonNull(maxAmplifier, "'max-amplifier' in default cannot be null");
@@ -344,34 +360,54 @@ public class Config {
                     effectsDefaultHideParticles = Objects.requireNonNull(hideParticles, "'hide-particles' in default cannot be null");
 
                     if (nameOverride != null || formatOverride != null)
-                        throw new IllegalArgumentException("The default section cannot have name or format overrides.");
+                        LOGGER.severe("'effects.default' cannot have name or format overrides.");
+                    if (expCost != null)
+                        LOGGER.severe("'effects.default' cannot have experience cost overrides.");
                 } else {
                     PotionEffectType type = Objects.requireNonNull(PotionEffectUtils.parsePotion(key, true),
                             key + " is not a valid potion effect");
-                    effects.put(type, new PotionEffectInfo(nameOverride, EffectFormatter.parse(formatOverride), duration, maxAmplifier, hideParticles));
+
+                    List<? extends ExpCostCalculator> expCostList;
+                    int maxAmplifierOrDefault = maxAmplifier == null ? effectsDefaultMaxAmplifier : maxAmplifier;
+                    if (expCost instanceof List<?> list) {
+                        if (list.size() != maxAmplifierOrDefault)
+                            throw new IllegalArgumentException(("'effects.%s.exp-cost': Expected the same number of " +
+                                    "entries as max-amplifier (%d), got %d.")
+                                    .formatted(key, maxAmplifierOrDefault, list.size()));
+
+                        expCostList = list.stream().map(o -> ExpCostCalculator.deserialize(o, false)).toList();
+                    } else if (expCost != null) {
+                        ExpCostCalculator calculator = ExpCostCalculator.deserialize(expCost, false);
+                        expCostList = IntStream.rangeClosed(1, maxAmplifierOrDefault)
+                                .mapToObj(i -> new ExpCostCalculator.Multiplier(calculator, i))
+                                .toList();
+                    } else {
+                        expCostList = null;
+                    }
+
+                    effects.put(type, new PotionEffectInfo(nameOverride, EffectFormatter.parse(formatOverride), duration, maxAmplifier, hideParticles, expCostList));
                 }
             } catch (Exception e) {
-                PortableBeacons.INSTANCE.logger.severe("Skipping erroneous config 'effects." + key + "': " + e.getMessage());
+                LOGGER.severe("Skipping invalid config 'effects." + key + "': " + e.getMessage());
             }
         }
+        Config.effects = Map.copyOf(effects);
     }
 
-    public static boolean migrateEffectsLegacy(FileConfiguration config) {
+    public static boolean migrateEffectsLegacy(ConfigMigrations.MigrationLogger logger, FileConfiguration config) {
         ConfigurationSection section = config.getConfigurationSection("beacon-item.effects");
         if (section != null) {
-            section.getValues(false).forEach((effect, name) -> {
+            for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+                String effect = entry.getKey();
+                Object name = entry.getValue();
                 try {
                     PotionEffectType type = PotionEffectUtils.parsePotion(effect, true);
                     if (type == null)
-                        throw new IllegalArgumentException(effect + " is not a valid potion effect");
-//                    String newName = Config.translateColor((String) name);
-                    // override PotionEffectInfo
-//                    Config.PotionEffectInfo info = Config.effects.get(type);
-//                    Config.PotionEffectInfo newInfo = new Config.PotionEffectInfo(newName, info != null ? info.durationInTicks : null, info != null ? info.maxAmplifier : null, info != null ? info.hideParticles : null);
-//                    Config.effects.put(type, newInfo);
+                        logger.needsAttention().add("beacon-item.effects." + effect + ": not a valid potion effect");
                     config.set("effects." + effect + ".name", name);
-                } catch (IllegalArgumentException ignored) {}
-            });
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
             // delete section
             config.set("beacon-item.effects", null);
             return true;
@@ -417,16 +453,14 @@ public class Config {
         if (obj == null)
             return null;
         if (!(obj instanceof Integer value)) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"" + getFullPath(config, path) + "\" is not an integer");
+            LOGGER.severe("Config \"" + getFullPath(config, path) + "\" is not an integer.");
             return min;
         }
         if (value > max) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %d, got %d."
-                    .formatted(getFullPath(config, path), max, value));
+            LOGGER.severe("Config \"%s\" cannot be more than %d, got %d.".formatted(getFullPath(config, path), max, value));
             return max;
         } else if (value < min) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %d, got %d."
-                    .formatted(getFullPath(config, path), min, value));
+            LOGGER.severe("Config \"%s\" cannot be less than %d, got %d.".formatted(getFullPath(config, path), min, value));
             return min;
         } else {
             return value;
@@ -437,7 +471,7 @@ public class Config {
     static int getAndCheckInt(int min, int max, ConfigurationSection config, String path) {
         Integer integer = getAndCheckInteger(min, max, config, path);
         if (integer == null) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"" + getFullPath(config, path) + "\" cannot be null");
+            LOGGER.severe("Config \"" + getFullPath(config, path) + "\" cannot be null");
             return min;
         }
         return integer;
@@ -449,11 +483,11 @@ public class Config {
     static double getAndCheckDouble(double min, double max, ConfigurationSection config, String path) {
         double value = config.getDouble(path);
         if (value > max) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be larger than %f, got %f."
+            LOGGER.severe("Config \"%s\" cannot be larger than %f, got %f."
                     .formatted(getFullPath(config, path), max, value));
             return max;
         } else if (value < min) {
-            PortableBeacons.INSTANCE.logger.severe("Config \"%s\" cannot be smaller than %f, got %f."
+            LOGGER.severe("Config \"%s\" cannot be smaller than %f, got %f."
                     .formatted(getFullPath(config, path), min, value));
             return min;
         } else {
@@ -529,8 +563,8 @@ public class Config {
 
     public static boolean effectsDefaultHideParticles;
 
-    private static final HashMap<PotionEffectType, PotionEffectInfo> effects = new HashMap<>();
-    private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null, null);
+    private static Map<PotionEffectType, PotionEffectInfo> effects = Map.of();
+    private static final PotionEffectInfo EMPTY_INFO = new PotionEffectInfo(null, null, null, null, null, null);
     @NotNull
     public static PotionEffectInfo getInfo(PotionEffectType potion) {
         return effects.getOrDefault(potion, EMPTY_INFO);
@@ -558,7 +592,8 @@ public class Config {
                                    @Nullable EffectFormatter formatOverride,
                                    @Nullable Integer durationInTicks,
                                    @Nullable Integer maxAmplifier,
-                                   @Nullable Boolean hideParticles) {
+                                   @Nullable Boolean hideParticles,
+                                   @Nullable List<? extends ExpCostCalculator> expCostOverride) {
 
         public int getDuration() {
             return durationInTicks != null ? durationInTicks : effectsDefaultDuration;
@@ -570,6 +605,13 @@ public class Config {
 
         public boolean isHideParticles() {
             return hideParticles != null ? hideParticles : effectsDefaultHideParticles;
+        }
+
+        @NotNull
+        public ExpCostCalculator getExpCostCalculator(int level) {
+            if (expCostOverride == null)
+                return new ExpCostCalculator.Fixed(Config.nerfExpLevelsPerMinute * level);
+            return expCostOverride.get(Math.min(level, expCostOverride.size() - 1));
         }
     }
 

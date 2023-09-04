@@ -8,24 +8,26 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.invoke.MethodHandle;
+
 public sealed interface ExpCostCalculator {
     /**
      * Calculates the cost for a given item.
      * Note: should NOT be used for calculating crafting cost.
      * @param player The player
      * @param effects The effects
-     * @return The experience cost
+     * @return The experience cost in levels
      */
-    int getCost(Player player, @Nullable BeaconEffects effects);
+    double getCost(Player player, @Nullable BeaconEffects effects);
 
     /**
      * Calculates the cost for a given item.
      * Note: should NOT be used for calculating crafting cost.
      * @param player The player
      * @param stack The beacon
-     * @return The experience cost
+     * @return The experience cost in levels
      */
-    default int getCost(Player player, ItemStack stack) {
+    default double getCost(Player player, ItemStack stack) {
         return getCost(player, ItemUtils.getEffects(stack));
     }
 
@@ -35,19 +37,23 @@ public sealed interface ExpCostCalculator {
      * @param player The player
      * @param left The beacon
      * @param right The sacrificial item
-     * @return The experience cost
+     * @return The experience cost in levels
      */
-    int getCost(Player player, ItemStack left, ItemStack right);
+    double getCost(Player player, ItemStack left, ItemStack right);
 
     static ExpCostCalculator deserialize(Object object) {
+        return deserialize(object, true);
+    }
+
+    static ExpCostCalculator deserialize(Object object, boolean allowDynamic) {
         if (object == null)
             return null;
 
         if (object instanceof Number number && number.intValue() >= 0) {
             return new Fixed(number.intValue());
-        } else if ("dynamic-unrestricted".equals(object)) {
+        } else if (allowDynamic && "dynamic-unrestricted".equals(object)) {
             return DynamicUnrestricted.INSTANCE;
-        } else if (object instanceof String str && str.startsWith("dynamic")) {
+        } else if (allowDynamic && object instanceof String str && str.startsWith("dynamic")) {
             return Dynamic.deserialize(str);
         } else {
             String string = object.toString();
@@ -57,8 +63,9 @@ public sealed interface ExpCostCalculator {
                 return new Fixed(level);
             } catch (NumberFormatException ignored) {
                 try {
-                    return new Placeholder(string);
+                    return new Placeholder(string, allowDynamic, null);
                 } catch (Exception ex) {
+                    ex.printStackTrace();
                     throw new IllegalArgumentException(object + " is not a valid exp-cost", ex);
                 }
             }
@@ -67,19 +74,19 @@ public sealed interface ExpCostCalculator {
 
     Object serialize();
 
-    record Fixed(int level) implements ExpCostCalculator {
+    record Fixed(double level) implements ExpCostCalculator {
         public Fixed {
             if (level < 0 || level > 1000000)
                 throw new IllegalArgumentException("level must be between 0-1000000");
         }
         
         @Override
-        public int getCost(Player player, BeaconEffects effects) {
+        public double getCost(Player player, BeaconEffects effects) {
             return level;
         }
 
         @Override
-        public int getCost(Player player, ItemStack left, ItemStack right) {
+        public double getCost(Player player, ItemStack left, ItemStack right) {
             return level;
         }
 
@@ -93,7 +100,7 @@ public sealed interface ExpCostCalculator {
         public static final DynamicUnrestricted INSTANCE = new DynamicUnrestricted();
 
         @Override
-        public int getCost(Player player, @Nullable BeaconEffects effects) {
+        public double getCost(Player player, @Nullable BeaconEffects effects) {
             if (effects == null) return 0;
             int cost = 0;
             var disabled = effects.getDisabledEffects();
@@ -131,7 +138,7 @@ public sealed interface ExpCostCalculator {
         }
 
         @Override
-        public int getCost(Player player, ItemStack left, ItemStack right) {
+        public double getCost(Player player, ItemStack left, ItemStack right) {
             BeaconEffects leftEffects = ItemUtils.getEffects(left);
             BeaconEffects rightEffects = ItemUtils.getEffects(right);
             if (leftEffects == null)
@@ -154,14 +161,14 @@ public sealed interface ExpCostCalculator {
         public static final Dynamic VANILLA = new Dynamic(39);
 
         @Override
-        public int getCost(Player player, @Nullable BeaconEffects effects) {
-            int cost = unrestricted.getCost(player, effects);
+        public double getCost(Player player, @Nullable BeaconEffects effects) {
+            double cost = unrestricted.getCost(player, effects);
             return cost > maxLevel ? -1 : cost;
         }
 
         @Override
-        public int getCost(Player player, ItemStack left, ItemStack right) {
-            int cost = unrestricted.getCost(player, left, right);
+        public double getCost(Player player, ItemStack left, ItemStack right) {
+            double cost = unrestricted.getCost(player, left, right);
             return cost > maxLevel ? -1 : cost;
         }
 
@@ -181,7 +188,7 @@ public sealed interface ExpCostCalculator {
         }
     }
 
-    record Placeholder(String placeholders) implements ExpCostCalculator {
+    record Placeholder(String placeholders, boolean dynamic, @Nullable MethodHandle levelField) implements ExpCostCalculator {
 
         private static final DynamicUnrestricted unrestricted = DynamicUnrestricted.INSTANCE;
 
@@ -190,32 +197,39 @@ public sealed interface ExpCostCalculator {
         }
 
         @Override
-        public int getCost(Player player, @Nullable BeaconEffects effects) {
-            if (Config.placeholderApi) {
-                String string = placeholders;
-                if (string.contains("{_dynamic}"))
-                    string = string.replace("{_dynamic}", Integer.toString(unrestricted.getCost(player, effects)));
-                string = PlaceholderAPI.setPlaceholders(player, string);
+        public double getCost(Player player, @Nullable BeaconEffects effects) {
+            String string = placeholders;
+            if (dynamic && string.contains("{_dynamic}"))
+                string = string.replace("{_dynamic}", Double.toString(unrestricted.getCost(player, effects)));
+            if (levelField != null && string.contains("{_level}")) {
                 try {
-                    return Integer.parseInt(string);
-                } catch (NumberFormatException ex) {
-                    return -1;
+                    string = string.replace("{_level}", Integer.toString((int) levelField.invokeExact()));
+                } catch (Throwable ignored) {
                 }
             }
-            return -1;
+            string = PlaceholderAPI.setPlaceholders(player, string);
+            try {
+                if (string.indexOf('.') > -1) {
+                    double value = Double.parseDouble(string);
+                    return Double.isFinite(value) ? value : -1;
+                }
+                return Integer.parseInt(string);
+            } catch (NumberFormatException ex) {
+                return -1;
+            }
         }
 
         @Override
-        public int getCost(Player player, ItemStack left, ItemStack right) {
+        public double getCost(Player player, ItemStack left, ItemStack right) {
             if (Config.placeholderApi) {
                 String string = placeholders;
                 if (string.contains("{_dynamic}"))
-                    string = string.replace("{_dynamic}", Integer.toString(unrestricted.getCost(player, left, right)));
+                    string = string.replace("{_dynamic}", Double.toString(unrestricted.getCost(player, left, right)));
                 string = PlaceholderAPI.setPlaceholders(player, string);
                 try {
                     if (string.indexOf('.') > -1) {
                         double value = Double.parseDouble(string);
-                        return Double.isFinite(value) ? (int) value : -1;
+                        return Double.isFinite(value) ? value : -1;
                     }
                     return Integer.parseInt(string);
                 } catch (NumberFormatException ex) {
@@ -228,6 +242,23 @@ public sealed interface ExpCostCalculator {
         @Override
         public Object serialize() {
             return placeholders;
+        }
+    }
+
+    record Multiplier(ExpCostCalculator calculator, double multiplier) implements ExpCostCalculator {
+        @Override
+        public double getCost(Player player, @Nullable BeaconEffects effects) {
+            return calculator.getCost(player, effects) * multiplier;
+        }
+
+        @Override
+        public double getCost(Player player, ItemStack left, ItemStack right) {
+            return calculator.getCost(player, left, right) * multiplier;
+        }
+
+        @Override
+        public Object serialize() {
+            throw new IllegalStateException("Multiplier cannot be serialized");
         }
     }
 }

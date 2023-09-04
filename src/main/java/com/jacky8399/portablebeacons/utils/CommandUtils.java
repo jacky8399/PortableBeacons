@@ -6,16 +6,10 @@ import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
-import net.md_5.bungee.api.chat.hover.content.Entity;
-import net.md_5.bungee.api.chat.hover.content.Item;
-import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -200,7 +194,7 @@ public class CommandUtils {
                     case "arg" -> {
                         var textComponent = new TextComponent(input);
                         textComponent.setColor(AQUA);
-                        textComponent.setHoverEvent(showText(new TextComponent("This is an argument to this command")));
+                        textComponent.setHoverEvent(TextUtils.showText(new TextComponent("This is an argument to this command")));
                         children.add(textComponent);
                     }
                     case "command" -> {
@@ -222,55 +216,18 @@ public class CommandUtils {
 
     // Components
 
-    public static HoverEvent showText(BaseComponent... components) {
-        return new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(components));
-    }
-
-    public static HoverEvent showItem(Material material, int amount, @Nullable String itemTag) {
-        var hoverContent = new Item(material.getKey().toString(), amount, itemTag != null ? ItemTag.ofNbt(itemTag) : null);
-        return new HoverEvent(HoverEvent.Action.SHOW_ITEM, hoverContent);
-    }
-
-    public static HoverEvent showItem(ItemStack stack) {
-        ItemMeta meta = stack.getItemMeta();
-        return showItem(stack.getType(), stack.getAmount(), meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
-    }
-
-    public static HoverEvent showEntity(EntityType entityType, UUID uuid, @Nullable BaseComponent displayName) {
-        var hoverContent = new Entity(entityType.getKey().toString(), uuid.toString(), displayName);
-        return new HoverEvent(HoverEvent.Action.SHOW_ENTITY, hoverContent);
-    }
-
-    public static BaseComponent displayItem(ItemStack stack) {
-        var material = stack.getType();
-        var materialKey = material.getKey().toString();
-        var meta = stack.getItemMeta();
-        var hover = showItem(material, stack.getAmount(),
-                meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
-        BaseComponent component;
-        if (meta != null && meta.hasDisplayName()) {
-            component = new TextComponent(meta.getDisplayName());
-        } else {
-            var langKey = (material.isBlock() ? "block." : "item.") + materialKey.replace(':', '.');
-            component = new TranslatableComponent(langKey);
-        }
-        component.setHoverEvent(hover);
-        component.setColor(ChatColor.YELLOW);
-        return component;
-    }
-
     public static BaseComponent displayCommandSuggestion(String command) {
         var textComponent = new TextComponent(command);
         textComponent.setColor(AQUA);
         textComponent.setBold(false);
         textComponent.setUnderlined(true);
-        textComponent.setHoverEvent(showText(new TextComponent("Click to copy command to chat box")));
+        textComponent.setHoverEvent(TextUtils.showText(new TextComponent("Click to copy command to chat box")));
         textComponent.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command));
         var copyComponent = new TextComponent(" [C]");
         copyComponent.setColor(DARK_AQUA);
         copyComponent.setBold(false);
         copyComponent.setUnderlined(false);
-        copyComponent.setHoverEvent(showText(new TextComponent("Click to copy command to clipboard")));
+        copyComponent.setHoverEvent(TextUtils.showText(new TextComponent("Click to copy command to clipboard")));
         copyComponent.setClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, command));
         textComponent.setExtra(List.of(copyComponent));
         return textComponent;

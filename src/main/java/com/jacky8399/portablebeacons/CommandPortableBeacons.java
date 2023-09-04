@@ -289,7 +289,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (oldRitualItem.getType() == Material.AIR)
                     builder.append("air").color(YELLOW);
                 else
-                    builder.append(displayItem(oldRitualItem));
+                    builder.append(TextUtils.displayItem(oldRitualItem));
                 builder.append(" to ").color(GREEN);
 
                 if (stack.getType() == Material.AIR) {
@@ -314,7 +314,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     }
                 } else {
                     Config.ritualItem = stack.clone();
-                    sender.spigot().sendMessage(builder.append(displayItem(stack)).create());
+                    sender.spigot().sendMessage(builder.append(TextUtils.displayItem(stack)).create());
                 }
                 // clear old ritual items
                 Events.INSTANCE.ritualItems.clear();
@@ -392,7 +392,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     .append(PotionEffectUtils.getDisplayName(type, level), NONE)
                     .append(" ", NONE)
                     .append("(" + internalFormat + ")").color(YELLOW)
-                    .event(CommandUtils.showText(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create()))
+                    .event(TextUtils.showText(new ComponentBuilder("Used in commands\nClick to copy!").color(YELLOW).create()))
                     .event(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, internalFormat))
                     .create();
 
@@ -420,7 +420,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         .color(DARK_GRAY).italic(true)
                         .append("[?]", NONE)
                         .color(DARK_GRAY)
-                        .event(CommandUtils.showText(new ComponentBuilder(disabledMsg).color(RED).create()))
+                        .event(TextUtils.showText(new ComponentBuilder(disabledMsg).color(RED).create()))
                         .create();
                 sender.spigot().sendMessage(actualDisplay);
                 if (!showHoverMessages) { // show consoles too
@@ -438,17 +438,17 @@ public class CommandPortableBeacons implements TabExecutor {
             if (effects.expReductionLevel != 0) {
                 double multiplier = Math.max(0, 1 - effects.expReductionLevel * Config.enchExpReductionReductionPerLevel) * 100;
                 sender.spigot().sendMessage(new ComponentBuilder("  ")
-                        .append(Config.enchExpReductionName + " " + effects.expReductionLevel)
+                        .append(TextUtils.formatEnchantment(Config.enchExpReductionName, effects.expReductionLevel))
                         .append(" (" + DecimalFormat.getNumberInstance().format(multiplier) + "% exp consumption)", NONE)
                         .create());
             }
             if (effects.soulboundLevel != 0) {
                 var builder = new ComponentBuilder("  ")
-                        .append(Config.enchSoulboundName + " " + effects.soulboundLevel);
+                        .append(TextUtils.formatEnchantment(Config.enchSoulboundName, effects.soulboundLevel));
                 if (effects.soulboundOwner != null) {
                     String name = Bukkit.getOfflinePlayer(effects.soulboundOwner).getName();
                     builder.append(" (" + (name != null ? name : effects.soulboundOwner.toString()) + ")", NONE)
-                            .event(CommandUtils.showEntity(EntityType.PLAYER, effects.soulboundOwner,
+                            .event(TextUtils.showEntity(EntityType.PLAYER, effects.soulboundOwner,
                                     name != null ? new TextComponent(name) : null));
                 } else {
                     builder.append("(not bound to a player)", NONE);
@@ -457,33 +457,38 @@ public class CommandPortableBeacons implements TabExecutor {
             }
             if (effects.beaconatorLevel != 0) {
                 var builder = new ComponentBuilder("  ")
-                        .append(Config.enchBeaconatorName + " " + effects.beaconatorLevel)
+                        .append(TextUtils.formatEnchantment(Config.enchBeaconatorName, effects.beaconatorLevel))
                         .append(" (" + Config.getBeaconatorLevel(effects.beaconatorLevel,
                                 effects.beaconatorSelectedLevel).radius() + " block radius)", NONE);
                 sender.spigot().sendMessage(builder.create());
             }
         }
         if (Config.nerfExpLevelsPerMinute > 0) {
-            double perMinute = effects.calcExpPerMinute();
+            double perMinute = effects.calcExpPerMinute(target);
             String expUnit = " levels";
+            BaseComponent[] breakdown = effects.getExpCostBreakdown(target).stream()
+                    .collect(TextUtils.joiningComponents(new TextComponent("\n")));
             if (showHoverMessages) {
-                TextComponent consumptionText = new TextComponent(
-                        new ComponentBuilder(String.format("%.2f%s/min", perMinute, expUnit)).color(YELLOW)
-                                .append(" [hover for details]").color(GRAY)
-                                .create()
-                );
                 String consumptionHoverText = YELLOW + "Consumes " +
                         String.format(GREEN + "%.1f%3$s" + YELLOW + " / " + AQUA + "%.1f%3$s", perMinute / 16, perMinute * 60, expUnit) +
                         YELLOW + " per " + GREEN + "3.75s" + YELLOW + " / " + AQUA + "hour\n" +
                         YELLOW + "Consumes 1 exp level every " + GOLD + String.format("%.2fs", 60 / perMinute);
+
                 sender.spigot().sendMessage(new ComponentBuilder("Exp upkeep: ").color(GREEN)
-                        .append(consumptionText)
+                        .append(new ComponentBuilder(String.format("%.2f%s/min", perMinute, expUnit)).color(YELLOW)
+                                .append(" [Details]").color(GRAY)
+                                .create(), NONE
+                        )
                         .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(consumptionHoverText)))
+                        .append(new TextComponent(" [Breakdown]"), NONE).color(YELLOW)
+                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(breakdown)))
                         .create());
             } else {
                 sender.sendMessage(GREEN + "Exp upkeep: " + YELLOW + String.format(
                         "%.4f%4$s/minute, %.2f%4$s/3.75s, %.1f%4$s/hour",
                                 perMinute, perMinute / 16, perMinute * 60, expUnit));
+                sender.sendMessage(YELLOW + "Breakdown:");
+                sender.spigot().sendMessage(breakdown);
             }
         }
 
@@ -547,7 +552,7 @@ public class CommandPortableBeacons implements TabExecutor {
 
                 sender.spigot().sendMessage(
                         new ComponentBuilder("Given " + String.join(", ", successfulPlayers) + " a ").color(GREEN)
-                                .append(TextUtils.toComponent(stack)) // not null since players is never empty
+                                .append(TextUtils.displayItem(stack)) // not null since players is never empty
                                 .create()
                 );
                 if (!failedPlayers.isEmpty())
@@ -735,7 +740,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (simpleRecipe.isApplicableTo(new ItemStack(Material.BEACON), stack)) {
                     sender.spigot().sendMessage(
                             new ComponentBuilder("Recipe " + id + " would accept ").color(GREEN)
-                                    .append(displayItem(stack)).color(BLUE).create()
+                                    .append(TextUtils.displayItem(stack)).color(BLUE).create()
                     );
                 } else {
                     if (Config.debug) // show Bukkit ItemMeta info
@@ -744,9 +749,9 @@ public class CommandPortableBeacons implements TabExecutor {
                     else
                         sender.spigot().sendMessage(
                                 new ComponentBuilder("Recipe " + id + " would reject ").color(RED)
-                                        .append(displayItem(stack)).color(BLUE)
+                                        .append(TextUtils.displayItem(stack)).color(BLUE)
                                         .append(" because it wants ", NONE).color(RED)
-                                        .append(displayItem(simpleRecipe.input())).color(YELLOW).create()
+                                        .append(TextUtils.displayItem(simpleRecipe.input())).color(YELLOW).create()
                         );
                 }
             }
@@ -766,11 +771,11 @@ public class CommandPortableBeacons implements TabExecutor {
                     builder.append("Type: Simple Recipe\n" +
                             "Recipe type: " + simpleRecipe.type()).color(YELLOW);
                     builder.append("\nAccepts: ").color(WHITE)
-                            .append(displayItem(simpleRecipe.input()))
+                            .append(TextUtils.displayItem(simpleRecipe.input()))
                             .append("\n", NONE);
                     if (simpleRecipe.template() != null) {
                         builder.append("Smithing Template: ").color(net.md_5.bungee.api.ChatColor.of(new Color(0x1a1e1a)))
-                                .append(displayItem(simpleRecipe.template()))
+                                .append(TextUtils.displayItem(simpleRecipe.template()))
                                 .append("\n", NONE);
                     }
 
@@ -861,7 +866,7 @@ public class CommandPortableBeacons implements TabExecutor {
             components.add(seeMoreText);
 
             boolean firstLine = true;
-            HoverEvent seeMoreHover = showText(new TextComponent("Click to view this topic"));
+            HoverEvent seeMoreHover = TextUtils.showText(new TextComponent("Click to view this topic"));
             for (var entry : children.entrySet()) {
                 String id = entry.getKey();
                 HelpTopic topic = entry.getValue();

@@ -97,7 +97,7 @@ public class EffectsTimer implements Runnable {
         if (player.getGameMode() == GameMode.CREATIVE)
             return true;
 
-        double expPerCycle = effects.calcExpPerMinute() * CYCLE_TIME_MULTIPLIER * (1/16d);
+        double expPerCycle = effects.calcExpPerMinute(player) * CYCLE_TIME_MULTIPLIER * (1/16d);
         if (expPerCycle != 0) {
             double xp = player.getExp() - expPerCycle;
             if (xp < 0) { // deduct levels

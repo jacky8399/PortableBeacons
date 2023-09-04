@@ -3,49 +3,49 @@ package com.jacky8399.portablebeacons.utils;
 import com.jacky8399.portablebeacons.Config;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.*;
+import net.md_5.bungee.api.chat.hover.content.Entity;
 import net.md_5.bungee.api.chat.hover.content.Item;
+import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 public class TextUtils {
+    public static final DecimalFormat TWO_DP = new DecimalFormat("0.##");
+    public static final DecimalFormat ONE_DP = new DecimalFormat("0.#");
+    public static final NumberFormat INT = DecimalFormat.getIntegerInstance();
+
     // reject quotation marks to avoid parsing JSON
     public static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{([^\"]+?)}");
 
-    public static TextComponent toComponent(ItemStack stack) {
-        // I miss Adventure :(
-        Material material = stack.getType();
-        String key = material.getKey().toString();
-        ItemMeta meta = stack.getItemMeta();
-        BaseComponent[] components;
-        if (meta.hasDisplayName()) {
-            components = TextComponent.fromLegacyText(meta.getDisplayName(), ChatColor.AQUA);
-        } else {
-            String translationKey;
-            try {
-                translationKey = material.getItemTranslationKey();
-            } catch (NoSuchMethodError ignored) { // bruh
-                translationKey = "item." + key.replace(':', '.');
+    /**
+     * Joins a stream of componenets with the given separator
+     * @param separator The separator
+     * @return A collector
+     */
+    public static Collector<BaseComponent, ?, BaseComponent[]> joiningComponents(BaseComponent separator) {
+        return Collectors.collectingAndThen(Collectors.toList(), list -> {
+            ComponentBuilder builder = new ComponentBuilder();
+            var iter = list.iterator();
+            while (iter.hasNext()) {
+                builder.append(iter.next(), ComponentBuilder.FormatRetention.NONE);
+                if (iter.hasNext())
+                    builder.append(separator, ComponentBuilder.FormatRetention.NONE);
             }
-            components = new BaseComponent[] {new TranslatableComponent(translationKey)};
-        }
-        var realComponent = new TextComponent();
-        realComponent.setColor(ChatColor.AQUA);
-        var realExtra = new ArrayList<BaseComponent>(components.length + 2);
-        realExtra.add(new TextComponent("["));
-        realExtra.addAll(Arrays.asList(components));
-        realExtra.add(new TextComponent("]"));
-        realComponent.setExtra(realExtra);
-        realComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new Item(key, stack.getAmount(), ItemTag.ofNbt(meta.getAsString()))));
-        return realComponent;
+            return builder.create();
+        });
     }
 
     public static String replacePlaceholders(String input, ContextLevel level, Map<String, Context> contexts) {
@@ -77,6 +77,57 @@ public class TextUtils {
 
     public static String replacePlaceholders(String input, int level) {
         return replacePlaceholders(input, new ContextLevel(level), Map.of());
+    }
+
+    public static String getEnchantmentName(String fullName) {
+        return fullName.split("\\{", 2)[0];
+    }
+
+    // only for when placeholders don't matter
+    public static String formatEnchantment(String fullName, int level) {
+        return getEnchantmentName(fullName) + level;
+    }
+
+    public static HoverEvent showText(BaseComponent... components) {
+        return new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(components));
+    }
+
+    public static HoverEvent showItem(Material material, int amount, @Nullable String itemTag) {
+        var hoverContent = new Item(material.getKey().toString(), amount, itemTag != null ? ItemTag.ofNbt(itemTag) : null);
+        return new HoverEvent(HoverEvent.Action.SHOW_ITEM, hoverContent);
+    }
+
+    public static HoverEvent showItem(ItemStack stack) {
+        ItemMeta meta = stack.getItemMeta();
+        return showItem(stack.getType(), stack.getAmount(), meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
+    }
+
+    public static HoverEvent showEntity(EntityType entityType, UUID uuid, @Nullable BaseComponent displayName) {
+        var hoverContent = new Entity(entityType.getKey().toString(), uuid.toString(), displayName);
+        return new HoverEvent(HoverEvent.Action.SHOW_ENTITY, hoverContent);
+    }
+
+    public static BaseComponent displayItem(ItemStack stack) {
+        var material = stack.getType();
+        var materialKey = material.getKey().toString();
+        var meta = stack.getItemMeta();
+        var hover = showItem(material, stack.getAmount(),
+                meta != null && stack.hasItemMeta() ? meta.getAsString() : null);
+        BaseComponent component;
+        if (meta != null && meta.hasDisplayName()) {
+            component = new TextComponent(meta.getDisplayName());
+        } else {
+            String translationKey;
+            try {
+                translationKey = material.getItemTranslationKey();
+            } catch (NoSuchMethodError ignored) { // bruh
+                translationKey = "item." + materialKey.replace(':', '.');
+            }
+            component = new TranslatableComponent(translationKey);
+        }
+        component.setHoverEvent(hover);
+        component.setColor(ChatColor.YELLOW);
+        return component;
     }
 
     public interface Context {

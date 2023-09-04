@@ -78,10 +78,6 @@ beacon-item:
         - radius: 20
         - radius: 25
 
-
-
-
-
   # Effects Toggle GUI
   # Player must have permission portablebeacons.effects-toggle
   effects-toggle:
@@ -124,6 +120,7 @@ beacon-item:
       - disabled_world_2
 
 # Specify the name and custom behavior of different potion effects
+# Documentation: https://github.com/jacky8399/PortableBeacons/wiki/Effects
 effects:
   default:
     # How long the effects will last when applied, in ticks
@@ -135,15 +132,9 @@ effects:
     hide-particles: false
   # You can override more potion effects. The key must match vanilla names.
   # Specified properties override values from the default section.
+  # For additional properties, refer to the documentation.
   # For example, to prevent the night vision effect from flickering:
   night_vision:
-    # Additionally, you can override the name and how the level is shown.
-    # By default, potion names depend on the client language,
-    # and use Roman numerals for level 1 - 10.
-    # To override these defaults, uncomment the two properties below.
-    # (Note that you don't need to supply a color, the text will have the potion color by default.)
-    #name-override: Really Good Eyesight
-    #format-override: number
     duration: 400
 
 # Ritual to create portable beacons by dropping an item onto an active beacon

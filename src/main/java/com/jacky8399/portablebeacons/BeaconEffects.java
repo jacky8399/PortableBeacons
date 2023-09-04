@@ -11,6 +11,7 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -223,19 +224,67 @@ public class BeaconEffects implements Cloneable {
         }
     }
 
-    public double calcExpPerMinute() {
+    public double calcExpPerMinute(Player owner) {
         if (Config.nerfExpLevelsPerMinute == 0)
             return 0;
+        double cost = 0;
         int totalEffects = 0;
         for (var entry : effects.entrySet()) {
-            if (!disabledEffects.contains(entry.getKey())) {
-                int value = entry.getValue();
-                totalEffects += value;
+            PotionEffectType type = entry.getKey();
+            if (disabledEffects.contains(type))
+                continue;
+            int level = entry.getValue();
+
+            Config.PotionEffectInfo info = Config.getInfo(type);
+            if (info.expCostOverride() != null) {
+                cost += info.getExpCostCalculator(level).getCost(owner, this);
+            } else {
+                totalEffects += level;
             }
         }
         double expMultiplier = Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
-        return Math.max(0, totalEffects * Config.nerfExpLevelsPerMinute * expMultiplier);
+        return Math.max(0, (cost + totalEffects * Config.nerfExpLevelsPerMinute) * expMultiplier);
+    }
+
+    public List<BaseComponent> getExpCostBreakdown(Player owner) {
+        if (Config.nerfExpLevelsPerMinute == 0)
+            return List.of();
+        var list = new ArrayList<BaseComponent>();
+        int totalEffects = 0;
+        int totalEffectLevels = 0;
+        for (var entry : effects.entrySet()) {
+            PotionEffectType type = entry.getKey();
+            int level = entry.getValue();
+            boolean disabled = disabledEffects.contains(type);
+            Config.PotionEffectInfo info = Config.getInfo(type);
+            if (info.expCostOverride() == null) {
+                if (!disabled) {
+                    totalEffects++;
+                    totalEffectLevels += level;
+                }
+                continue;
+            }
+            TextComponent display = new TextComponent(
+                    PotionEffectUtils.getDisplayName(type, level),
+                    new TextComponent(": " + TextUtils.TWO_DP.format(info.getExpCostCalculator(level).getCost(owner, this)) + " levels/min")
+            );
+            if (disabled) {
+                display.setStrikethrough(true);
+                display.setColor(ChatColor.GRAY);
+            }
+            list.add(display);
+        }
+        list.add(new TextComponent(totalEffects + " effects: " +
+                TextUtils.TWO_DP.format(Config.nerfExpLevelsPerMinute * totalEffectLevels) + " levels/min"));
+
+        if (expReductionLevel != 0 && Config.enchExpReductionEnabled) {
+            double expMultiplier = Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel);
+            list.add(new TextComponent(TextUtils.formatEnchantment(Config.enchExpReductionName, expReductionLevel) +
+                    ": " + (int) (expMultiplier * 100) + "%"));
+        }
+
+        return list;
     }
 
     public boolean shouldUpdate() {
