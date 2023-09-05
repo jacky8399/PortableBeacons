@@ -10,6 +10,7 @@ import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.IntStream;
 
@@ -241,8 +243,19 @@ public class Config {
 
         doMigrations(config);
 
+        try {
+            loadConfigFrom(config);
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Failed to load config.yml, falling back to default configuration.", ex);
+            loadConfigFrom(Objects.requireNonNull(config.getDefaults()));
+        }
+
+
+        LOGGER.info("Config loaded");
+    }
+
+    private static void loadConfigFrom(Configuration config) {
         // debug
-        Logger logger = LOGGER;
         debug = config.getBoolean("debug");
 
         // Ritual item
@@ -304,8 +317,28 @@ public class Config {
         var enchBeaconator = config.getConfigurationSection("beacon-item.custom-enchantments.beaconator");
         enchBeaconatorEnabled = enchBeaconator.getBoolean("enabled");
         enchBeaconatorName = getAndColorizeString(enchBeaconator, "name");
+        try {
+            enchBeaconatorInRangeCostMultiplier = ExpCostCalculator.deserialize(enchBeaconator.get("in-range-cost-multiplier"), false);
+        } catch (IllegalArgumentException ex) {
+            LOGGER.log(Level.WARNING, enchBeaconator.getCurrentPath() + ".in-range-cost-multiplier: " +
+                    enchBeaconator.get("in-range-cost-multiplier") + " is not a valid exp-cost: " + ex.getMessage(),
+                    debug ? ex : null);
+            enchBeaconatorInRangeCostMultiplier = new ExpCostCalculator.Fixed(0);
+        }
         enchBeaconatorLevels = enchBeaconator.getMapList("levels").stream()
-                .map(map -> new BeaconatorLevel(((Number) map.get("radius")).intValue(), ExpCostCalculator.deserialize(map.get("exp-cost"))))
+                .map(map -> {
+                    Object radiusObj = map.get("radius"), costObj = map.get("exp-cost");
+                    try {
+                        ExpCostCalculator calculator = ExpCostCalculator.deserialize(costObj);
+                        return new BeaconatorLevel(((Number) radiusObj).intValue(), calculator);
+                    } catch (ClassCastException ignored) {
+                        LOGGER.log(Level.WARNING, "%s.levels: %s is not a valid radius".formatted(enchBeaconator.getCurrentPath(), radiusObj));
+                    } catch (IllegalArgumentException ex) {
+                        LOGGER.log(Level.WARNING, "%s.levels: %s is not a valid exp-cost: %s".formatted(enchBeaconator.getCurrentPath(), costObj, ex.getMessage()),
+                                debug ? ex : null);
+                    }
+                    return new BeaconatorLevel(0, null);
+                })
                 .toList();
         if (enchBeaconatorLevels.isEmpty())
             throw new IllegalArgumentException("beacon-item.custom-enchantments.beaconator.levels cannot be empty");
@@ -320,13 +353,9 @@ public class Config {
         readEffects(config);
 
         worldGuard = config.getBoolean("world-guard");
-
-
-        logger.info("Config loaded");
     }
 
-    @SuppressWarnings("ConstantConditions")
-    public static void readEffects(FileConfiguration config) {
+    private static void readEffects(Configuration config) {
         var effects = new HashMap<PotionEffectType, PotionEffectInfo>();
         // of course getValues doesn't work
         ConfigurationSection effectsSection = config.getConfigurationSection("effects");
@@ -545,6 +574,7 @@ public class Config {
     public static String enchBeaconatorName;
     public record BeaconatorLevel(double radius, @Nullable ExpCostCalculator expCost) {}
     public static List<BeaconatorLevel> enchBeaconatorLevels;
+    public static ExpCostCalculator enchBeaconatorInRangeCostMultiplier;
 
     // Nerfs
     public static double nerfExpLevelsPerMinute;

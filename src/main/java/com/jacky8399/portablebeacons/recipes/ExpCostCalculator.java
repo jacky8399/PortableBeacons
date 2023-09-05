@@ -41,31 +41,36 @@ public sealed interface ExpCostCalculator {
      */
     double getCost(Player player, ItemStack left, ItemStack right);
 
-    static ExpCostCalculator deserialize(Object object) {
+    static ExpCostCalculator deserialize(Object object) throws IllegalArgumentException {
         return deserialize(object, true);
     }
 
-    static ExpCostCalculator deserialize(Object object, boolean allowDynamic) {
+    static ExpCostCalculator deserialize(Object object, boolean allowDynamic) throws IllegalArgumentException {
         if (object == null)
             return null;
 
-        if (object instanceof Number number && number.intValue() >= 0) {
-            return new Fixed(number.intValue());
+        if (object instanceof Number number) {
+            if (number.doubleValue() >= 0)
+                return new Fixed(number.doubleValue());
+            else
+                throw new IllegalArgumentException("exp-cost cannot be less than 0");
         } else if (allowDynamic && "dynamic-unrestricted".equals(object)) {
             return DynamicUnrestricted.INSTANCE;
         } else if (allowDynamic && object instanceof String str && str.startsWith("dynamic")) {
             return Dynamic.deserialize(str);
         } else {
             String string = object.toString();
-            int level;
             try {
-                level = Integer.parseInt(string);
-                return new Fixed(level);
-            } catch (NumberFormatException ignored) {
+                double level = Double.parseDouble(string);
+                if (level >= 0)
+                    return new Fixed(level);
+                else
+                    throw new IllegalArgumentException("exp-cost cannot be less than 0");
+            } catch (NumberFormatException nfe) {
                 try {
                     return new Placeholder(string, allowDynamic, null);
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    ex.addSuppressed(nfe);
                     throw new IllegalArgumentException(object + " is not a valid exp-cost", ex);
                 }
             }
@@ -97,6 +102,8 @@ public sealed interface ExpCostCalculator {
     }
 
     final class DynamicUnrestricted implements ExpCostCalculator {
+        private DynamicUnrestricted() {}
+
         public static final DynamicUnrestricted INSTANCE = new DynamicUnrestricted();
 
         @Override

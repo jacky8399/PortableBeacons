@@ -24,8 +24,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -66,17 +64,20 @@ public class InventoryTogglePotion implements InventoryProvider {
         displayStack.setItemMeta(Bukkit.getItemFactory().asMetaFor(tempMeta, displayStack));
 
         ItemMeta expMeta = expStack.getItemMeta();
-        double expUsage = effects.calcExpPerMinute(player);
+        double expUsage = effects.calcExpPerMinute(player) + effects.calcBeaconatorExpPerMinute(player).getCost();
         Map<String, TextUtils.Context> contexts = Map.of(
-                "usage", args -> makeFormat(args, TextUtils.ONE_DP).format(60 / expUsage),
+                "usage", args -> TextUtils.makeFormat(args, TextUtils.ONE_DP).format(60 / expUsage),
                 "player-level", args -> Integer.toString(player.getLevel()),
-                "remaining-time", args -> makeFormat(args, TextUtils.INT).format(player.getLevel() * 60 / expUsage)
+                "remaining-time", args -> TextUtils.makeFormat(args, TextUtils.INT).format(player.getLevel() * 60 / expUsage)
         );
         String[] expUsageMsg = TextUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
         expMeta.setDisplayName(expUsageMsg[0]);
+        List<BaseComponent> lore = new ArrayList<>();
         if (expUsageMsg.length > 1) {
-            expMeta.setLore(Arrays.asList(Arrays.copyOfRange(expUsageMsg, 1, expUsageMsg.length)));
+            lore.addAll(TextUtils.getLoreFromLegacyString(Arrays.copyOfRange(expUsageMsg, 1, expUsageMsg.length)));
         }
+        lore.addAll(effects.getExpCostBreakdown(player));
+        ItemUtils.setLore(expMeta, lore);
         expStack.setItemMeta(expMeta);
     }
 
@@ -287,7 +288,4 @@ public class InventoryTogglePotion implements InventoryProvider {
         BORDER.setItemMeta(borderMeta);
     }
 
-    private static NumberFormat makeFormat(String[] args, NumberFormat format) {
-        return args.length != 0 ? new DecimalFormat(args[0]) : format;
-    }
 }

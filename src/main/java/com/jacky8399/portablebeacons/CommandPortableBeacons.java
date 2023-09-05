@@ -5,7 +5,6 @@ import com.jacky8399.portablebeacons.recipes.*;
 import com.jacky8399.portablebeacons.utils.*;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.*;
-import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -479,9 +478,9 @@ public class CommandPortableBeacons implements TabExecutor {
                                 .append(" [Details]").color(GRAY)
                                 .create(), NONE
                         )
-                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(consumptionHoverText)))
+                        .event(TextUtils.showText(TextComponent.fromLegacyText(consumptionHoverText)))
                         .append(new TextComponent(" [Breakdown]"), NONE).color(YELLOW)
-                        .event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(breakdown)))
+                        .event(TextUtils.showText(breakdown))
                         .create());
             } else {
                 sender.sendMessage(GREEN + "Exp upkeep: " + YELLOW + String.format(
@@ -489,6 +488,12 @@ public class CommandPortableBeacons implements TabExecutor {
                                 perMinute, perMinute / 16, perMinute * 60, expUnit));
                 sender.sendMessage(YELLOW + "Breakdown:");
                 sender.spigot().sendMessage(breakdown);
+            }
+
+            if (effectiveEffects.beaconatorLevel != 0) {
+                BeaconEffects.BeaconatorExpSummary expSummary = effectiveEffects.calcBeaconatorExpPerMinute(target);
+                sender.sendMessage(TextUtils.formatEnchantment(Config.enchBeaconatorName, effectiveEffects.beaconatorLevel) + " upkeep: " + YELLOW +
+                        TextUtils.TWO_DP.format(expSummary.getCost()) + "levels/minute");
             }
         }
 

@@ -4,9 +4,15 @@ import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.WorldGuardHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
+
+import java.util.Random;
+import java.util.function.Consumer;
 
 public class EffectsTimer implements Runnable {
     public static final double CYCLE_TIME_MULTIPLIER = 0.5;
@@ -85,31 +91,66 @@ public class EffectsTimer implements Runnable {
             actualEffects = WorldGuardHelper.filterBeaconEffects(player, beaconEffects);
 
         // check levels
-        if (!tryDeductExp(player, actualEffects))
-            return;
+        boolean shouldDeductExp = player.getGameMode() != GameMode.CREATIVE;
+        // don't deduct xp from creative players
+        if (shouldDeductExp) {
+            double expPerCycle = actualEffects.calcExpPerMinute(player) * CYCLE_TIME_MULTIPLIER * (1 / 16d);
+            if (expPerCycle != 0 && !tryDeductExp(player, expPerCycle))
+                return;
+        }
 
-        player.addPotionEffects(actualEffects.toEffects());
+        var effects = actualEffects.toEffects();
+        player.addPotionEffects(effects);
 
+        // beaconator
+        BeaconEffects.BeaconatorExpSummary beaconator = actualEffects.calcBeaconatorExpPerMinute(player);
+        if (!beaconator.players().isEmpty()) {
+            if (!shouldDeductExp || tryDeductExp(player, beaconator.getCost())) {
+                for (Player other : beaconator.players()) {
+                    other.addPotionEffects(effects);
+
+                    if (index == 40 || inventory.getHeldItemSlot() == index) {
+                        drawLine(player, other);
+                    }
+                }
+            }
+        }
     }
 
-    static boolean tryDeductExp(Player player, BeaconEffects effects) {
-        // don't deduct xp from creative players
-        if (player.getGameMode() == GameMode.CREATIVE)
-            return true;
-
-        double expPerCycle = effects.calcExpPerMinute(player) * CYCLE_TIME_MULTIPLIER * (1/16d);
-        if (expPerCycle != 0) {
-            double xp = player.getExp() - expPerCycle;
-            if (xp < 0) { // deduct levels
-                int required = Math.abs((int) Math.floor(xp));
-                int newLevel = player.getLevel() - required;
-                if (newLevel < 0)
-                    return false;
-                xp += required;
-                player.setLevel(newLevel);
+    private static final Random RANDOM = new Random();
+    private static void drawLine(Player owner, Player target) {
+        Vector dest = target.getEyeLocation().toVector();
+        Bukkit.getScheduler().runTaskTimer(PortableBeacons.INSTANCE, new Consumer<>() {
+            int times = 0;
+            @Override
+            public void accept(BukkitTask bukkitTask) {
+                if (++times == 10)
+                    bukkitTask.cancel();
+                if (!owner.isOnline()) {
+                    bukkitTask.cancel();
+                    return;
+                }
+                Vector obfuscatedDest = dest.clone().add(new Vector(RANDOM.nextGaussian(), RANDOM.nextGaussian(), RANDOM.nextGaussian()));
+                Vector origin = owner.getLocation().add(0, owner.getHeight() / 2, 0).toVector();
+                Vector delta = origin.clone().subtract(obfuscatedDest);
+                owner.spawnParticle(Particle.ENCHANTMENT_TABLE,
+                        obfuscatedDest.getX(), obfuscatedDest.getY(), obfuscatedDest.getZ(), 0,
+                        delta.getX(), delta.getY(), delta.getZ(), 1);
             }
-            player.setExp((float) xp);
+        }, 0, 2);
+    }
+
+    private static boolean tryDeductExp(Player player, double expPerCycle) {
+        double xp = player.getExp() - expPerCycle;
+        if (xp < 0) { // deduct levels
+            int required = Math.abs((int) Math.floor(xp));
+            int newLevel = player.getLevel() - required;
+            if (newLevel < 0)
+                return false;
+            xp += required;
+            player.setLevel(newLevel);
         }
+        player.setExp((float) xp);
         return true;
     }
 }

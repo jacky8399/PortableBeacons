@@ -15,9 +15,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -25,7 +23,7 @@ import java.util.stream.Collectors;
 public class TextUtils {
     public static final DecimalFormat TWO_DP = new DecimalFormat("0.##");
     public static final DecimalFormat ONE_DP = new DecimalFormat("0.#");
-    public static final NumberFormat INT = DecimalFormat.getIntegerInstance();
+    public static final NumberFormat INT = new DecimalFormat("0");
 
     // reject quotation marks to avoid parsing JSON
     public static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{([^\"]+?)}");
@@ -88,6 +86,44 @@ public class TextUtils {
         return getEnchantmentName(fullName) + level;
     }
 
+    public static List<BaseComponent> getLoreFromLegacyString(String[] lines) {
+        List<BaseComponent> list = new ArrayList<>(lines.length);
+        for (String line : lines) {
+            TextComponent text = new TextComponent(TextComponent.fromLegacyText(line));
+            text.setItalic(false);
+            list.add(text);
+        }
+        return list;
+    }
+
+    public static List<BaseComponent> formatExpReduction(int level) {
+        String enchName = TextUtils.replacePlaceholders(Config.enchExpReductionName,
+                new TextUtils.ContextLevel(level),
+                Map.of("exp-reduction", new TextUtils.ContextExpReduction(level))
+        );
+        return getLoreFromLegacyString(enchName.split("\n"));
+    }
+
+    public static List<BaseComponent> formatSoulbound(int level, UUID soulboundOwner) {
+        String enchName = TextUtils.replacePlaceholders(Config.enchSoulboundName,
+                new TextUtils.ContextLevel(level),
+                Map.of("soulbound-owner", new TextUtils.ContextUUID(soulboundOwner, "???"))
+        );
+        return getLoreFromLegacyString(enchName.split("\n"));
+    }
+
+    public static List<BaseComponent> formatBeaconator(int level, int selectedLevel) {
+        Config.BeaconatorLevel realLevel = Config.getBeaconatorLevel(level, level);
+        Config.BeaconatorLevel realSelectedLevel = Config.getBeaconatorLevel(level, selectedLevel);
+
+        String enchName = TextUtils.replacePlaceholders(Config.enchBeaconatorName,
+                new ContextLevel(level),
+                Map.of("radius", args -> makeFormat(args, ONE_DP).format(realSelectedLevel.radius()),
+                        "max-radius", args -> makeFormat(args, ONE_DP).format(realLevel.radius()))
+        );
+        return getLoreFromLegacyString(enchName.split("\n"));
+    }
+
     public static HoverEvent showText(BaseComponent... components) {
         return new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(components));
     }
@@ -128,6 +164,10 @@ public class TextUtils {
         component.setHoverEvent(hover);
         component.setColor(ChatColor.YELLOW);
         return component;
+    }
+
+    public static NumberFormat makeFormat(String[] args, NumberFormat format) {
+        return args.length != 0 ? new DecimalFormat(args[0]) : format;
     }
 
     public interface Context {

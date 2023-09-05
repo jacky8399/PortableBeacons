@@ -3,6 +3,7 @@ package com.jacky8399.portablebeacons;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Maps;
+import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
 import com.jacky8399.portablebeacons.utils.TextUtils;
@@ -23,10 +24,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.*;
 
-public class BeaconEffects implements Cloneable {
+public class BeaconEffects {
     private static final int DATA_VERSION = 4;
     @Nullable
     public String customDataVersion = Config.itemCustomVersion;
@@ -53,6 +55,7 @@ public class BeaconEffects implements Cloneable {
         this.soulboundLevel = other.soulboundLevel;
         this.beaconatorLevel = other.beaconatorLevel;
         this.beaconatorSelectedLevel = other.beaconatorSelectedLevel;
+        this.beaconatorMode = other.beaconatorMode;
         this.customDataVersion = other.customDataVersion;
         this.needsUpdate = other.needsUpdate;
     }
@@ -69,22 +72,13 @@ public class BeaconEffects implements Cloneable {
     public int beaconatorLevel = 0;
     /**
      * The beaconator level the player chooses to use
+     * Set to -1 to disable beaconator
      */
     public int beaconatorSelectedLevel = 0;
     @Nullable
     public String beaconatorMode = null;
 
     public boolean needsUpdate = false;
-
-    @Override
-    @Deprecated // use copy constructor
-    public BeaconEffects clone() {
-        try {
-            return (BeaconEffects) super.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new Error(e);
-        }
-    }
 
     @NotNull
     public SortedMap<PotionEffectType, Integer> getEffects() {
@@ -174,10 +168,6 @@ public class BeaconEffects implements Cloneable {
     public List<BaseComponent> toLore(boolean showEffects, boolean showEnchants) {
         List<BaseComponent> lines = new ArrayList<>();
 
-        boolean hasExpReduction = showEnchants && Config.enchExpReductionEnabled && expReductionLevel != 0;
-        boolean hasSoulbound = showEnchants && Config.enchSoulboundEnabled && soulboundLevel != 0;
-        boolean hasBeaconator = showEnchants && Config.enchBeaconatorEnabled && beaconatorLevel != 0;
-        boolean hasEnchants = hasExpReduction || hasSoulbound || hasBeaconator;
 
         if (showEffects) {
             for (Map.Entry<PotionEffectType, Integer> entry : effects.entrySet()) {
@@ -191,37 +181,52 @@ public class BeaconEffects implements Cloneable {
             }
         }
 
-        if (hasEnchants) {
-            lines.add(new TextComponent());
-        }
+        if (showEnchants) {
+            boolean hasExpReduction = Config.enchExpReductionEnabled && expReductionLevel != 0;
+            boolean hasSoulbound = Config.enchSoulboundEnabled && soulboundLevel != 0;
+            boolean hasBeaconator = Config.enchBeaconatorEnabled && beaconatorLevel != 0;
+            if (hasExpReduction || hasSoulbound || hasBeaconator) {
+                lines.add(new TextComponent());
+            }
 
-        if (hasExpReduction) {
-            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchExpReductionName,
-                    new TextUtils.ContextLevel(expReductionLevel),
-                    Map.of("exp-reduction", new TextUtils.ContextExpReduction(expReductionLevel))
-            ));
-        }
-        if (hasSoulbound) {
-            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchSoulboundName,
-                    new TextUtils.ContextLevel(soulboundLevel),
-                    Map.of("soulbound-owner", new TextUtils.ContextUUID(soulboundOwner, "???"))
-            ));
-        }
-        if (hasBeaconator) {
-            addLegacyLore(lines, TextUtils.replacePlaceholders(Config.enchBeaconatorName,
-                    new TextUtils.ContextLevel(beaconatorLevel),
-                    Map.of()
-            ));
+            if (hasExpReduction) {
+                lines.addAll(TextUtils.formatExpReduction(expReductionLevel));
+            }
+            if (hasSoulbound) {
+                lines.addAll(TextUtils.formatSoulbound(soulboundLevel, soulboundOwner));
+            }
+            if (hasBeaconator) {
+                lines.addAll(TextUtils.formatBeaconator(beaconatorLevel, beaconatorSelectedLevel));
+            }
         }
         return lines;
     }
 
-    private static void addLegacyLore(List<BaseComponent> lines, String legacyString) {
-        for (String line : legacyString.split("\n")) {
-            TextComponent text = new TextComponent(TextComponent.fromLegacyText(line));
-            text.setItalic(false);
-            lines.add(text);
+    public Stream<Player> getBeaconatorInRange(Player owner) {
+        Config.BeaconatorLevel level = Config.getBeaconatorLevel(beaconatorLevel, beaconatorSelectedLevel);
+        double radius = level.radius();
+        return owner.getNearbyEntities(radius, radius, radius).stream()
+                .filter(entity -> entity instanceof Player)
+                .map(entity -> (Player) entity)
+                .filter(owner::canSee);
+    }
+
+    public record BeaconatorExpSummary(double base, List<Player> players, double multiplier, double finalMultiplier) {
+        public double getCost() {
+            return base * (1 + players.size() * multiplier) * finalMultiplier;
         }
+    }
+    public BeaconatorExpSummary calcBeaconatorExpPerMinute(Player owner) {
+        if (beaconatorLevel != 0 && beaconatorSelectedLevel != -1) {
+            ExpCostCalculator beaconatorCost = Config.getBeaconatorLevel(this.beaconatorLevel, beaconatorSelectedLevel).expCost();
+            double base = Objects.requireNonNullElse(beaconatorCost, ExpCostCalculator.DynamicUnrestricted.INSTANCE).getCost(owner, this);
+            double multiplier = Config.enchBeaconatorInRangeCostMultiplier.getCost(owner, this);
+            if (base > 0 && multiplier >= 0) {
+                List<Player> players = getBeaconatorInRange(owner).toList();
+                return new BeaconatorExpSummary(base, players, multiplier, getExpMultiplier());
+            }
+        }
+        return new BeaconatorExpSummary(0, List.of(), 0, 0);
     }
 
     public double calcExpPerMinute(Player owner) {
@@ -242,9 +247,13 @@ public class BeaconEffects implements Cloneable {
                 totalEffects += level;
             }
         }
-        double expMultiplier = Config.enchExpReductionEnabled ?
+
+        return Math.max(0, (cost + totalEffects * Config.nerfExpLevelsPerMinute) * getExpMultiplier());
+    }
+
+    private double getExpMultiplier() {
+        return Config.enchExpReductionEnabled ?
                 Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel) : 1;
-        return Math.max(0, (cost + totalEffects * Config.nerfExpLevelsPerMinute) * expMultiplier);
     }
 
     public List<BaseComponent> getExpCostBreakdown(Player owner) {
@@ -253,6 +262,7 @@ public class BeaconEffects implements Cloneable {
         var list = new ArrayList<BaseComponent>();
         int totalEffects = 0;
         int totalEffectLevels = 0;
+        double total = 0;
         for (var entry : effects.entrySet()) {
             PotionEffectType type = entry.getKey();
             int level = entry.getValue();
@@ -265,9 +275,11 @@ public class BeaconEffects implements Cloneable {
                 }
                 continue;
             }
+            double cost = info.getExpCostCalculator(level).getCost(owner, this);
+            total += cost;
             TextComponent display = new TextComponent(
                     PotionEffectUtils.getDisplayName(type, level),
-                    new TextComponent(": " + TextUtils.TWO_DP.format(info.getExpCostCalculator(level).getCost(owner, this)) + " levels/min")
+                    new TextComponent(": " + TextUtils.TWO_DP.format(cost) + " levels/min")
             );
             if (disabled) {
                 display.setStrikethrough(true);
@@ -275,14 +287,30 @@ public class BeaconEffects implements Cloneable {
             }
             list.add(display);
         }
-        list.add(new TextComponent(totalEffects + " effects: " +
-                TextUtils.TWO_DP.format(Config.nerfExpLevelsPerMinute * totalEffectLevels) + " levels/min"));
+        double cost = Config.nerfExpLevelsPerMinute * totalEffectLevels;
+        total += cost;
+        list.add(new TextComponent(ChatColor.GRAY.toString() + totalEffects + " effects: " + TextUtils.TWO_DP.format(cost) + " levels/min"));
+
+        BeaconatorExpSummary beaconator = calcBeaconatorExpPerMinute(owner);
+        if (beaconator.base != 0) {
+            int level = beaconatorSelectedLevel == 0 ? beaconatorLevel : beaconatorSelectedLevel;
+            list.add(new TextComponent(TextUtils.formatEnchantment(Config.enchBeaconatorName, level) +
+                    ": " + TextUtils.TWO_DP.format(beaconator.base) + " levels/min"));
+            if (!beaconator.players.isEmpty() && beaconator.multiplier != 0) {
+                list.add(new TextComponent(
+                        ChatColor.GRAY + "  " + beaconator.players.size() + " players: +" +
+                                TextUtils.TWO_DP.format(beaconator.base * beaconator.players.size() * beaconator.multiplier) + " levels/min"
+                ));
+            }
+        }
 
         if (expReductionLevel != 0 && Config.enchExpReductionEnabled) {
             double expMultiplier = Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel);
             list.add(new TextComponent(TextUtils.formatEnchantment(Config.enchExpReductionName, expReductionLevel) +
-                    ": " + (int) (expMultiplier * 100) + "%"));
+                    ": " + TextUtils.TWO_DP.format(expMultiplier * 100) + "%"));
         }
+
+        list.add(new TextComponent(ChatColor.GRAY + "= " + TextUtils.TWO_DP.format(total + beaconator.getCost()) + " levels/min"));
 
         return list;
     }

@@ -67,7 +67,14 @@ beacon-item:
       # {radius} to get current radius
       # {max-radius} to get max radius permitted by enchantment level
       name: '&bBeaconator {level}'
-      # The radius and experience cost for each enchantment level. Default is half the vanilla range
+      # The multiplier added on top of the base experience cost.
+      # final_exp_cost = base_exp_cost * (1 + players_in_range * multiplier)
+      # Supports constants and PlaceholderAPI placeholders.
+      in-range-cost-multiplier: 0.5
+      # Whether particles flying towards players in range will be shown when the player is holding the beacon.
+      show-in-range: true
+      # The radius and base experience cost for each enchantment level.
+      # Default radius is half the vanilla range
       levels:
         - radius: 10
           # Supports all exp-cost values, including PlaceholderAPI placeholders (Default: unspecified)
@@ -94,6 +101,7 @@ beacon-item:
       &6Consumes 1 level every &e{usage}&6 seconds
       &8  Your &7{player-level}&8 levels can sustain 
       &8  this beacon for &7{remaining-time}&8 seconds
+      &2Detailed breakdown:
     estimated-time-message: "&6"
 
     # Whether the player can disable negative effects
