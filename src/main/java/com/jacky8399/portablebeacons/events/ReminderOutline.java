@@ -14,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.util.BlockVector;
+import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -61,7 +62,6 @@ public class ReminderOutline implements Listener {
         ent.setDropItem(false);
         ent.setGravity(false);
         ent.setTicksLived(1);
-//        ent.teleport(location);
         return ent;
     }
 
@@ -107,7 +107,7 @@ public class ReminderOutline implements Listener {
             }
 
             List<Block> nearbyBeacons = findBeaconInRadius(player, Config.creationReminderRadius);
-            if (nearbyBeacons.size() == 0) {
+            if (nearbyBeacons.isEmpty()) {
                 removeOutlines(player);
                 continue;
             }
@@ -119,7 +119,7 @@ public class ReminderOutline implements Listener {
                 // spawn falling block if none already spawned
                 if (entities == null)
                     entities = reminderOutline.computeIfAbsent(player, ignored -> new LinkedHashMap<>());
-                boolean showReminderMessage = entities.size() == 0 && !Config.creationReminderMessage.isEmpty();
+                boolean showReminderMessage = entities.isEmpty() && !Config.creationReminderMessage.isEmpty();
                 entities.computeIfAbsent(vector, ignored -> {
                     if (showReminderMessage) // if first outline for player
                         player.sendMessage(Config.creationReminderMessage);
@@ -132,9 +132,20 @@ public class ReminderOutline implements Listener {
                     return fallingBlock;
                 }).teleport(location);
                 // display particles
-                player.spawnParticle(Particle.END_ROD, beacon.getLocation().add(0.5, 1.5, 0.5), 20, 0, 0.5, 0, 0.4);
+                // spawn 3 particles equidistant from each other
+                Location particleLoc = player.getLocation().add(0, player.getHeight() / 2, 0);
+                Vector delta = beacon.getLocation().add(0.5, 0.5, 0.5).subtract(particleLoc).toVector();
+                for (int i = 1; i <= 4; i++) {
+                    float multiplier = i / 4f;
+
+                    player.spawnParticle(
+                            Particle.END_ROD, particleLoc, 0,
+                            delta.getX() * multiplier, delta.getY() * multiplier, delta.getZ() * multiplier,
+                            0.0919540230 // what??
+                    );
+                }
             }
-            player.setCooldown(Config.ritualItem.getType(), 20);
+            player.setCooldown(Config.ritualItem.getType(), 5);
         }
         // validate old entries
         for (var iterator = reminderOutline.entrySet().iterator(); iterator.hasNext();) {
@@ -143,26 +154,33 @@ public class ReminderOutline implements Listener {
             Map<BlockVector, FallingBlock> entities = entry.getValue();
             if (!player.isOnline() || !player.isValid()) {
                 entities.values().forEach(Entity::remove);
+                entities.clear();
                 iterator.remove();
-            } else {
-                for (var entityIterator = entities.values().iterator(); entityIterator.hasNext();) {
-                    var block = entityIterator.next();
-                    if (!block.isValid()) {
-                        entityIterator.remove();
-                        continue;
-                    } else if (block.getLocation().add(0, 0.1, 0).getBlock().getType() != Material.BEACON) {
-                        entityIterator.remove();
-                        block.remove();
-                        continue;
-                    }
-                    block.setTicksLived(1);
-                    for (Player other : Bukkit.getOnlinePlayers())
-                        if (other != player)
-                            other.hideEntity(PortableBeacons.INSTANCE, block);
-                }
-                if (entities.size() == 0)
-                    iterator.remove();
+                continue;
             }
+
+            Location playerLoc = player.getLocation();
+            double radiusSqr = Math.pow(Config.creationReminderRadius, 2);
+
+            for (var entityIterator = entities.values().iterator(); entityIterator.hasNext();) {
+                var fallingBlock = entityIterator.next();
+                if (!fallingBlock.isValid()) {
+                    entityIterator.remove();
+                    continue;
+                }
+                Block block = fallingBlock.getLocation().add(0, 0.1, 0).getBlock();
+                if (block.getType() != Material.BEACON || playerLoc.distanceSquared(block.getLocation()) > radiusSqr) {
+                    entityIterator.remove();
+                    fallingBlock.remove();
+                    continue;
+                }
+                fallingBlock.setTicksLived(1);
+                for (Player other : Bukkit.getOnlinePlayers())
+                    if (other != player)
+                        other.hideEntity(PortableBeacons.INSTANCE, fallingBlock);
+            }
+            if (entities.isEmpty())
+                iterator.remove();
         }
     }
 

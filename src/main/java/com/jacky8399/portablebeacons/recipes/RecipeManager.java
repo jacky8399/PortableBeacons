@@ -91,9 +91,9 @@ public final class RecipeManager {
                     simpleRecipe.modifications()
             );
             try {
-                boolean result = Bukkit.addRecipe(bukkitRecipe);
-                PortableBeacons.INSTANCE.logger.info("Result: " + result + ", Bukkit recipe: " + bukkitRecipe);
-            } catch (IllegalStateException ex) {
+                if (!Bukkit.addRecipe(bukkitRecipe)) // throws IllegalStateException for some reason
+                    throw new IllegalStateException("Bukkit.addRecipe");
+            } catch (Exception ex) {
                 PortableBeacons.INSTANCE.logger.log(Level.WARNING, "Failed to register smithing recipe " + simpleRecipe.id(), ex);
             }
         } else {
@@ -117,10 +117,11 @@ public final class RecipeManager {
                 String recipeName = entry.getKey();
                 try {
                     Map<String, Object> recipeMap = (Map<String, Object>) entry.getValue();
-                    var recipe = BeaconRecipe.load(recipeName, recipeMap);
+                    BeaconRecipe recipe = BeaconRecipe.load(recipeName, recipeMap);
                     RECIPES.put(recipeName, recipe);
                     if (!(Boolean) recipeMap.getOrDefault("enabled", true)) {
-                        DISABLED_RECIPES.add(recipeName); // don't really need to store the recipe
+                        DISABLED_RECIPES.add(recipeName);
+                        continue;
                     }
                     if (recipe instanceof CombinationRecipe newCombinationRecipe) {
                         if (RecipeManager.beaconCombinationRecipe != null) {
