@@ -94,7 +94,7 @@ public class EffectsTimer implements Runnable {
         boolean shouldDeductExp = player.getGameMode() != GameMode.CREATIVE;
         // don't deduct xp from creative players
         if (shouldDeductExp) {
-            double expPerCycle = actualEffects.calcExpPerMinute(player) * CYCLE_TIME_MULTIPLIER * (1 / 16d);
+            double expPerCycle = actualEffects.calcBasicExpPerMinute(player) * CYCLE_TIME_MULTIPLIER * (1 / 16d);
             if (expPerCycle != 0 && !tryDeductExp(player, expPerCycle))
                 return;
         }

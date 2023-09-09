@@ -64,7 +64,7 @@ public class InventoryTogglePotion implements InventoryProvider {
         displayStack.setItemMeta(Bukkit.getItemFactory().asMetaFor(tempMeta, displayStack));
 
         ItemMeta expMeta = expStack.getItemMeta();
-        double expUsage = effects.calcExpPerMinute(player) + effects.calcBeaconatorExpPerMinute(player).getCost();
+        double expUsage = effects.calcBasicExpPerMinute(player) + effects.calcBeaconatorExpPerMinute(player).getCost();
         Map<String, TextUtils.Context> contexts = Map.of(
                 "usage", args -> TextUtils.makeFormat(args, TextUtils.ONE_DP).format(60 / expUsage),
                 "player-level", args -> Integer.toString(player.getLevel()),

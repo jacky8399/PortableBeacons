@@ -219,7 +219,10 @@ public class BeaconEffects {
     public BeaconatorExpSummary calcBeaconatorExpPerMinute(Player owner) {
         if (beaconatorLevel != 0 && beaconatorSelectedLevel != -1) {
             ExpCostCalculator beaconatorCost = Config.getBeaconatorLevel(this.beaconatorLevel, beaconatorSelectedLevel).expCost();
-            double base = Objects.requireNonNullElse(beaconatorCost, ExpCostCalculator.DynamicUnrestricted.INSTANCE).getCost(owner, this);
+            if (beaconatorCost == null)
+                beaconatorCost = new ExpCostCalculator.Fixed(beaconatorSelectedLevel);
+
+            double base = beaconatorCost.getCost(owner, this);
             double multiplier = Config.enchBeaconatorInRangeCostMultiplier.getCost(owner, this);
             if (base > 0 && multiplier >= 0) {
                 List<Player> players = getBeaconatorInRange(owner).toList();
@@ -229,9 +232,7 @@ public class BeaconEffects {
         return new BeaconatorExpSummary(0, List.of(), 0, 0);
     }
 
-    public double calcExpPerMinute(Player owner) {
-        if (Config.nerfExpLevelsPerMinute == 0)
-            return 0;
+    public double calcBasicExpPerMinute(Player owner) {
         double cost = 0;
         int totalEffects = 0;
         for (var entry : effects.entrySet()) {

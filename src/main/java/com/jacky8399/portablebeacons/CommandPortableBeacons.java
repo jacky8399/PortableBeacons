@@ -463,7 +463,7 @@ public class CommandPortableBeacons implements TabExecutor {
             }
         }
         if (Config.nerfExpLevelsPerMinute > 0) {
-            double perMinute = effects.calcExpPerMinute(target);
+            double perMinute = effects.calcBasicExpPerMinute(target);
             String expUnit = " levels";
             BaseComponent[] breakdown = effects.getExpCostBreakdown(target).stream()
                     .collect(TextUtils.joiningComponents(new TextComponent("\n")));
