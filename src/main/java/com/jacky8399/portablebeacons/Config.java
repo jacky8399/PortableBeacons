@@ -294,6 +294,16 @@ public class Config {
         effectsToggleCanDisableNegativeEffects = config.getBoolean("beacon-item.effects-toggle.allow-disabling-negative-effects");
         effectsToggleFineTunePerms = config.getBoolean("beacon-item.effects-toggle.require-permission");
 
+        // Effects Toggle Breakdown
+        var breakdown = config.getConfigurationSection("beacon-item.effects-toggle.breakdown");
+        effectsToggleBreakdownEnabled = breakdown.getBoolean("enabled");
+        effectsToggleBreakdownEffect = getAndColorizeString(breakdown, "effect");
+        effectsToggleBreakdownEffectsGrouped = getAndColorizeString(breakdown, "effects");
+        effectsToggleBreakdownBeaconatorBase = getAndColorizeString(breakdown, "beaconator-base");
+        effectsToggleBreakdownBeaconatorInRange = getAndColorizeString(breakdown, "beaconator-in-range");
+        effectsToggleBreakdownExpReduction = getAndColorizeString(breakdown, "exp-reduction");
+        effectsToggleBreakdownSum = getAndColorizeString(breakdown, "sum");
+
         // Custom enchantments
 
         // Exp-reduction
@@ -550,12 +560,21 @@ public class Config {
     public static double creationReminderRadius;
     public static boolean creationReminderDisableIfOwned;
 
-    // Effects toggle GUI
+    // Effects Toggle GUI
     public static boolean effectsToggleEnabled;
     public static String effectsToggleTitle;
     public static String effectsToggleExpUsageMessage;
     public static boolean effectsToggleCanDisableNegativeEffects;
     public static boolean effectsToggleFineTunePerms;
+
+    // Effects Toggle Breakdown
+    public static boolean effectsToggleBreakdownEnabled;
+    public static String effectsToggleBreakdownEffect;
+    public static String effectsToggleBreakdownEffectsGrouped;
+    public static String effectsToggleBreakdownBeaconatorBase;
+    public static String effectsToggleBreakdownBeaconatorInRange;
+    public static String effectsToggleBreakdownExpReduction;
+    public static String effectsToggleBreakdownSum;
 
     // Custom Enchantments
     public static boolean enchExpReductionEnabled;

@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 public class TextUtils {
     public static final DecimalFormat TWO_DP = new DecimalFormat("0.##");
     public static final DecimalFormat ONE_DP = new DecimalFormat("0.#");
-    public static final NumberFormat INT = new DecimalFormat("0");
+    public static final NumberFormat INT = NumberFormat.getIntegerInstance();
 
     // reject quotation marks to avoid parsing JSON
     public static final Pattern PLACEHOLDER = Pattern.compile("(\\s)?\\{([^\"]+?)}");
@@ -46,7 +47,7 @@ public class TextUtils {
         });
     }
 
-    public static String replacePlaceholders(String input, ContextLevel level, Map<String, Context> contexts) {
+    public static String replacePlaceholders(String input, ContextLevel level, Map<String, ? extends Context> contexts) {
         if (input.indexOf('{') == -1) {
             return input + level.doReplacement();
         }
@@ -69,12 +70,34 @@ public class TextUtils {
         });
     }
 
-    public static String replacePlaceholders(String input, ContextLevel level) {
-        return replacePlaceholders(input, level, Map.of());
-    }
+    public static BaseComponent[] replaceComponentPlaceholders(String input, Map<String, ? extends ComponentContext> contexts) {
+        if (input.indexOf('{') == -1)
+            return TextComponent.fromLegacyText(input);
 
-    public static String replacePlaceholders(String input, int level) {
-        return replacePlaceholders(input, new ContextLevel(level), Map.of());
+        ComponentBuilder builder = new ComponentBuilder();
+        Matcher matcher = PLACEHOLDER.matcher(input);
+        int last = 0;
+        while (matcher.find()) {
+            if (last != matcher.start()) {
+                builder.append(TextComponent.fromLegacyText(input.substring(last, matcher.start())));
+            }
+            String[] args = matcher.group(2).split("\\|");
+            String contextName = args[0];
+            ComponentContext context = contexts.get(contextName);
+            if (context == null) {
+                // ignore
+                builder.append(TextComponent.fromLegacyText(matcher.group()));
+                last = matcher.end();
+                continue;
+            }
+            args = Arrays.copyOfRange(args, 1, args.length);
+            BaseComponent[] replacement = context.doComponentReplacement(args);
+            builder.append(replacement);
+            last = matcher.end();
+        }
+        // append tail
+        builder.append(TextComponent.fromLegacyText(input.substring(last)));
+        return builder.create();
     }
 
     public static String getEnchantmentName(String fullName) {
@@ -113,15 +136,20 @@ public class TextUtils {
     }
 
     public static List<BaseComponent> formatBeaconator(int level, int selectedLevel) {
+        // fetch clamped radii
         Config.BeaconatorLevel realLevel = Config.getBeaconatorLevel(level, level);
         Config.BeaconatorLevel realSelectedLevel = Config.getBeaconatorLevel(level, selectedLevel);
 
         String enchName = TextUtils.replacePlaceholders(Config.enchBeaconatorName,
                 new ContextLevel(level),
-                Map.of("radius", args -> makeFormat(args, ONE_DP).format(realSelectedLevel.radius()),
-                        "max-radius", args -> makeFormat(args, ONE_DP).format(realLevel.radius()))
+                Map.of("radius", new ContextFormat(realSelectedLevel.radius(), ONE_DP),
+                        "max-radius", new ContextFormat(realLevel.radius(), ONE_DP))
         );
         return getLoreFromLegacyString(enchName.split("\n"));
+    }
+
+    public static TextComponent toComponent(String legacy) {
+        return new TextComponent(TextComponent.fromLegacyText(legacy));
     }
 
     public static HoverEvent showText(BaseComponent... components) {
@@ -170,15 +198,37 @@ public class TextUtils {
         return args.length != 0 ? new DecimalFormat(args[0]) : format;
     }
 
-    public interface Context {
+    public interface Context extends ComponentContext {
         default boolean shouldRemovePrecedingSpace(String... args) {
             return false;
         }
 
         String doReplacement(String... args);
+
+        @Override
+        default BaseComponent[] doComponentReplacement(String... args) {
+            return new BaseComponent[] {new TextComponent(doReplacement(args))};
+        }
+    }
+
+    public interface ComponentContext {
+        BaseComponent[] doComponentReplacement(String... args);
+    }
+
+    public record ContextFormat(double value, NumberFormat defaultFormat) implements Context {
+        public static ContextFormat ofInt(double value) {
+            return new ContextFormat(value, INT);
+        }
+
+        @Override
+        public String doReplacement(String... args) {
+            NumberFormat format = args.length != 0 ? new DecimalFormat(args[0]) : defaultFormat;
+            return format.format(value);
+        }
     }
 
     public record ContextLevel(int level) implements Context {
+
         @Override
         public String doReplacement(String... args) {
             return args.length == 1 && "number".equals(args[0]) ?

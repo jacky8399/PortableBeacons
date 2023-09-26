@@ -102,7 +102,25 @@ beacon-item:
       &8  Your &7{player-level}&8 levels can sustain 
       &8  this beacon for &7{remaining-time}&8 seconds
       &2Detailed breakdown:
-    estimated-time-message: "&6"
+    breakdown:
+      enabled: true
+      # For effects with exp-cost
+      # Placeholders: {name}, {level}, {cost}
+      effect: '{name} {level}&7: {cost} levels/min'
+      # For other effects
+      # Placeholders: {count}, {cost}
+      effects: '&7{count} effects: {cost} levels/min'
+      # The base cost of beaconator
+      # Placeholders: {level}, {cost}
+      beaconator-base: '&bBeaconator {level}: {cost} levels/min'
+      # The in-range cost of beaconator
+      # Placeholders: {count}, {cost}
+      beaconator-in-range: '&7  {count} players: {cost} levels/min'
+      # The multiplier applied by exp-reduction
+      # Placeholders: all exp-reduction placeholders
+      exp-reduction: '&dExperience Efficiency {level}: x{exp-reduction|multiplier}'
+      # Placeholder: {cost}
+      sum: '&7= {cost} levels/min'
 
     # Whether the player can disable negative effects
     allow-disabling-negative-effects: false

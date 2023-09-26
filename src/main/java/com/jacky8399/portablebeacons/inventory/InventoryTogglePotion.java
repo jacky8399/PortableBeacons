@@ -66,9 +66,9 @@ public class InventoryTogglePotion implements InventoryProvider {
         ItemMeta expMeta = expStack.getItemMeta();
         double expUsage = effects.calcBasicExpPerMinute(player) + effects.calcBeaconatorExpPerMinute(player).getCost();
         Map<String, TextUtils.Context> contexts = Map.of(
-                "usage", args -> TextUtils.makeFormat(args, TextUtils.ONE_DP).format(60 / expUsage),
-                "player-level", args -> Integer.toString(player.getLevel()),
-                "remaining-time", args -> TextUtils.makeFormat(args, TextUtils.INT).format(player.getLevel() * 60 / expUsage)
+                "usage", new TextUtils.ContextFormat(60 / expUsage, TextUtils.ONE_DP),
+                "player-level", TextUtils.ContextFormat.ofInt(player.getLevel()),
+                "remaining-time", TextUtils.ContextFormat.ofInt(player.getLevel() * 60 / expUsage)
         );
         String[] expUsageMsg = TextUtils.replacePlaceholders(Config.effectsToggleExpUsageMessage, null, contexts).split("\n");
         expMeta.setDisplayName(expUsageMsg[0]);
@@ -76,7 +76,10 @@ public class InventoryTogglePotion implements InventoryProvider {
         if (expUsageMsg.length > 1) {
             lore.addAll(TextUtils.getLoreFromLegacyString(Arrays.copyOfRange(expUsageMsg, 1, expUsageMsg.length)));
         }
-        lore.addAll(effects.getExpCostBreakdown(player));
+        for (BaseComponent line : effects.getExpCostBreakdown(player)) {
+            line.setItalic(false);
+            lore.add(line);
+        }
         ItemUtils.setLore(expMeta, lore);
         expStack.setItemMeta(expMeta);
     }

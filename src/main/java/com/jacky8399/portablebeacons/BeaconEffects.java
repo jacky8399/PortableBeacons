@@ -6,7 +6,6 @@ import com.google.common.collect.Maps;
 import com.jacky8399.portablebeacons.recipes.ExpCostCalculator;
 import com.jacky8399.portablebeacons.utils.BeaconEffectsFilter;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
-import com.jacky8399.portablebeacons.utils.TextUtils;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -26,6 +25,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.jacky8399.portablebeacons.utils.TextUtils.*;
 import static java.util.stream.Collectors.*;
 
 public class BeaconEffects {
@@ -190,13 +190,13 @@ public class BeaconEffects {
             }
 
             if (hasExpReduction) {
-                lines.addAll(TextUtils.formatExpReduction(expReductionLevel));
+                lines.addAll(formatExpReduction(expReductionLevel));
             }
             if (hasSoulbound) {
-                lines.addAll(TextUtils.formatSoulbound(soulboundLevel, soulboundOwner));
+                lines.addAll(formatSoulbound(soulboundLevel, soulboundOwner));
             }
             if (hasBeaconator) {
-                lines.addAll(TextUtils.formatBeaconator(beaconatorLevel, beaconatorSelectedLevel));
+                lines.addAll(formatBeaconator(beaconatorLevel, beaconatorSelectedLevel));
             }
         }
         return lines;
@@ -267,51 +267,65 @@ public class BeaconEffects {
         for (var entry : effects.entrySet()) {
             PotionEffectType type = entry.getKey();
             int level = entry.getValue();
-            boolean disabled = disabledEffects.contains(type);
+            if (disabledEffects.contains(type))
+                continue;
             Config.PotionEffectInfo info = Config.getInfo(type);
             if (info.expCostOverride() == null) {
-                if (!disabled) {
-                    totalEffects++;
-                    totalEffectLevels += level;
-                }
+                totalEffects++;
+                totalEffectLevels += level;
                 continue;
             }
             double cost = info.getExpCostCalculator(level).getCost(owner, this);
             total += cost;
-            TextComponent display = new TextComponent(
-                    PotionEffectUtils.getDisplayName(type, level),
-                    new TextComponent(": " + TextUtils.TWO_DP.format(cost) + " levels/min")
-            );
-            if (disabled) {
-                display.setStrikethrough(true);
-                display.setColor(ChatColor.GRAY);
-            }
-            list.add(display);
+            list.add(new TextComponent(
+                    replaceComponentPlaceholders(Config.effectsToggleBreakdownEffect,
+                            Map.of("name", (ComponentContext) args -> new BaseComponent[] {PotionEffectUtils.getDisplayName(type, level)},
+                                    "level", new ContextLevel(level),
+                                    "cost", new ContextFormat(cost, TWO_DP)))
+            ));
         }
         double cost = Config.nerfExpLevelsPerMinute * totalEffectLevels;
         total += cost;
-        list.add(new TextComponent(ChatColor.GRAY.toString() + totalEffects + " effects: " + TextUtils.TWO_DP.format(cost) + " levels/min"));
+        list.add(toComponent(
+                replacePlaceholders(Config.effectsToggleBreakdownEffectsGrouped, null,
+                        Map.of("count", ContextFormat.ofInt(totalEffects),
+                                "cost", new ContextFormat(cost, TWO_DP)))
+        ));
 
         BeaconatorExpSummary beaconator = calcBeaconatorExpPerMinute(owner);
         if (beaconator.base != 0) {
             int level = beaconatorSelectedLevel == 0 ? beaconatorLevel : beaconatorSelectedLevel;
-            list.add(new TextComponent(TextUtils.formatEnchantment(Config.enchBeaconatorName, level) +
-                    ": " + TextUtils.TWO_DP.format(beaconator.base) + " levels/min"));
+            ContextLevel contextLevel = new ContextLevel(level);
+            list.add(toComponent(
+                    replacePlaceholders(Config.effectsToggleBreakdownBeaconatorBase, contextLevel,
+                            Map.of("cost", new ContextFormat(beaconator.base, TWO_DP)))
+            ));
             if (!beaconator.players.isEmpty() && beaconator.multiplier != 0) {
-                list.add(new TextComponent(
-                        ChatColor.GRAY + "  " + beaconator.players.size() + " players: +" +
-                                TextUtils.TWO_DP.format(beaconator.base * beaconator.players.size() * beaconator.multiplier) + " levels/min"
+                double playerCost = beaconator.base * beaconator.players.size() * beaconator.multiplier;
+                list.add(toComponent(
+                        replacePlaceholders(Config.effectsToggleBreakdownBeaconatorInRange, contextLevel,
+                                Map.of("count", ContextFormat.ofInt(beaconator.players.size()),
+                                        "cost", new ContextFormat(playerCost, TWO_DP)))
                 ));
             }
         }
+        total += beaconator.getCost();
 
+        double expMultiplier;
         if (expReductionLevel != 0 && Config.enchExpReductionEnabled) {
-            double expMultiplier = Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel);
-            list.add(new TextComponent(TextUtils.formatEnchantment(Config.enchExpReductionName, expReductionLevel) +
-                    ": " + TextUtils.TWO_DP.format(expMultiplier * 100) + "%"));
+            expMultiplier = Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel);
+            list.add(toComponent(
+                    replacePlaceholders(Config.effectsToggleBreakdownExpReduction, new ContextLevel(expReductionLevel),
+                            Map.of("exp-reduction", new ContextExpReduction(expReductionLevel)))
+            ));
+        } else {
+            expMultiplier = 1;
         }
 
-        list.add(new TextComponent(ChatColor.GRAY + "= " + TextUtils.TWO_DP.format(total + beaconator.getCost()) + " levels/min"));
+        list.add(toComponent(
+                replacePlaceholders(Config.effectsToggleBreakdownSum, null,
+                        Map.of("cost", new ContextFormat(total * expMultiplier, TWO_DP)))
+        ));
 
         return list;
     }
