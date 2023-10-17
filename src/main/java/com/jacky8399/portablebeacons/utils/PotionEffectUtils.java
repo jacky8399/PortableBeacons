@@ -115,7 +115,7 @@ public class PotionEffectUtils {
     @NotNull
     public static String toRomanNumeral(int i) {
         return switch (i) {
-            case 1 -> "";
+            case 1 -> "I";
             case 2 -> "II";
             case 3 -> "III";
             case 4 -> "IV";

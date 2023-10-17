@@ -102,28 +102,16 @@ beacon-item:
       &8  Your &7{player-level}&8 levels can sustain 
       &8  this beacon for &7{remaining-time}&8 seconds
       &2Detailed breakdown:
-    breakdown:
-      enabled: true
-      # For effects with exp-cost
-      # Placeholders: {name}, {level}, {cost}
-      effect: '{name} {level}&7: {cost} levels/min'
-      # For other effects
-      # Placeholders: {count}, {cost}
-      effects: '&7{count} effects: {cost} levels/min'
-      # The base cost of beaconator
-      # Placeholders: {level}, {cost}
-      beaconator-base: '&bBeaconator {level}: {cost} levels/min'
-      # The in-range cost of beaconator
-      # Placeholders: {count}, {cost}
-      beaconator-in-range: '&7  {count} players: {cost} levels/min'
-      # The multiplier applied by exp-reduction
-      # Placeholders: all exp-reduction placeholders
-      exp-reduction: '&dExperience Efficiency {level}: x{exp-reduction|multiplier}'
-      # Placeholder: {cost}
-      sum: '&7= {cost} levels/min'
+
+    # Whether to show a detailed breakdown of experience usage
+    breakdown-enabled: true
 
     # Whether the player can disable negative effects
     allow-disabling-negative-effects: false
+    # Whether the player can toggle Beaconator
+    # true/false: allow/disallow toggling Beaconator
+    # select: allow selecting the active Beaconator level
+    allow-toggling-beaconator: true
     # Require individual permission for toggling effects (portablebeacons.effects-toggle.<effect name>)
     require-permission: false
 
@@ -134,7 +122,7 @@ beacon-item:
     # With the default value, the upkeep is 1 level/minute for a beacon with 6 Level III effects
     # The correct amount of experience is checked and deducted every 3.75 seconds
     exp-levels-per-minute: 0.0555555552
-    # Whether the beacon should be active only when it is in the hotbar
+    # Whether the beacon should be active only when it is in the hotbar/offhand/armor slots
     only-apply-in-hotbar: false
     # If true, downgrade all effects stronger than its max-amplifier (see effects.<effect-name>.max-amplifier)
     # Note: requires an item update (/pb updateitems) to take effect

@@ -491,7 +491,7 @@ public class CommandPortableBeacons implements TabExecutor {
             }
 
             if (effectiveEffects.beaconatorLevel != 0) {
-                BeaconEffects.BeaconatorExpSummary expSummary = effectiveEffects.calcBeaconatorExpPerMinute(target);
+                BeaconEffects.BeaconatorSummary expSummary = effectiveEffects.calcBeaconator(target);
                 sender.sendMessage(TextUtils.formatEnchantment(Config.enchBeaconatorName, effectiveEffects.beaconatorLevel) + " upkeep: " + YELLOW +
                         TextUtils.TWO_DP.format(expSummary.getCost()) + "levels/minute");
             }

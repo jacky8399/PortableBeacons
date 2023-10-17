@@ -51,6 +51,8 @@ public final class PortableBeacons extends JavaPlugin {
         saveDefaultConfig();
         if (!new File(getDataFolder(), "recipes.yml").exists())
             saveResource("recipes.yml", false);
+        if (!new File(getDataFolder(), "messages.yml").exists())
+            saveResource("messages.yml", false);
         reloadConfig();
         Events.registerEvents();
         effectsTimer = new EffectsTimer();

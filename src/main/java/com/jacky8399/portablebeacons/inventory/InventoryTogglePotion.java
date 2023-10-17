@@ -2,6 +2,8 @@ package com.jacky8399.portablebeacons.inventory;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
+import com.jacky8399.portablebeacons.Messages;
+import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.events.Inventories;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import com.jacky8399.portablebeacons.utils.PotionEffectUtils;
@@ -29,14 +31,18 @@ import java.util.function.Consumer;
 
 public class InventoryTogglePotion implements InventoryProvider {
     private final boolean readOnly;
+    private final int slot;
     private final ItemStack stack;
     private final ItemStack displayStack;
     private final ItemStack expStack;
     private final TreeMap<PotionEffectType, Integer> effects;
     private final HashSet<PotionEffectType> disabledEffects;
+    private int beaconatorLevel;
+    private int beaconatorSelectedLevel;
 
-    public InventoryTogglePotion(Player player, ItemStack stack, boolean readOnly) {
+    public InventoryTogglePotion(Player player, ItemStack stack, int slot, boolean readOnly) {
         this.readOnly = readOnly;
+        this.slot = slot;
         if (!ItemUtils.isPortableBeacon(stack)) {
             throw new IllegalArgumentException("stack is not beacon");
         }
@@ -45,6 +51,8 @@ public class InventoryTogglePotion implements InventoryProvider {
         effects = new TreeMap<>(PotionEffectUtils.POTION_COMPARATOR); // to maintain consistent order
         effects.putAll(beaconEffects.getEffects());
         disabledEffects = new HashSet<>(beaconEffects.getDisabledEffects());
+        beaconatorLevel = beaconEffects.beaconatorLevel;
+        beaconatorSelectedLevel = beaconEffects.beaconatorSelectedLevel;
 
         // display stack
         displayStack = stack.clone();
@@ -54,17 +62,22 @@ public class InventoryTogglePotion implements InventoryProvider {
     }
 
     private void updateItem(Player player) {
+        if (!stack.equals(player.getInventory().getItem(slot)))
+            return;
+
         BeaconEffects effects = ItemUtils.getEffects(stack);
         effects.setEffects(this.effects);
         effects.setDisabledEffects(disabledEffects);
+        effects.beaconatorSelectedLevel = beaconatorSelectedLevel;
         ItemMeta tempMeta = ItemUtils.createMetaCopyItemData(player, effects, Objects.requireNonNull(stack.getItemMeta()));
         stack.setItemMeta(tempMeta);
+        player.getInventory().setItem(slot, stack);
         // if all effects are disabled
         displayStack.setType(effects.getEffects().size() == disabledEffects.size() ? Material.GLASS : Material.BEACON);
         displayStack.setItemMeta(Bukkit.getItemFactory().asMetaFor(tempMeta, displayStack));
 
         ItemMeta expMeta = expStack.getItemMeta();
-        double expUsage = effects.calcBasicExpPerMinute(player) + effects.calcBeaconatorExpPerMinute(player).getCost();
+        double expUsage = effects.calcBasicExpPerMinute(player) + effects.calcBeaconator(player).getCost();
         Map<String, TextUtils.Context> contexts = Map.of(
                 "usage", new TextUtils.ContextFormat(60 / expUsage, TextUtils.ONE_DP),
                 "player-level", TextUtils.ContextFormat.ofInt(player.getLevel()),
@@ -100,6 +113,8 @@ public class InventoryTogglePotion implements InventoryProvider {
 
     @Override
     public void populate(Player player, InventoryAccessor inventory) {
+        boolean canAddPotions = player.hasPermission(ADD_POTION_PERM);
+        boolean canRemovePotions = player.hasPermission(REMOVE_POTION_PERM);
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
                 inventory.set(4, displayStack, readOnly ? InventoryTogglePotion::playCantEdit : e -> {
@@ -120,18 +135,16 @@ public class InventoryTogglePotion implements InventoryProvider {
                     updateItem(player);
                     inventory.requestRefresh(player);
                 });
+            } else if (i == 0 && (canAddPotions || canRemovePotions)) {
+                // edit potion effects
+                var stack = getPotionManagerDisplay(canAddPotions, canRemovePotions);
+                inventory.set(0, stack, addPotionEffects(inventory));
+            } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
+                inventory.set(8, expStack);
+            } else if (i == 7) {
+                setBeaconatorToggle(inventory);
             } else {
-                boolean canAddPotions = player.hasPermission(ADD_POTION_PERM);
-                boolean canRemovePotions = player.hasPermission(REMOVE_POTION_PERM);
-                if (i == 0 && (canAddPotions || canRemovePotions)) {
-                    // edit potion effects
-                    var stack = getPotionManagerDisplay(canAddPotions, canRemovePotions);
-                    inventory.set(0, stack, addPotionEffects(inventory));
-                } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
-                    inventory.set(8, expStack);
-                } else {
-                    inventory.set(i, BORDER);
-                }
+                inventory.set(i, BORDER);
             }
         }
 
@@ -151,6 +164,69 @@ public class InventoryTogglePotion implements InventoryProvider {
                 inventory.set(slot, stack, togglePotionEffect(inventory, type));
             }
         }
+    }
+
+    @Override
+    public void update(Player player, InventoryAccessor inventory) {
+        if (!stack.equals(player.getInventory().getItem(slot))) {
+            Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, player::closeInventory);
+        }
+    }
+
+    private void setBeaconatorToggle(InventoryAccessor inventory) {
+        int level = beaconatorLevel;
+        if (level == 0 || Config.effectsToggleCanToggleBeaconator == Config.BeaconatorToggleMode.FALSE)
+            return;
+        int selectedLevel = beaconatorSelectedLevel;
+        if (selectedLevel == 0)
+            selectedLevel = beaconatorLevel;
+
+        String SELECTED = Messages.effectsToggleBeaconatorSelected;
+        String NOT_SELECTED = Messages.effectsToggleBeaconatorNotSelected;
+
+        var stack = new ItemStack(Material.KNOWLEDGE_BOOK);
+        var meta = stack.getItemMeta();
+
+        meta.setDisplayName(TextUtils.replacePlaceholders(Messages.effectsToggleBeaconatorName,
+                new TextUtils.ContextLevel(selectedLevel), Map.of("max-level", new TextUtils.ContextLevel(level))));
+        List<String> lines;
+        int nextLevel;
+        if (Config.effectsToggleCanToggleBeaconator == Config.BeaconatorToggleMode.TRUE) { // toggle only
+            boolean disabled = selectedLevel == -1;
+
+            lines = List.of(
+                    (disabled ? SELECTED : NOT_SELECTED) + Messages.effectsToggleBeaconatorOff,
+                    (!disabled ? SELECTED : NOT_SELECTED) + TextUtils.replacePlaceholders(
+                            Messages.effectsToggleBeaconatorLevel, new TextUtils.ContextLevel(level, true),
+                                    Map.of("radius", new TextUtils.ContextFormat(Config.getBeaconatorLevel(level).radius(), TextUtils.TWO_DP)))
+            );
+            nextLevel = disabled ? level : -1;
+        } else {
+            lines = new ArrayList<>(level + 1);
+            lines.add((selectedLevel == -1 ? SELECTED : NOT_SELECTED) + Messages.effectsToggleBeaconatorOff);
+
+            for (int i = 1; i <= level; i++) {
+                lines.add((selectedLevel == i ? SELECTED : NOT_SELECTED) + TextUtils.replacePlaceholders(
+                        Messages.effectsToggleBeaconatorLevel, new TextUtils.ContextLevel(i, true),
+                                Map.of("radius", new TextUtils.ContextFormat(Config.getBeaconatorLevel(i).radius(), TextUtils.TWO_DP))));
+            }
+
+            if (selectedLevel == -1)
+                nextLevel = 1; // Off -> Lv1
+            else if (selectedLevel == level)
+                nextLevel = -1; // LvMax -> Off
+            else
+                nextLevel = selectedLevel + 1; // Lv{n} -> Lv{n+1}
+        }
+
+        meta.setLore(lines);
+        stack.setItemMeta(meta);
+        inventory.set(7, stack, e -> {
+            beaconatorSelectedLevel = nextLevel;
+            Player player = (Player) e.getWhoClicked();
+            updateItem(player);
+            inventory.requestRefresh(player);
+        });
     }
 
     @NotNull

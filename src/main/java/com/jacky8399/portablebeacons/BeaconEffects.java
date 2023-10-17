@@ -23,7 +23,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.jacky8399.portablebeacons.utils.TextUtils.*;
 import static java.util.stream.Collectors.*;
@@ -202,34 +201,29 @@ public class BeaconEffects {
         return lines;
     }
 
-    public Stream<Player> getBeaconatorInRange(Player owner) {
-        Config.BeaconatorLevel level = Config.getBeaconatorLevel(beaconatorLevel, beaconatorSelectedLevel);
-        double radius = level.radius();
-        return owner.getNearbyEntities(radius, radius, radius).stream()
-                .filter(entity -> entity instanceof Player)
-                .map(entity -> (Player) entity)
-                .filter(owner::canSee);
-    }
-
-    public record BeaconatorExpSummary(double base, List<Player> players, double multiplier, double finalMultiplier) {
+    public record BeaconatorSummary(double base, List<Player> players, double multiplier, double finalMultiplier) {
         public double getCost() {
             return base * (1 + players.size() * multiplier) * finalMultiplier;
         }
     }
-    public BeaconatorExpSummary calcBeaconatorExpPerMinute(Player owner) {
+
+    public BeaconatorSummary calcBeaconator(Player owner) {
         if (beaconatorLevel != 0 && beaconatorSelectedLevel != -1) {
-            ExpCostCalculator beaconatorCost = Config.getBeaconatorLevel(this.beaconatorLevel, beaconatorSelectedLevel).expCost();
+            Config.BeaconatorLevel level = Config.getBeaconatorLevel(beaconatorLevel, beaconatorSelectedLevel);
+            ExpCostCalculator beaconatorCost = level.expCost();
             if (beaconatorCost == null)
                 beaconatorCost = new ExpCostCalculator.Fixed(beaconatorSelectedLevel);
 
             double base = beaconatorCost.getCost(owner, this);
-            double multiplier = Config.enchBeaconatorInRangeCostMultiplier.getCost(owner, this);
-            if (base > 0 && multiplier >= 0) {
-                List<Player> players = getBeaconatorInRange(owner).toList();
-                return new BeaconatorExpSummary(base, players, multiplier, getExpMultiplier());
-            }
+            double playerMultiplier = Config.enchBeaconatorInRangeCostMultiplier.getCost(owner, this);
+            double radius = level.radius();
+            List<Player> players = owner.getNearbyEntities(radius, radius, radius).stream()
+                    .filter(entity -> entity instanceof Player)
+                    .map(entity -> (Player) entity)
+                    .filter(owner::canSee).toList();
+            return new BeaconatorSummary(base, players, playerMultiplier, getExpMultiplier());
         }
-        return new BeaconatorExpSummary(0, List.of(), 0, 0);
+        return new BeaconatorSummary(0, List.of(), 0, 0);
     }
 
     public double calcBasicExpPerMinute(Player owner) {
@@ -278,8 +272,8 @@ public class BeaconEffects {
             double cost = info.getExpCostCalculator(level).getCost(owner, this);
             total += cost;
             list.add(new TextComponent(
-                    replaceComponentPlaceholders(Config.effectsToggleBreakdownEffect,
-                            Map.of("name", (ComponentContext) args -> new BaseComponent[] {PotionEffectUtils.getDisplayName(type, level)},
+                    replaceComponentPlaceholders(Messages.effectsToggleBreakdownEffect,
+                            Map.of("name", (ComponentContext) args -> new BaseComponent[]{PotionEffectUtils.getDisplayName(type, level)},
                                     "level", new ContextLevel(level),
                                     "cost", new ContextFormat(cost, TWO_DP)))
             ));
@@ -287,23 +281,23 @@ public class BeaconEffects {
         double cost = Config.nerfExpLevelsPerMinute * totalEffectLevels;
         total += cost;
         list.add(toComponent(
-                replacePlaceholders(Config.effectsToggleBreakdownEffectsGrouped, null,
+                replacePlaceholders(Messages.effectsToggleBreakdownEffectsGrouped, null,
                         Map.of("count", ContextFormat.ofInt(totalEffects),
                                 "cost", new ContextFormat(cost, TWO_DP)))
         ));
 
-        BeaconatorExpSummary beaconator = calcBeaconatorExpPerMinute(owner);
+        BeaconatorSummary beaconator = calcBeaconator(owner);
         if (beaconator.base != 0) {
             int level = beaconatorSelectedLevel == 0 ? beaconatorLevel : beaconatorSelectedLevel;
             ContextLevel contextLevel = new ContextLevel(level);
             list.add(toComponent(
-                    replacePlaceholders(Config.effectsToggleBreakdownBeaconatorBase, contextLevel,
+                    replacePlaceholders(Messages.effectsToggleBreakdownBeaconatorBase, contextLevel,
                             Map.of("cost", new ContextFormat(beaconator.base, TWO_DP)))
             ));
             if (!beaconator.players.isEmpty() && beaconator.multiplier != 0) {
                 double playerCost = beaconator.base * beaconator.players.size() * beaconator.multiplier;
                 list.add(toComponent(
-                        replacePlaceholders(Config.effectsToggleBreakdownBeaconatorInRange, contextLevel,
+                        replacePlaceholders(Messages.effectsToggleBreakdownBeaconatorInRange, contextLevel,
                                 Map.of("count", ContextFormat.ofInt(beaconator.players.size()),
                                         "cost", new ContextFormat(playerCost, TWO_DP)))
                 ));
@@ -315,7 +309,7 @@ public class BeaconEffects {
         if (expReductionLevel != 0 && Config.enchExpReductionEnabled) {
             expMultiplier = Math.max(0, 1 - expReductionLevel * Config.enchExpReductionReductionPerLevel);
             list.add(toComponent(
-                    replacePlaceholders(Config.effectsToggleBreakdownExpReduction, new ContextLevel(expReductionLevel),
+                    replacePlaceholders(Messages.effectsToggleBreakdownExpReduction, new ContextLevel(expReductionLevel),
                             Map.of("exp-reduction", new ContextExpReduction(expReductionLevel)))
             ));
         } else {
@@ -323,7 +317,7 @@ public class BeaconEffects {
         }
 
         list.add(toComponent(
-                replacePlaceholders(Config.effectsToggleBreakdownSum, null,
+                replacePlaceholders(Messages.effectsToggleBreakdownSum, null,
                         Map.of("cost", new ContextFormat(total * expMultiplier, TWO_DP)))
         ));
 
@@ -338,7 +332,7 @@ public class BeaconEffects {
         HashMap<PotionEffectType, Integer> newEffects = new LinkedHashMap<>(effects);
         HashSet<PotionEffectType> newDisabledEffects = null;
 
-        for (var iterator = newEffects.entrySet().iterator(); iterator.hasNext();) {
+        for (var iterator = newEffects.entrySet().iterator(); iterator.hasNext(); ) {
             var entry = iterator.next();
             PotionEffectType effect = entry.getKey();
             Config.PotionEffectInfo info = Config.getInfo(effect);

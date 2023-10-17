@@ -22,6 +22,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
@@ -240,21 +241,27 @@ public class Config {
         placeholderApi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
 
         FileConfiguration config = PortableBeacons.INSTANCE.getConfig();
+        // load messages.yml and set default
+        FileConfiguration messages = YamlConfiguration.loadConfiguration(new File(PortableBeacons.INSTANCE.getDataFolder(), "messages.yml"));
+        try (var is = Objects.requireNonNull(PortableBeacons.INSTANCE.getResource("messages.yml"));
+             var reader = new InputStreamReader(is)) {
+            messages.setDefaults(YamlConfiguration.loadConfiguration(reader));
+        } catch (IOException ignored) {}
 
         doMigrations(config);
 
         try {
-            loadConfigFrom(config);
+            loadConfigFrom(config, messages);
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, "Failed to load config.yml, falling back to default configuration.", ex);
-            loadConfigFrom(Objects.requireNonNull(config.getDefaults()));
+            loadConfigFrom(Objects.requireNonNull(config.getDefaults()), Objects.requireNonNull(messages.getDefaults()));
         }
-
-
         LOGGER.info("Config loaded");
     }
 
-    private static void loadConfigFrom(Configuration config) {
+    private static void loadConfigFrom(Configuration config, Configuration messages) {
+        Messages.loadMessages(messages);
+
         // debug
         debug = config.getBoolean("debug");
 
@@ -288,21 +295,25 @@ public class Config {
         creationReminderDisableIfOwned = config.getBoolean("beacon-item.creation-reminder.disable-if-already-own-beacon-item");
 
         // Effects Toggle GUI
-        effectsToggleEnabled = config.getBoolean("beacon-item.effects-toggle.enabled");
-        effectsToggleTitle = translateColor(config.getString("beacon-item.effects-toggle.title"));
-        effectsToggleExpUsageMessage = translateColor(config.getString("beacon-item.effects-toggle.exp-usage-message"));
-        effectsToggleCanDisableNegativeEffects = config.getBoolean("beacon-item.effects-toggle.allow-disabling-negative-effects");
-        effectsToggleFineTunePerms = config.getBoolean("beacon-item.effects-toggle.require-permission");
+        var effectsToggle = config.getConfigurationSection("beacon-item.effects-toggle");
+        effectsToggleEnabled = effectsToggle.getBoolean("enabled");
+        effectsToggleTitle = getAndColorizeString(effectsToggle, "title");
+        effectsToggleExpUsageMessage = getAndColorizeString(effectsToggle, "exp-usage-message");
+        effectsToggleCanDisableNegativeEffects = effectsToggle.getBoolean("allow-disabling-negative-effects");
+        effectsToggleFineTunePerms = effectsToggle.getBoolean("require-permission");
+        Object canToggleBeaconator = effectsToggle.get("allow-toggling-beaconator");
+        if (canToggleBeaconator instanceof Boolean bool) {
+            effectsToggleCanToggleBeaconator = bool ? BeaconatorToggleMode.TRUE : BeaconatorToggleMode.FALSE;
+        } else {
+            try {
+                effectsToggleCanToggleBeaconator = BeaconatorToggleMode.valueOf(canToggleBeaconator.toString().toUpperCase(Locale.ENGLISH));
+            } catch (IllegalArgumentException ignored) {
+                effectsToggleCanToggleBeaconator = BeaconatorToggleMode.TRUE;
+            }
+        }
 
         // Effects Toggle Breakdown
-        var breakdown = config.getConfigurationSection("beacon-item.effects-toggle.breakdown");
-        effectsToggleBreakdownEnabled = breakdown.getBoolean("enabled");
-        effectsToggleBreakdownEffect = getAndColorizeString(breakdown, "effect");
-        effectsToggleBreakdownEffectsGrouped = getAndColorizeString(breakdown, "effects");
-        effectsToggleBreakdownBeaconatorBase = getAndColorizeString(breakdown, "beaconator-base");
-        effectsToggleBreakdownBeaconatorInRange = getAndColorizeString(breakdown, "beaconator-in-range");
-        effectsToggleBreakdownExpReduction = getAndColorizeString(breakdown, "exp-reduction");
-        effectsToggleBreakdownSum = getAndColorizeString(breakdown, "sum");
+        effectsToggleBreakdownEnabled = effectsToggle.getBoolean("breakdown-enabled");
 
         // Custom enchantments
 
@@ -566,15 +577,10 @@ public class Config {
     public static String effectsToggleExpUsageMessage;
     public static boolean effectsToggleCanDisableNegativeEffects;
     public static boolean effectsToggleFineTunePerms;
+    public static BeaconatorToggleMode effectsToggleCanToggleBeaconator;
 
     // Effects Toggle Breakdown
     public static boolean effectsToggleBreakdownEnabled;
-    public static String effectsToggleBreakdownEffect;
-    public static String effectsToggleBreakdownEffectsGrouped;
-    public static String effectsToggleBreakdownBeaconatorBase;
-    public static String effectsToggleBreakdownBeaconatorInRange;
-    public static String effectsToggleBreakdownExpReduction;
-    public static String effectsToggleBreakdownSum;
 
     // Custom Enchantments
     public static boolean enchExpReductionEnabled;
@@ -664,7 +670,10 @@ public class Config {
         }
     }
 
+    private static final BeaconatorLevel BEACONATOR_LEVEL_DISABLED = new BeaconatorLevel(0, null);
     public static BeaconatorLevel getBeaconatorLevel(int level, int selectedLevel) {
+        if (selectedLevel == -1)
+            return BEACONATOR_LEVEL_DISABLED;
         if (selectedLevel == 0) // unselected
             selectedLevel = level;
         else
@@ -672,5 +681,13 @@ public class Config {
         if (selectedLevel - 1 >= enchBeaconatorLevels.size())
             return enchBeaconatorLevels.get(enchBeaconatorLevels.size() - 1);
         return enchBeaconatorLevels.get(selectedLevel - 1);
+    }
+
+    public static BeaconatorLevel getBeaconatorLevel(int level) {
+        return enchBeaconatorLevels.get(level - 1);
+    }
+
+    public enum BeaconatorToggleMode {
+        TRUE, FALSE, SELECT
     }
 }

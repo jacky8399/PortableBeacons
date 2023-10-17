@@ -103,15 +103,15 @@ public class EffectsTimer implements Runnable {
         player.addPotionEffects(effects);
 
         // beaconator
-        BeaconEffects.BeaconatorExpSummary beaconator = actualEffects.calcBeaconatorExpPerMinute(player);
+        BeaconEffects.BeaconatorSummary beaconator = actualEffects.calcBeaconator(player);
+        boolean showBeaconatorPlayers = index == 40 || inventory.getHeldItemSlot() == index;
         if (!beaconator.players().isEmpty()) {
             if (!shouldDeductExp || tryDeductExp(player, beaconator.getCost())) {
                 for (Player other : beaconator.players()) {
                     other.addPotionEffects(effects);
 
-                    if (index == 40 || inventory.getHeldItemSlot() == index) {
+                    if (showBeaconatorPlayers)
                         drawLine(player, other);
-                    }
                 }
             }
         }

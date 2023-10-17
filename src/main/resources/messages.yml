@@ -1,0 +1,30 @@
+# Effects Toggle GUI
+effects-toggle:
+  beaconator:
+    # Placeholders: {level}, {max-level}
+    name: '&bBeaconator {max-level}'
+    disabled: '&4Off'
+    # Placeholders: {level}, {radius}
+    # Note that level I will be shown, unlike other places where {level} is used
+    level: '&cLevel {level}: {radius} blocks'
+    selected: '&e> '
+    not-selected: '&7- '
+
+  breakdown:
+    # For effects with exp-cost
+    # Placeholders: {name}, {level}, {cost}
+    effect: '  {name} {level}&7: {cost} levels/min'
+    # For other effects
+    # Placeholders: {count}, {cost}
+    effects: '  &7{count} effects: {cost} levels/min'
+    # The base cost of beaconator
+    # Placeholders: {level}, {cost}
+    beaconator-base: '  &bBeaconator {level}: {cost} levels/min'
+    # The in-range cost of beaconator
+    # Placeholders: {count}, {cost}
+    beaconator-in-range: '  &7  {count} players: {cost} levels/min'
+    # The multiplier applied by exp-reduction
+    # Placeholders: all exp-reduction placeholders
+    exp-reduction: '  &dExperience Efficiency {level}: x{exp-reduction|multiplier}'
+    # Placeholder: {cost}
+    sum: '&7= {cost} levels/min'

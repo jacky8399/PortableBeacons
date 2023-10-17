@@ -351,7 +351,8 @@ public final class Events implements Listener {
                 BeaconEffects effects = ItemUtils.getEffects(stack);
                 boolean isReadOnly = !Config.effectsToggleEnabled ||
                         (Config.enchSoulboundEnabled && Config.enchSoulboundOwnerUsageOnly && !effects.isOwner(player));
-                Inventories.openInventory(player, new InventoryTogglePotion(player, stack, isReadOnly));
+                int slot = e.getHand() == EquipmentSlot.HAND ? player.getInventory().getHeldItemSlot() : 41;
+                Inventories.openInventory(player, new InventoryTogglePotion(player, stack, slot, isReadOnly));
             } else if (!ItemUtils.isPyramid(e.getItem()) && e.useInteractedBlock() != Event.Result.DENY) {
                 // prevent beacon deactivation sound
                 e.setCancelled(true);

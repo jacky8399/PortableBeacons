@@ -141,10 +141,12 @@ public class TextUtils {
         Config.BeaconatorLevel realSelectedLevel = Config.getBeaconatorLevel(level, selectedLevel);
 
         String enchName = TextUtils.replacePlaceholders(Config.enchBeaconatorName,
-                new ContextLevel(level),
+                new ContextLevel(selectedLevel <= 0 ? level : selectedLevel),
                 Map.of("radius", new ContextFormat(realSelectedLevel.radius(), ONE_DP),
                         "max-radius", new ContextFormat(realLevel.radius(), ONE_DP))
         );
+        if (selectedLevel == -1)
+            enchName = "" + ChatColor.GRAY + ChatColor.STRIKETHROUGH + ChatColor.stripColor(enchName);
         return getLoreFromLegacyString(enchName.split("\n"));
     }
 
@@ -194,10 +196,6 @@ public class TextUtils {
         return component;
     }
 
-    public static NumberFormat makeFormat(String[] args, NumberFormat format) {
-        return args.length != 0 ? new DecimalFormat(args[0]) : format;
-    }
-
     public interface Context extends ComponentContext {
         default boolean shouldRemovePrecedingSpace(String... args) {
             return false;
@@ -227,13 +225,17 @@ public class TextUtils {
         }
     }
 
-    public record ContextLevel(int level) implements Context {
+    public record ContextLevel(int level, boolean showLevelOne) implements Context {
+
+        public ContextLevel(int level) {
+            this(level, false);
+        }
 
         @Override
         public String doReplacement(String... args) {
             return args.length == 1 && "number".equals(args[0]) ?
                     Integer.toString(level) :
-                    PotionEffectUtils.toRomanNumeral(level);
+                    !showLevelOne && level == 1 ? "" : PotionEffectUtils.toRomanNumeral(level);
         }
     }
 
