@@ -13,7 +13,8 @@ public record BeaconEffectsFilter(PotionEffectType type,
                                   @Nullable Operator operator,
                                   int constraint) implements BiPredicate<PotionEffectType, Integer> {
 
-    public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_:]+)(?:(=|<>|<|<=|>|>=)(\\d+))?$");
+    public static Pattern OPERATOR_FORMAT = Pattern.compile("(=|<>|<|<=|>|>=)\\s*(\\d+)");
+    public static Pattern FILTER_FORMAT = Pattern.compile("^([a-z_:]+)\\s*(?:(=|<>|<|<=|>|>=)\\s*(\\d+))?$");
 
     public static BeaconEffectsFilter fromString(String input) {
         PotionEffectType simplePotion = PotionEffectUtils.parsePotion(input);
@@ -38,6 +39,32 @@ public record BeaconEffectsFilter(PotionEffectType type,
             return new BeaconEffectsFilter(type, op, constraint);
         }
         throw new IllegalArgumentException("Invalid format " + input);
+    }
+
+    public static BeaconEffectsFilter fromMapEntry(Map.Entry<?, ?> entry) {
+        String key = entry.getKey().toString();
+        PotionEffectType potion = PotionEffectUtils.parsePotion(key);
+        if (potion == null)
+            throw new IllegalArgumentException("Invalid potion effect " + key);
+        String value = entry.getValue().toString();
+        int level;
+        try {
+            level = Integer.parseInt(value);
+            return new BeaconEffectsFilter(potion, Operator.EQ, level);
+        } catch (NumberFormatException ignored) {}
+
+        Matcher matcher = OPERATOR_FORMAT.matcher(value);
+        if (!matcher.matches())
+            throw new IllegalArgumentException("Invalid operator format " + value);
+        Operator op = Operator.getByString(matcher.group(1));
+        if (op == null)
+            throw new IllegalArgumentException("Invalid operator " + matcher.group(1));
+        try {
+            level = Integer.parseInt(matcher.group(2));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid constraint " + matcher.group(2), ex);
+        }
+        return new BeaconEffectsFilter(potion, op, level);
     }
 
     @Override
@@ -85,6 +112,17 @@ public record BeaconEffectsFilter(PotionEffectType type,
 
         public static Operator getByString(String operator) {
             return STRING_MAP.get(operator);
+        }
+
+        public Operator negate() {
+            return switch (this) {
+                case EQ -> NEQ;
+                case NEQ -> EQ;
+                case LT -> GTE;
+                case GTE -> LT;
+                case GT -> LTE;
+                case LTE -> GT;
+            };
         }
     }
 

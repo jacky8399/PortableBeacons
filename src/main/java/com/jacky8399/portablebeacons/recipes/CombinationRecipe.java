@@ -3,50 +3,65 @@ package com.jacky8399.portablebeacons.recipes;
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
+import com.jacky8399.portablebeacons.utils.BeaconCondition;
+import com.jacky8399.portablebeacons.utils.InventoryTypeUtils;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BinaryOperator;
+import java.util.*;
 
 public record CombinationRecipe(NamespacedKey id,
+                                @NotNull InventoryType type,
+                                @Nullable ItemStack template,
+                                @Nullable BeaconCondition resultCondition,
+                                @Nullable BeaconCondition beaconCondition,
+                                @Nullable BeaconCondition sacrificeCondition,
                                 int maxEffects,
                                 boolean combineEffectsAdditively,
-                                ExpCostCalculator expCost) implements BeaconRecipe {
+                                @NotNull ExpCostCalculator expCost) implements BeaconRecipe {
 
-    @Override
-    public @Nullable RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
-        if (input.getAmount() != 1)
-            return null;
-        BeaconEffects e2 = ItemUtils.getEffects(input);
-        if (e2 == null)
-            return null;
-        BeaconEffects effects = ItemUtils.getEffects(beacon);
-        Map<PotionEffectType, Integer> potions = new HashMap<>(effects.getEffects());
-        for (var entry : e2.getEffects().entrySet()) {
+    private BeaconEffects doCombine(BeaconEffects effects, BeaconEffects otherEffects) {
+        effects = new BeaconEffects(effects);
+        var potions = new HashMap<>(effects.getEffects());
+        for (var entry : otherEffects.getEffects().entrySet()) {
             var potionType = entry.getKey();
             int potionLevel = entry.getValue();
             int maxPotionLevel = Config.getInfo(potionType).getMaxAmplifier();
-            BinaryOperator<Integer> algorithm = (left, right) -> anvilAlgorithm(left, right, maxPotionLevel);
-            potions.merge(potionType, potionLevel, algorithm);
+            potions.merge(potionType, potionLevel, (left, right) -> anvilAlgorithm(left, right, maxPotionLevel));
         }
 
-        // check max effects count / overpowered effects
-        if (potions.size() > maxEffects) {
-            return null;
-        }
-        effects.expReductionLevel = anvilAlgorithm(effects.expReductionLevel, e2.expReductionLevel, Config.enchExpReductionMaxLevel);
-        effects.soulboundLevel = anvilAlgorithm(effects.soulboundLevel, e2.soulboundLevel, Config.enchSoulboundMaxLevel);
+        effects.expReductionLevel = anvilAlgorithm(effects.expReductionLevel, otherEffects.expReductionLevel, Config.enchExpReductionMaxLevel);
+        effects.soulboundLevel = anvilAlgorithm(effects.soulboundLevel, otherEffects.soulboundLevel, Config.enchSoulboundMaxLevel);
+        effects.beaconatorLevel = anvilAlgorithm(effects.beaconatorLevel, otherEffects.soulboundLevel, Config.enchBeaconatorLevels.size());
 
         effects.setEffects(potions);
-        return RecipeOutput.sacrificeInput(ItemUtils.createItemCopyItemData(player, effects, beacon));
+        return effects;
+    }
+
+    @Override
+    public RecipeOutput getOutput(Player player, InventoryType type, Inventory inventory) {
+        ItemStack[] items = inventory.getContents();
+        ItemStack beacon = items[InventoryTypeUtils.getBeaconSlot(type)];
+        ItemStack sacrifice = items[InventoryTypeUtils.getSacrificeSlot(type)];
+        if (sacrifice.getAmount() != 1)
+            return null;
+        BeaconEffects effects = ItemUtils.getEffects(beacon);
+        BeaconEffects otherEffects = ItemUtils.getEffects(sacrifice);
+
+        BeaconEffects newEffects = doCombine(effects, otherEffects);
+        items[InventoryTypeUtils.getSacrificeSlot(type)] = null;
+        if (template != null) {
+            var templateStack = items[InventoryTypeUtils.getTemplateSlot(type)].clone();
+            templateStack.setAmount(templateStack.getAmount() - template.getAmount());
+            items[InventoryTypeUtils.getTemplateSlot(type)] = templateStack;
+        }
+        return new RecipeOutput(ItemUtils.createItemCopyItemData(player, newEffects, beacon), items);
     }
 
     private int anvilAlgorithm(int s1, int s2, int max) {
@@ -61,24 +76,57 @@ public record CombinationRecipe(NamespacedKey id,
         }
     }
 
-
     @Override
-    public boolean isApplicableTo(ItemStack beacon, ItemStack input) {
-        return ItemUtils.isPortableBeacon(input);
+    public boolean isApplicableTo(InventoryType type, Inventory inventory) {
+        if (type != this.type)
+            return false;
+        ItemStack beacon = inventory.getItem(InventoryTypeUtils.getBeaconSlot(type));
+        if (!ItemUtils.isPortableBeacon(beacon) || beacon.getAmount() != 1)
+            return false;
+        BeaconEffects beaconEffects = ItemUtils.getEffects(beacon);
+        if (beaconCondition != null && !beaconCondition.test(beaconEffects))
+            return false;
+        ItemStack sacrifice = inventory.getItem(InventoryTypeUtils.getSacrificeSlot(type));
+        if (!ItemUtils.isPortableBeacon(sacrifice) || sacrifice.getAmount() != 1)
+            return false;
+        BeaconEffects sacrificeEffects = ItemUtils.getEffects(sacrifice);
+        if (sacrificeCondition != null && !sacrificeCondition.test(sacrificeEffects))
+            return false;
+        if (type == InventoryType.SMITHING && template != null &&
+                !template.isSimilar(inventory.getItem(InventoryTypeUtils.getTemplateSlot(type))))
+            return false;
+        BeaconEffects result = doCombine(beaconEffects, sacrificeEffects);
+        if (result.getEffects().size() > maxEffects)
+            return false;
+        return resultCondition == null || resultCondition.test(result);
     }
 
-    public static final String TYPE = "__special_combination";
+    public static final String LEGACY_TYPE = "__special_combination";
+    public static final Set<String> TYPES = Set.of("anvil-combination", "smithing-combination");
     @Override
     public Map<String, Object> save() {
         var map = new LinkedHashMap<String, Object>();
-        map.put("type", TYPE);
+        map.put("type", type == InventoryType.SMITHING ? "smithing-combination" : "anvil-combination");
         map.put("max-effects", maxEffects);
         map.put("combine-effects-additively", combineEffectsAdditively);
         map.put("exp-cost", expCost.serialize());
+        if (resultCondition != null)
+            map.putAll(resultCondition.save("result"));
+        if (beaconCondition != null && beaconCondition == sacrificeCondition) {
+            map.putAll(beaconCondition.save("inputs"));
+        } else {
+            if (beaconCondition != null)
+                map.putAll(beaconCondition.save("beacon"));
+            if (sacrificeCondition != null)
+                map.putAll(sacrificeCondition.save("sacrifice"));
+        }
+        if (type == InventoryType.SMITHING && template != null)
+            map.put("template", template);
         return map;
     }
 
     public static CombinationRecipe load(String id, Map<String, Object> map) {
+        String type = map.get("type").toString();
         int maxEffects = ((Number) map.getOrDefault("max-effects", 6)).intValue();
         boolean combineEffectsAdditively = ((Boolean) map.getOrDefault("combine-effects-additively", true));
         ExpCostCalculator expCost;
@@ -92,6 +140,21 @@ public record CombinationRecipe(NamespacedKey id,
         }
         NamespacedKey key = Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id);
 
-        return new CombinationRecipe(key, maxEffects, combineEffectsAdditively, expCost);
+        BeaconCondition resultCondition = BeaconCondition.load(map, "result");
+        BeaconCondition beaconCondition = BeaconCondition.load(map, "beacon");
+        BeaconCondition sacrificeCondition = BeaconCondition.load(map, "sacrifice");
+
+        if (sacrificeCondition == null && beaconCondition == null) {
+            sacrificeCondition = beaconCondition = BeaconCondition.load(map, "inputs");
+        }
+
+        Object template = map.get("template");
+        ItemStack templateStack = template != null ? SimpleRecipe.loadStack(template) : null;
+
+        return new CombinationRecipe(key,
+                // also handles __special_combination legacy value
+                type.equals("smithing-combination") ? InventoryType.SMITHING : InventoryType.ANVIL,
+                templateStack, resultCondition, beaconCondition, sacrificeCondition,
+                maxEffects, combineEffectsAdditively, expCost);
     }
 }

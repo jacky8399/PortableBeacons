@@ -265,6 +265,9 @@ public class Config {
         // debug
         debug = config.getBoolean("debug");
 
+        if (debug)
+            LOGGER.warning("Debug is enabled");
+
         // Ritual item
         ritualEnabled = config.getBoolean("ritual.enabled");
         ritualItem = config.getItemStack("ritual.item");

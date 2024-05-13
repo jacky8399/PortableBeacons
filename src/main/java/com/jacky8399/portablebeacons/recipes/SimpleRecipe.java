@@ -2,14 +2,13 @@ package com.jacky8399.portablebeacons.recipes;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.PortableBeacons;
-import com.jacky8399.portablebeacons.utils.BeaconModification;
-import com.jacky8399.portablebeacons.utils.BeaconPyramid;
-import com.jacky8399.portablebeacons.utils.ItemUtils;
+import com.jacky8399.portablebeacons.utils.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +20,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
                            @NotNull InventoryType type,
                            @NotNull ItemStack input,
                            @Nullable ItemStack template,
+                           @Nullable BeaconCondition condition,
                            @NotNull List<BeaconModification> modifications,
                            @NotNull ExpCostCalculator expCost,
                            @NotNull Set<SpecialOps> specialOperations) implements BeaconRecipe {
@@ -28,6 +28,8 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
     public SimpleRecipe {
         if (type != InventoryType.ANVIL && type != InventoryType.SMITHING)
             throw new IllegalArgumentException("Invalid inventory type " + type);
+        modifications = List.copyOf(modifications);
+        specialOperations = Set.copyOf(specialOperations);
     }
 
     public SimpleRecipe(String id,
@@ -37,11 +39,17 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
                         @NotNull ExpCostCalculator expCost,
                         @NotNull Set<SpecialOps> specialOperations) {
         this(Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id),
-                type, input, null, modifications, expCost, specialOperations);
+                type, input, null, null, modifications, expCost, specialOperations);
     }
 
     @Override
-    public RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input) {
+    public RecipeOutput getOutput(Player player, InventoryType type, Inventory inventory) {
+        ItemStack[] items = inventory.getContents();
+        int beaconSlot = InventoryTypeUtils.getBeaconSlot(type);
+        ItemStack beacon = items[beaconSlot];
+        int sacrificeSlot = InventoryTypeUtils.getSacrificeSlot(type);
+        ItemStack sacrifice = items[sacrificeSlot];
+        ItemStack template = type == InventoryType.SMITHING ? items[InventoryTypeUtils.getTemplateSlot(type)] : null;
         BeaconEffects effects = ItemUtils.getEffects(beacon);
         for (var modification : modifications) {
             if (!modification.modify(effects))
@@ -57,34 +65,51 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         if ((pyramid = ItemUtils.getPyramid(beacon)) != null)
             ItemUtils.setPyramid(stack, pyramid);
 
-        int amount = input.getAmount() - this.input.getAmount();
-        if (amount <= 0) {
-            return new RecipeOutput(stack, null);
+        // subtract items
+        int sacrificeAmt = sacrifice.getAmount() - input.getAmount();
+        if (sacrificeAmt <= 0) {
+            items[sacrificeSlot] = null;
         } else {
-            var newInput = input.clone();
-            newInput.setAmount(amount);
-            return new RecipeOutput(stack, newInput);
+            var newInput = sacrifice.clone();
+            newInput.setAmount(sacrificeAmt);
+            items[sacrificeSlot] = newInput;
         }
+
+        if (this.template != null && template != null) {
+            int templateAmt = template.getAmount() - this.template.getAmount();
+            var newTemplate = template.clone();
+            newTemplate.setAmount(Math.max(0, templateAmt));
+            items[InventoryTypeUtils.getTemplateSlot(type)] = newTemplate;
+        }
+        return new RecipeOutput(stack, items);
     }
 
     @Override
-    public boolean isApplicableTo(ItemStack beacon, ItemStack input) {
-        // enchanted_book isSimilar behaves weirdly
-        if (this.input.getType() == Material.ENCHANTED_BOOK) {
-            if (input.getType() != Material.ENCHANTED_BOOK)
+    public boolean isApplicableTo(InventoryType type, Inventory inventory) {
+        if (this.type != type)
+            return false;
+        ItemStack beacon = inventory.getItem(InventoryTypeUtils.getBeaconSlot(type));
+        if (!ItemUtils.isPortableBeacon(beacon) || (condition != null && !condition.test(ItemUtils.getEffects(beacon))))
+            return false;
+        ItemStack sacrifice = inventory.getItem(InventoryTypeUtils.getSacrificeSlot(type));
+        if (sacrifice == null)
+            return false;
+        // special checks for enchanted books
+        if (input.getType() == Material.ENCHANTED_BOOK) {
+            if (sacrifice.getType() != Material.ENCHANTED_BOOK)
                 return false;
-            EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) this.input.getItemMeta();
-            if (enchantMeta == null || !enchantMeta.hasStoredEnchants())
-                return true;
-            if (!(input.getItemMeta() instanceof EnchantmentStorageMeta other))
-                return false;
-            for (var entry : enchantMeta.getStoredEnchants().entrySet()) {
+            EnchantmentStorageMeta meta = Objects.requireNonNull((EnchantmentStorageMeta) input.getItemMeta());
+            EnchantmentStorageMeta other = Objects.requireNonNull((EnchantmentStorageMeta) sacrifice.getItemMeta());
+            for (var entry : meta.getStoredEnchants().entrySet()) {
                 if (other.getStoredEnchantLevel(entry.getKey()) < entry.getValue())
                     return false;
             }
-            return true;
         }
-        return this.input.isSimilar(input) && input.getAmount() >= this.input.getAmount();
+        if (!(input.isSimilar(sacrifice) && sacrifice.getAmount() >= input.getAmount()))
+            return false;
+
+        ItemStack template = type == InventoryType.SMITHING ? inventory.getItem(InventoryTypeUtils.getTemplateSlot(type)) : null;
+        return this.template == null || this.template.isSimilar(template);
     }
 
     @Override
@@ -99,6 +124,9 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         if (type == InventoryType.SMITHING && template != null)
             map.put("template", template);
 
+        if (condition != null)
+            map.putAll(condition.save(null));
+
         var modMap = new HashMap<String, Object>();
         for (var mod : modifications) {
             modMap.putAll(mod.save());
@@ -111,7 +139,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         return map;
     }
 
-    private static ItemStack loadStack(Object o) {
+    static ItemStack loadStack(@NotNull Object o) {
         if (o instanceof String inputStr)
             return Bukkit.getItemFactory().createItemStack(inputStr);
         else if (o instanceof ItemStack stack1) // apparently it can do that??
@@ -138,6 +166,8 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         Object templateObj = map.get("template");
         ItemStack template = templateObj != null ? loadStack(templateObj) : null;
 
+        BeaconCondition condition = BeaconCondition.load(map, null);
+
         var modificationsMap = (Map<String, Map<String, Object>>) map.get("modifications");
         if (modificationsMap == null || modificationsMap.isEmpty()) {
             throw new IllegalArgumentException("modifications cannot be null or empty");
@@ -151,11 +181,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
             if (map.get(special.key) instanceof Boolean bool && bool)
                 specialOps.add(special);
         }
-
-//        if (type == InventoryType.SMITHING) {
-//            PortableBeacons.INSTANCE.logger.warning("Loading SMITHING recipe " + id + ". Smithing recipes are deprecated due to changes to Smithing Tables in 1.20.");
-//        }
-        return new SimpleRecipe(key, type, stack, template, modifications, expCost, specialOps);
+        return new SimpleRecipe(key, type, stack, template, condition, modifications, expCost, specialOps);
     }
 
     public enum SpecialOps {

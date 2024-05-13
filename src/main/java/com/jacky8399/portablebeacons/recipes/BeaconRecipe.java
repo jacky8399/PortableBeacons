@@ -2,28 +2,19 @@ package com.jacky8399.portablebeacons.recipes;
 
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
 public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
 
-    record RecipeOutput(@NotNull ItemStack output, @Nullable ItemStack right) {
-        public static RecipeOutput sacrificeInput(@NotNull ItemStack output) {
-            return new RecipeOutput(output, null);
-        }
-    }
-    @Nullable
-    default RecipeOutput getPreviewOutput(Player player, ItemStack beacon, ItemStack input) {
-        return getOutput(player, beacon, input);
-    }
+    record RecipeOutput(ItemStack output, ItemStack[] slots) {}
 
-    @Nullable
-    RecipeOutput getOutput(Player player, ItemStack beacon, ItemStack input);
+    RecipeOutput getOutput(Player player, InventoryType type, Inventory inventory);
 
-    boolean isApplicableTo(ItemStack beacon, ItemStack input);
+    boolean isApplicableTo(InventoryType type, Inventory inventory);
 
     Map<String, Object> save();
 
@@ -32,7 +23,8 @@ public sealed interface BeaconRecipe permits CombinationRecipe, SimpleRecipe {
     ExpCostCalculator expCost();
 
     static BeaconRecipe load(String id, Map<String, Object> map) {
-        if (CombinationRecipe.TYPE.equals(map.get("type"))) {
+        String type = map.get("type").toString();
+        if (CombinationRecipe.LEGACY_TYPE.equals(type) || CombinationRecipe.TYPES.contains(type)) {
             return CombinationRecipe.load(id, map);
         } else {
             return SimpleRecipe.load(id, map);

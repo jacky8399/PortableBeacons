@@ -11,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
 import java.text.DecimalFormat;
@@ -100,11 +101,78 @@ public class TextUtils {
         return builder.create();
     }
 
+    public static List<BaseComponent> formatCondition(BeaconCondition condition) {
+        List<BaseComponent> list = new ArrayList<>(condition.conditions().size());
+
+        boolean inverted = condition.inverted();
+        for (BeaconCondition.Item item : condition.conditions()) {
+            BeaconCondition.Target target = item.target();
+            BeaconCondition.Predicate predicate = item.predicate();
+
+            BaseComponent targetComponent;
+            if (target instanceof BeaconCondition.Target.Enchantment enchantment) {
+                // I really need to refactor enchantments
+                targetComponent = new TextComponent(TextUtils.getEnchantmentName(switch (enchantment) {
+                    case EXP_REDUCTION -> Config.enchExpReductionName;
+                    case SOULBOUND -> Config.enchSoulboundName;
+                    case BEACONATOR -> Config.enchBeaconatorName;
+                }));
+            } else if (target instanceof BeaconCondition.Target.Potion potion) {
+                PotionEffectType effect = potion.potion();
+                String nameOverride = Config.getInfo(effect).nameOverride();
+                if (nameOverride != null) {
+                    targetComponent = new TextComponent(TextComponent.fromLegacyText(nameOverride));
+                } else {
+                    String translationKey = effect.getKey().toString().replace(':', '.');
+                    targetComponent = new TranslatableComponent("effect." + translationKey);
+                }
+            } else if (target instanceof BeaconCondition.Target.Aggregate aggregate) {
+                targetComponent = new TextComponent(switch (aggregate) {
+                    case ALL -> "*";
+                    case ANY -> "?";
+                    case NONE -> "~";
+                });
+            } else {
+                throw new AssertionError("Invalid target " + target);
+            }
+
+            BaseComponent result;
+            if (predicate instanceof BeaconCondition.Predicate.Exists) {
+                result = new TextComponent(
+                        targetComponent,
+                        textComponent(" " + (inverted ? "❌" : "✔"), inverted ? ChatColor.RED : ChatColor.GREEN)
+                );
+            } else if (predicate instanceof BeaconCondition.Predicate.Comparison comparison) {
+                BeaconEffectsFilter.Operator operator = inverted ? comparison.operator().negate() : comparison.operator();
+                result = new TextComponent(
+                        targetComponent,
+                        textComponent(" " + operator.operator + " " + comparison.level(), ChatColor.AQUA)
+                );
+            } else if (predicate instanceof BeaconCondition.Predicate.Range range) {
+                if (inverted) {
+                    result = new TextComponent();
+                } else {
+                    result = new TextComponent(
+                            textComponent(range.min() + " ≤ ", ChatColor.AQUA),
+                            targetComponent,
+                            textComponent(" ≤ " + range.max(), ChatColor.AQUA)
+                    );
+                }
+            } else {
+                throw new AssertionError("Invalid predicate " + predicate);
+            }
+            result.setItalic(false);
+            list.add(result);
+        }
+        return list;
+    }
+
     public static String getEnchantmentName(String fullName) {
-        return fullName.split("\\{", 2)[0];
+        return fullName.split("\\{level}", 2)[0];
     }
 
     // only for when placeholders don't matter
+    // why did I do this to myself
     public static String formatEnchantment(String fullName, int level) {
         return getEnchantmentName(fullName) + level;
     }
@@ -148,6 +216,13 @@ public class TextUtils {
         if (selectedLevel == -1)
             enchName = "" + ChatColor.GRAY + ChatColor.STRIKETHROUGH + ChatColor.stripColor(enchName);
         return getLoreFromLegacyString(enchName.split("\n"));
+    }
+
+    // I miss Adventure :(
+    public static TextComponent textComponent(String text, ChatColor color) {
+        TextComponent textComponent = new TextComponent(text);
+        textComponent.setColor(color);
+        return textComponent;
     }
 
     public static TextComponent toComponent(String legacy) {

@@ -158,7 +158,7 @@ public class CommandPortableBeacons implements TabExecutor {
                         return null;
                     if (!sender.hasPermission(COMMAND_PERM + "recipe." + args[1]))
                         return null;
-                    return RecipeManager.RECIPES.keySet().stream();
+                    return RecipeManager.recipes.keySet().stream();
                 }
             }
         } else if (args[0].equalsIgnoreCase("help")) {
@@ -669,11 +669,11 @@ public class CommandPortableBeacons implements TabExecutor {
             case "list" -> {
                 assertPermission(sender, "recipe.list");
                 sender.sendMessage(GREEN + "Enabled recipes:");
-                for (var entry : RecipeManager.RECIPES.entrySet())
+                for (var entry : RecipeManager.recipes.entrySet())
                     sender.sendMessage("  " + entry.getKey());
-                if (!RecipeManager.DISABLED_RECIPES.isEmpty()) {
+                if (!RecipeManager.disabledRecipes.isEmpty()) {
                     sender.sendMessage(RED + "Disabled recipes:");
-                    for (var entry : RecipeManager.DISABLED_RECIPES)
+                    for (var entry : RecipeManager.disabledRecipes)
                         sender.sendMessage("  " + entry);
                 }
             }
@@ -696,7 +696,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(ChatColor.YELLOW + "SMITHING recipes are deprecated due to changes to Smithing Tables in 1.20!");
                 }
 
-                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, null, List.of(modification), expCost, Set.of());
+                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, null, null, List.of(modification), expCost, Set.of());
 
                 // save in YAML
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
@@ -733,39 +733,51 @@ public class CommandPortableBeacons implements TabExecutor {
             case "testinput" -> {
                 assertPermission(sender, "recipe.testinput");
 
-                parser.updateUsage("recipe testinput <id> [item]");
-                String id = parser.popWord();
-                ItemStack stack = parser.tryPopItemStack();
+                sender.sendMessage(RED + "The testinput command is currently disabled.");
+                // TODO fix testinput
 
-                BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
-                if (!(recipe instanceof SimpleRecipe simpleRecipe))
-                    throw new IllegalArgumentException("Can't find recipe with ID " + id);
-                // ensure stack size
-                stack.setAmount(simpleRecipe.input().getAmount());
-                if (simpleRecipe.isApplicableTo(new ItemStack(Material.BEACON), stack)) {
-                    sender.spigot().sendMessage(
-                            new ComponentBuilder("Recipe " + id + " would accept ").color(GREEN)
-                                    .append(TextUtils.displayItem(stack)).color(BLUE).create()
-                    );
-                } else {
-                    if (Config.debug) // show Bukkit ItemMeta info
-                        sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
-                                YELLOW + simpleRecipe.input());
-                    else
-                        sender.spigot().sendMessage(
-                                new ComponentBuilder("Recipe " + id + " would reject ").color(RED)
-                                        .append(TextUtils.displayItem(stack)).color(BLUE)
-                                        .append(" because it wants ", NONE).color(RED)
-                                        .append(TextUtils.displayItem(simpleRecipe.input())).color(YELLOW).create()
-                        );
-                }
+//                parser.updateUsage("recipe testinput <id> [item] [template]");
+//                String id = parser.popWord();
+//                ItemStack stack = parser.tryPopItemStack();
+//                ItemStack template = parser.tryPopItemStack();
+//
+//                BeaconRecipe recipe = RecipeManager.recipes.get(id);
+//                if (!(recipe instanceof SimpleRecipe simpleRecipe))
+//                    throw new IllegalArgumentException("Can't find recipe with ID " + id);
+//                // ensure stack size
+//                stack.setAmount(simpleRecipe.input().getAmount());
+//
+//                // create fake inventory
+//                Inventory inventory = Bukkit.createInventory(null, simpleRecipe.type());
+//                inventory.setItem();
+//                if (simpleRecipe.type() == InventoryType.SMITHING) {
+//
+//                }
+//
+//                if (simpleRecipe.isApplicableTo(new ItemStack(Material.BEACON), stack)) {
+//                    sender.spigot().sendMessage(
+//                            new ComponentBuilder("Recipe " + id + " would accept ").color(GREEN)
+//                                    .append(TextUtils.displayItem(stack)).color(BLUE).create()
+//                    );
+//                } else {
+//                    if (Config.debug) // show Bukkit ItemMeta info
+//                        sender.sendMessage(RED + "Recipe " + id + " would reject " + BLUE + stack + RED + " because it wants " +
+//                                YELLOW + simpleRecipe.input());
+//                    else
+//                        sender.spigot().sendMessage(
+//                                new ComponentBuilder("Recipe " + id + " would reject ").color(RED)
+//                                        .append(TextUtils.displayItem(stack)).color(BLUE)
+//                                        .append(" because it wants ", NONE).color(RED)
+//                                        .append(TextUtils.displayItem(simpleRecipe.input())).color(YELLOW).create()
+//                        );
+//                }
             }
             case "info" -> {
                 assertPermission(sender, "recipe.info");
                 parser.updateUsage("recipe info <id>");
 
                 String id = parser.popWord();
-                BeaconRecipe recipe = RecipeManager.RECIPES.get(id);
+                BeaconRecipe recipe = RecipeManager.recipes.get(id);
                 var builder = new ComponentBuilder("Recipe " + id + "\n").color(GREEN);
                 if (recipe instanceof CombinationRecipe combinationRecipe) {
                     builder.append("Type: Beacon Combination\n").color(AQUA);

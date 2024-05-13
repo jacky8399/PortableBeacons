@@ -6,8 +6,8 @@ import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.recipes.BeaconRecipe;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;
 import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
+import com.jacky8399.portablebeacons.utils.InventoryTypeUtils;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
-import com.jacky8399.portablebeacons.utils.SmithingUtils;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -33,9 +33,7 @@ import java.util.logging.Logger;
 public class RecipeEvents implements Listener {
 
     public RecipeEvents() {
-        if (SmithingUtils.IS_1_20) {
-            Bukkit.getPluginManager().registerEvents(new SmithingFixes(), PortableBeacons.INSTANCE);
-        }
+
     }
 
     public static final Logger LOGGER = PortableBeacons.INSTANCE.logger;
@@ -83,7 +81,7 @@ public class RecipeEvents implements Listener {
         Inventory inv = view.getTopInventory();
 
         // template slot in 1.20
-        int slotOffset =  SmithingUtils.IS_1_20 && inv instanceof SmithingInventory ? 1 : 0;
+        int slotOffset = inv instanceof SmithingInventory ? 1 : 0;
 
         ItemStack beacon = inv.getItem(slotOffset), right = inv.getItem(slotOffset + 1);
 
@@ -97,13 +95,13 @@ public class RecipeEvents implements Listener {
             resultSetter.accept(null);
             return false; // owner only
         }
-        BeaconRecipe recipe = RecipeManager.findRecipeFor(view.getType(), beacon, right);
+        BeaconRecipe recipe = RecipeManager.findRecipeFor(view.getType(), inv);
         if (recipe == null) {
             resultSetter.accept(null);
             return false; // no recipe
         }
         if (recipe instanceof SimpleRecipe simpleRecipe &&
-                SmithingUtils.IS_1_20 && inv instanceof SmithingInventory smithingInventory) {
+                inv instanceof SmithingInventory smithingInventory) {
             // check template
             ItemStack template = simpleRecipe.template();
             ItemStack stack = smithingInventory.getItem(0);
@@ -131,9 +129,7 @@ public class RecipeEvents implements Listener {
             resultSetter.accept(null);
             return false;
         }
-        var recipeOutput = preview ?
-                recipe.getPreviewOutput(player, beacon, right) :
-                recipe.getOutput(player, beacon, right);
+        var recipeOutput = recipe.getOutput(player, inv.getType(), inv);
 
         if (Config.debug)
             PortableBeacons.INSTANCE.logger.info("handleRecipe (preview: %b) for %s in %s: recipe %s, cost %d".formatted(
@@ -186,19 +182,21 @@ public class RecipeEvents implements Listener {
             if (player.getGameMode() != GameMode.CREATIVE) {
                 player.setLevel(level - cost);
             }
-            // update input items
-            if (SmithingUtils.IS_1_20 && inv instanceof SmithingInventory) {
-                // subtract template
-                ItemStack stack = inv.getItem(0);
-                if (stack != null) {
-                    stack.setAmount(stack.getAmount() - 1);
-                    inv.setItem(0, stack);
-                }
-            }
-
-            inv.setItem(slotOffset, null);
-            inv.setItem(slotOffset + 1, recipeOutput.right());
-            inv.setItem(slotOffset + 2, null);
+//            // update input items
+//            if (SmithingUtils.IS_1_20 && inv instanceof SmithingInventory) {
+//                // subtract template
+//                ItemStack stack = inv.getItem(0);
+//                if (stack != null) {
+//                    stack.setAmount(stack.getAmount() - 1);
+//                    inv.setItem(0, stack);
+//                }
+//            }
+//
+//            inv.setItem(slotOffset, null);
+//            inv.setItem(slotOffset + 1, recipeOutput.right());
+//            inv.setItem(slotOffset + 2, null);
+            inv.setContents(recipeOutput.slots());
+            inv.setItem(InventoryTypeUtils.getBeaconSlot(inv.getType()), null);
             resultSetter.accept(recipeOutput.output());
         }
         return true;
@@ -210,7 +208,12 @@ public class RecipeEvents implements Listener {
         if (!(inv instanceof AnvilInventory || inv instanceof SmithingInventory))
             return;
         Player player = (Player) e.getWhoClicked();
-        boolean isSmithing = SmithingUtils.IS_1_20 && inv instanceof SmithingInventory;
+        if (Config.debug)
+            LOGGER.info("InventoryClick for %s in %s.%d, click type: %s, action: %s".formatted(
+                    player.getName(), e.getClickedInventory().getType(), e.getSlot(),
+                    e.getClick(), e.getAction()
+            ));
+        boolean isSmithing = inv instanceof SmithingInventory;
         int slotOffset = isSmithing ? 1 : 0;
         if (e.getSlot() != 2 + slotOffset)
             return;
@@ -224,11 +227,6 @@ public class RecipeEvents implements Listener {
             return; // renaming, don't care
 
         // handle the event ourselves
-        if (Config.debug)
-            LOGGER.info("InventoryClick for %s in %s, click type: %s, action: %s".formatted(
-                    player.getName(), e.getClickedInventory().getType(),
-                    e.getClick(), e.getAction()
-            ));
         e.setResult(Event.Result.DENY);
         if (!isValidClick(e)) // disallow unhandled clicks
             return;
@@ -278,7 +276,7 @@ public class RecipeEvents implements Listener {
                 }
             }
             // DROP, CONTROL_DROP, default
-            default -> dropItemAs(player, result);
+            case DROP, CONTROL_DROP -> dropItemAs(player, result);
             case SHIFT_LEFT, SHIFT_RIGHT -> {
                 var leftOver = inventory.addItem(result);
                 leftOver.forEach((ignored, stack) -> dropItemAs(player, stack));
@@ -318,49 +316,57 @@ public class RecipeEvents implements Listener {
         });
     }
 
-    // 1.20 only
-    private static class SmithingFixes implements Listener {
-        // allow placing any beacon into the base item slot
-        @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
-        public void onSmithingClick(InventoryClickEvent e) {
-            if (!(e.getInventory() instanceof SmithingInventory inv))
-                return;
-            HumanEntity p = e.getWhoClicked();
+    // allow placing any beacon into the base item slot
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onSmithingClick(InventoryClickEvent e) {
+        if (!(e.getInventory() instanceof SmithingInventory inv))
+            return;
+        HumanEntity p = e.getWhoClicked();
 
-            if (e.getClickedInventory() == inv) {
-                // put beacons in base item slot
-                if (e.getSlot() == 1) {
-                    if ((e.getAction() == InventoryAction.PLACE_ALL || e.getAction() == InventoryAction.PLACE_ONE) &&
-                            (e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) &&
-                            ItemUtils.isPortableBeacon(e.getCursor())) {
-                        ItemStack source = null, dest = e.getCursor();
-                        // only place one
-                        if (dest.getAmount() != 1) {
-                            source = dest.clone();
-                            source.setAmount(source.getAmount() - 1);
-                            dest.setAmount(1);
-                        }
+        if (e.getClickedInventory() == inv) {
+            // put beacons in base or sacrifice item slot
+            if (e.getSlot() == 1 || e.getSlot() == 2) {
+                if ((e.getAction() == InventoryAction.PLACE_ALL || e.getAction() == InventoryAction.PLACE_ONE) &&
+                        (e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) &&
+                        ItemUtils.isPortableBeacon(e.getCursor())) {
+                    ItemStack source = e.getCursor(), dest = inv.getItem(e.getSlot());
+                    if (dest != null && dest.getAmount() == 1) {
+                        // destination already occupied
                         e.setCancelled(true);
-                        e.setCurrentItem(dest);
-                        p.setItemOnCursor(source);
+                        return;
                     }
-                }
-            } else {
-                // shift click
-                if (e.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY && ItemUtils.isPortableBeacon(e.getCurrentItem())) {
-                    ItemStack source = null, dest = e.getCurrentItem();
                     // only place one
-                    if (dest.getAmount() != 1) {
-                        source = dest.clone();
-                        source.setAmount(source.getAmount() - 1);
-                        dest.setAmount(1);
-                    }
+                    dest = source.clone();
+                    dest.setAmount(1);
+                    source.setAmount(source.getAmount() - 1);
                     e.setCancelled(true);
-                    inv.setItem(1, dest);
-                    e.setCurrentItem(source);
+                    e.setCurrentItem(dest);
+                    p.setItemOnCursor(source);
                 }
             }
-
+        } else {
+            // shift click
+            if (e.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY && ItemUtils.isPortableBeacon(e.getCurrentItem())) {
+                int destSlot = 1;
+                ItemStack source = e.getCurrentItem(), dest = inv.getItem(1);
+                if (dest != null && dest.getAmount() == 1) { // slot 1 already occupied
+                    destSlot = 2;
+                    dest = inv.getItem(2);
+                }
+                if (dest != null && dest.getAmount() == 1) {
+                    // both slots occupied
+                    e.setCancelled(true);
+                    return;
+                }
+                // only place one
+                dest = source.clone();
+                source.setAmount(source.getAmount() - 1);
+                dest.setAmount(1);
+                e.setCancelled(true);
+                inv.setItem(destSlot, dest);
+                e.setCurrentItem(source);
+            }
         }
+
     }
 }
