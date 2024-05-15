@@ -8,11 +8,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
 
-public record BeaconModification(Type type, BeaconEffects virtualEffects, boolean bypassRestrictions)
-    implements Function<BeaconEffects, Boolean> {
+public record BeaconModification(Type type, BeaconEffects virtualEffects, boolean bypassRestrictions) {
 
     public BeaconModification(Type type, BeaconEffects virtualEffects) {
         this(type, virtualEffects, false);
@@ -43,11 +41,6 @@ public record BeaconModification(Type type, BeaconEffects virtualEffects, boolea
                 default -> throw new IllegalArgumentException(string);
             };
         }
-    }
-
-    @Override
-    public Boolean apply(BeaconEffects beaconEffects) {
-        return modify(beaconEffects);
     }
 
     public boolean modify(BeaconEffects effects) {

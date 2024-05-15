@@ -20,7 +20,8 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
                            @NotNull InventoryType type,
                            @NotNull ItemStack input,
                            @Nullable ItemStack template,
-                           @Nullable BeaconCondition condition,
+                           @Nullable BeaconCondition beaconCondition,
+                           @Nullable BeaconCondition resultCondition,
                            @NotNull List<BeaconModification> modifications,
                            @NotNull ExpCostCalculator expCost,
                            @NotNull Set<SpecialOps> specialOperations) implements BeaconRecipe {
@@ -39,7 +40,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
                         @NotNull ExpCostCalculator expCost,
                         @NotNull Set<SpecialOps> specialOperations) {
         this(Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id),
-                type, input, null, null, modifications, expCost, specialOperations);
+                type, input, null, null, null, modifications, expCost, specialOperations);
     }
 
     @Override
@@ -89,7 +90,11 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         if (this.type != type)
             return false;
         ItemStack beacon = inventory.getItem(InventoryTypeUtils.getBeaconSlot(type));
-        if (!ItemUtils.isPortableBeacon(beacon) || (condition != null && !condition.test(ItemUtils.getEffects(beacon))))
+        BeaconEffects effects = ItemUtils.getEffects(beacon);
+        if (effects == null || (beaconCondition != null && !beaconCondition.test(effects)))
+            return false;
+        modifications.forEach(modification -> modification.modify(effects));
+        if (resultCondition != null && !resultCondition.test(effects))
             return false;
         ItemStack sacrifice = inventory.getItem(InventoryTypeUtils.getSacrificeSlot(type));
         if (sacrifice == null)
@@ -124,8 +129,10 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         if (type == InventoryType.SMITHING && template != null)
             map.put("template", template);
 
-        if (condition != null)
-            map.putAll(condition.save(null));
+        if (beaconCondition != null)
+            map.putAll(beaconCondition.save("beacon"));
+        if (resultCondition != null)
+            map.putAll(resultCondition.save("result"));
 
         var modMap = new HashMap<String, Object>();
         for (var mod : modifications) {
@@ -166,7 +173,8 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
         Object templateObj = map.get("template");
         ItemStack template = templateObj != null ? loadStack(templateObj) : null;
 
-        BeaconCondition condition = BeaconCondition.load(map, null);
+        BeaconCondition beaconCondition = BeaconCondition.load(map, "beacon");
+        BeaconCondition resultCondition = BeaconCondition.load(map, "result");
 
         var modificationsMap = (Map<String, Map<String, Object>>) map.get("modifications");
         if (modificationsMap == null || modificationsMap.isEmpty()) {
@@ -181,7 +189,7 @@ public record SimpleRecipe(@NotNull NamespacedKey id,
             if (map.get(special.key) instanceof Boolean bool && bool)
                 specialOps.add(special);
         }
-        return new SimpleRecipe(key, type, stack, template, condition, modifications, expCost, specialOps);
+        return new SimpleRecipe(key, type, stack, template, beaconCondition, resultCondition, modifications, expCost, specialOps);
     }
 
     public enum SpecialOps {

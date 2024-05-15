@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.jacky8399"
-version = "1.13.2"
+version = "1.14"
 
 repositories {
     mavenCentral()
@@ -33,6 +33,9 @@ dependencies {
     compileOnly("me.clip:placeholderapi:2.11.0")
     implementation("org.bstats:bstats-bukkit:2.2.1")
 
+    implementation("net.kyori:adventure-api:4.17.0")
+    implementation("net.kyori:adventure-platform-bukkit:4.3.2")
+
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("org.mockito:mockito-core:5.5.0")
 }
@@ -54,6 +57,7 @@ tasks {
 
     withType<ShadowJar> {
         relocate("org.bstats", "com.jacky8399.portablebeacons.bstats")
+        relocate("net.kyori", "com.jacky8399.portablebeacons.adventure")
     }
 
     build {

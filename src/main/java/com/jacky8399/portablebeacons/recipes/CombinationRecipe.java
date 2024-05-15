@@ -4,6 +4,7 @@ import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.Config;
 import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.utils.BeaconCondition;
+import com.jacky8399.portablebeacons.utils.BeaconModification;
 import com.jacky8399.portablebeacons.utils.InventoryTypeUtils;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
 import org.bukkit.NamespacedKey;
@@ -19,12 +20,17 @@ import java.util.*;
 public record CombinationRecipe(NamespacedKey id,
                                 @NotNull InventoryType type,
                                 @Nullable ItemStack template,
-                                @Nullable BeaconCondition resultCondition,
                                 @Nullable BeaconCondition beaconCondition,
                                 @Nullable BeaconCondition sacrificeCondition,
+                                @NotNull List<BeaconModification> modifications,
+                                @Nullable BeaconCondition resultCondition,
                                 int maxEffects,
                                 boolean combineEffectsAdditively,
                                 @NotNull ExpCostCalculator expCost) implements BeaconRecipe {
+
+    public CombinationRecipe {
+        modifications = List.copyOf(modifications);
+    }
 
     private BeaconEffects doCombine(BeaconEffects effects, BeaconEffects otherEffects) {
         effects = new BeaconEffects(effects);
@@ -39,6 +45,10 @@ public record CombinationRecipe(NamespacedKey id,
         effects.expReductionLevel = anvilAlgorithm(effects.expReductionLevel, otherEffects.expReductionLevel, Config.enchExpReductionMaxLevel);
         effects.soulboundLevel = anvilAlgorithm(effects.soulboundLevel, otherEffects.soulboundLevel, Config.enchSoulboundMaxLevel);
         effects.beaconatorLevel = anvilAlgorithm(effects.beaconatorLevel, otherEffects.soulboundLevel, Config.enchBeaconatorLevels.size());
+
+        for (var modification : modifications) {
+            modification.modify(effects);
+        }
 
         effects.setEffects(potions);
         return effects;
@@ -81,15 +91,15 @@ public record CombinationRecipe(NamespacedKey id,
         if (type != this.type)
             return false;
         ItemStack beacon = inventory.getItem(InventoryTypeUtils.getBeaconSlot(type));
-        if (!ItemUtils.isPortableBeacon(beacon) || beacon.getAmount() != 1)
-            return false;
         BeaconEffects beaconEffects = ItemUtils.getEffects(beacon);
+        if (beaconEffects == null || beacon.getAmount() != 1)
+            return false;
         if (beaconCondition != null && !beaconCondition.test(beaconEffects))
             return false;
         ItemStack sacrifice = inventory.getItem(InventoryTypeUtils.getSacrificeSlot(type));
-        if (!ItemUtils.isPortableBeacon(sacrifice) || sacrifice.getAmount() != 1)
-            return false;
         BeaconEffects sacrificeEffects = ItemUtils.getEffects(sacrifice);
+        if (sacrificeEffects == null || sacrifice.getAmount() != 1)
+            return false;
         if (sacrificeCondition != null && !sacrificeCondition.test(sacrificeEffects))
             return false;
         if (type == InventoryType.SMITHING && template != null &&
@@ -120,6 +130,7 @@ public record CombinationRecipe(NamespacedKey id,
             if (sacrificeCondition != null)
                 map.putAll(sacrificeCondition.save("sacrifice"));
         }
+
         if (type == InventoryType.SMITHING && template != null)
             map.put("template", template);
         return map;
@@ -140,12 +151,19 @@ public record CombinationRecipe(NamespacedKey id,
         }
         NamespacedKey key = Objects.requireNonNull(NamespacedKey.fromString(id, PortableBeacons.INSTANCE), "Invalid key " + id);
 
-        BeaconCondition resultCondition = BeaconCondition.load(map, "result");
-        BeaconCondition beaconCondition = BeaconCondition.load(map, "beacon");
-        BeaconCondition sacrificeCondition = BeaconCondition.load(map, "sacrifice");
+        BeaconCondition beaconCondition = com.jacky8399.portablebeacons.utils.BeaconCondition.load(map, "beacon");
+        BeaconCondition sacrificeCondition = com.jacky8399.portablebeacons.utils.BeaconCondition.load(map, "sacrifice");
+
+        var modificationsMap = (Map<String, Map<String, Object>>) map.get("modifications");
+        List<BeaconModification> modifications = List.of();
+        if (modificationsMap != null && !modificationsMap.isEmpty())
+            modifications = modificationsMap.entrySet().stream()
+                    .map(entry -> BeaconModification.load(entry.getKey(), entry.getValue()))
+                    .toList();
+        BeaconCondition resultCondition = com.jacky8399.portablebeacons.utils.BeaconCondition.load(map, "result");
 
         if (sacrificeCondition == null && beaconCondition == null) {
-            sacrificeCondition = beaconCondition = BeaconCondition.load(map, "inputs");
+            sacrificeCondition = beaconCondition = com.jacky8399.portablebeacons.utils.BeaconCondition.load(map, "inputs");
         }
 
         Object template = map.get("template");
@@ -154,7 +172,8 @@ public record CombinationRecipe(NamespacedKey id,
         return new CombinationRecipe(key,
                 // also handles __special_combination legacy value
                 type.equals("smithing-combination") ? InventoryType.SMITHING : InventoryType.ANVIL,
-                templateStack, resultCondition, beaconCondition, sacrificeCondition,
+                templateStack, beaconCondition, sacrificeCondition,
+                modifications, resultCondition,
                 maxEffects, combineEffectsAdditively, expCost);
     }
 }

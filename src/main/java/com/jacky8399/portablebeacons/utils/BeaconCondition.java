@@ -21,17 +21,17 @@ public record BeaconCondition(boolean inverted, List<Item> conditions) {
         return !inverted;
     }
 
-    public Map<String, Object> save(@Nullable String prefix) {
+    public Map<String, Object> save(@Nullable String suffix) {
         var map = new HashMap<String, Object>();
         for (Item condition : conditions) {
             map.put(condition.target.name().toLowerCase(Locale.ENGLISH), condition.predicate.save());
         }
-        return Map.of((inverted ? "unless" : "if") + (prefix != null ? "-" + prefix : ""), Map.copyOf(map));
+        return Map.of((inverted ? "unless" : "if") + (suffix != null ? "-" + suffix : ""), Map.copyOf(map));
     }
 
-    public static BeaconCondition load(Map<String, Object> map, @Nullable String prefix) {
-        String ifString = prefix != null ? "if-" + prefix : "if";
-        String unlessString = prefix != null ? "unless-" + prefix : "unless";
+    public static BeaconCondition load(Map<String, Object> map, @Nullable String suffix) {
+        String ifString = suffix != null ? "if-" + suffix : "if";
+        String unlessString = suffix != null ? "unless-" + suffix : "unless";
 
         Map<String, Object> condition = (Map<String, Object>) map.get(ifString);
         boolean inverted = condition == null && (condition = (Map<String, Object>) map.get(unlessString)) != null;
@@ -46,7 +46,7 @@ public record BeaconCondition(boolean inverted, List<Item> conditions) {
         return new BeaconCondition(inverted, conditions);
     }
 
-    record Item(Target target, Predicate predicate) {
+    public record Item(Target target, Predicate predicate) {
 
         public boolean test(BeaconEffects effects) {
             if (target instanceof Target.Aggregate aggregate) {
@@ -74,7 +74,7 @@ public record BeaconCondition(boolean inverted, List<Item> conditions) {
         }
     }
 
-    sealed interface Target {
+    public sealed interface Target {
         String name();
 
         static Target load(String string) {
@@ -104,7 +104,7 @@ public record BeaconCondition(boolean inverted, List<Item> conditions) {
         }
     }
 
-    sealed interface Predicate {
+    public sealed interface Predicate {
         boolean test(int level);
         String save();
 
