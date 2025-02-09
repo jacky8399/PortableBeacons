@@ -12,7 +12,6 @@ import org.bukkit.configuration.file.YamlRepresenter;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.RecipeChoice;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -114,14 +113,7 @@ public final class RecipeManager {
         if (simpleRecipe.type() == InventoryType.SMITHING) {
             recipes = smithingRecipes;
 
-            var bukkitRecipe = RecipeUtils.makeSmithingRecipe(
-                    simpleRecipe.id(),
-                    simpleRecipe.template() != null ?
-                            new RecipeChoice.ExactChoice(simpleRecipe.template()) :
-                            new RecipeChoice.MaterialChoice(Material.AIR),
-                    new RecipeChoice.ExactChoice(simpleRecipe.input()),
-                    simpleRecipe.modifications()
-            );
+            var bukkitRecipe = RecipeUtils.makeSmithingRecipe(simpleRecipe);
             try {
                 if (!Bukkit.addRecipe(bukkitRecipe)) // throws IllegalStateException for some reason
                     throw new IllegalStateException("Bukkit.addRecipe");

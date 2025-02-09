@@ -2,10 +2,11 @@ package com.jacky8399.portablebeacons.utils;
 
 import com.jacky8399.portablebeacons.BeaconEffects;
 import com.jacky8399.portablebeacons.recipes.CombinationRecipe;
+import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
 import net.md_5.bungee.chat.ComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.SmithingRecipe;
@@ -22,15 +23,24 @@ import java.util.List;
 public class RecipeUtils {
 
     private static final ItemStack EMPTY_BEACON = ItemUtils.createStack(null, new BeaconEffects());
+    private static final RecipeChoice.ExactChoice EMPTY_CHOICE;
+    static {
+        var emptyStack = new ItemStack(Material.BARRIER);
+        ItemMeta meta = emptyStack.getItemMeta();
+        meta.setDisplayName(ChatColor.RED.toString());
+        emptyStack.setItemMeta(meta);
+        EMPTY_CHOICE = new RecipeChoice.ExactChoice(emptyStack);
+    }
 
     public static RecipeChoice getBeaconPlaceholder() {
         return new RecipeChoice.ExactChoice(EMPTY_BEACON.clone());
     }
 
-    public static ItemStack getBeaconCondition(@Nullable BeaconCondition condition) {
-        ItemStack base = EMPTY_BEACON.clone();
-        if (condition == null)
+    public static ItemStack getBeaconCondition(ItemStack base, @Nullable BeaconCondition condition) {
+        if (condition == null) {
             return base;
+        }
+        base = base.clone();
         ItemMeta meta = base.getItemMeta();
         List<String> rawLore = meta.hasLore() ? new ArrayList<>(ItemUtils.getRawLore(meta)) : new ArrayList<>();
 
@@ -43,12 +53,13 @@ public class RecipeUtils {
         return base;
     }
 
-    public static ItemStack getBeaconResult(List<BeaconModification> modifications) {
+    public static ItemStack getBeaconResult(List<BeaconModification> modifications, @Nullable BeaconCondition condition) {
         var effects = new BeaconEffects();
         for (BeaconModification modification : modifications) {
             modification.modify(effects);
         }
-        return ItemUtils.createStack(null, effects);
+        var stack = ItemUtils.createStack(null, effects);
+        return getBeaconCondition(stack, condition);
     }
 
     // Paper method to force recipes to update
@@ -76,17 +87,24 @@ public class RecipeUtils {
     public static SmithingRecipe makeSmithingRecipe(CombinationRecipe combinationRecipe) {
         return new SmithingTransformRecipe(
                 combinationRecipe.id(),
-                getBeaconCondition(combinationRecipe.resultCondition()),
+                getBeaconResult(combinationRecipe.modifications(), combinationRecipe.resultCondition()),
                 combinationRecipe.template() != null ?
                         new RecipeChoice.ExactChoice(combinationRecipe.template()) :
-                        new RecipeChoice.MaterialChoice(Material.AIR),
-                new RecipeChoice.ExactChoice(getBeaconCondition(combinationRecipe.beaconCondition())),
-                new RecipeChoice.ExactChoice(getBeaconCondition(combinationRecipe.sacrificeCondition()))
+                        EMPTY_CHOICE, // 1.20.5+ will no longer allow air as recipe choice
+                new RecipeChoice.ExactChoice(getBeaconCondition(EMPTY_BEACON, combinationRecipe.beaconCondition())),
+                new RecipeChoice.ExactChoice(getBeaconCondition(EMPTY_BEACON, combinationRecipe.sacrificeCondition()))
         );
     }
 
-    public static SmithingRecipe makeSmithingRecipe(NamespacedKey key, RecipeChoice template, RecipeChoice addition, List<BeaconModification> modifications) {
-        ItemStack result = getBeaconResult(modifications);
-        return new SmithingTransformRecipe(key, result, template, getBeaconPlaceholder(), addition);
+    public static SmithingRecipe makeSmithingRecipe(SimpleRecipe simpleRecipe) {
+        return new SmithingTransformRecipe(
+                simpleRecipe.id(),
+                getBeaconResult(simpleRecipe.modifications(), simpleRecipe.resultCondition()),
+                simpleRecipe.template() != null ?
+                        new RecipeChoice.ExactChoice(simpleRecipe.template()) :
+                        EMPTY_CHOICE,
+                new RecipeChoice.ExactChoice(getBeaconCondition(EMPTY_BEACON, simpleRecipe.beaconCondition())),
+                new RecipeChoice.ExactChoice(simpleRecipe.input())
+        );
     }
 }
