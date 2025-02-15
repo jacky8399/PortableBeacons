@@ -3,7 +3,7 @@ package com.jacky8399.portablebeacons;
 import com.jacky8399.portablebeacons.events.Events;
 import com.jacky8399.portablebeacons.recipes.*;
 import com.jacky8399.portablebeacons.utils.*;
-import net.md_5.bungee.api.chat.TextComponent;
+import net.kyori.adventure.text.Component;
 import net.md_5.bungee.api.chat.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -19,15 +19,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.text.DecimalFormat;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
@@ -233,6 +232,19 @@ public class CommandPortableBeacons implements TabExecutor {
 
     public void runCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         switch (args[0].toLowerCase(Locale.ENGLISH)) {
+            case "papertest" -> {
+                if (!(sender instanceof Player player))
+                    return;
+                ItemStack stack = player.getInventory().getItemInMainHand();
+                if (!stack.isEmpty()) {
+                    ItemMeta meta = stack.getItemMeta();
+                    Component name = Component.text("amogus");
+                    TextUtils2.setDisplayName(meta, name);
+                    Component returned = TextUtils2.getDisplayName(meta);
+                    TextUtils2.setDisplayName(meta, returned.append(Component.text(" 2")));
+                    stack.setItemMeta(meta);
+                }
+            }
             case "reload" -> {
                 if (!checkPermission(sender, "reload"))
                     return;
@@ -608,7 +620,7 @@ public class CommandPortableBeacons implements TabExecutor {
                 var modificationType = BeaconModification.Type.parseType(operation);
 
                 BeaconEffects virtual = CommandUtils.parseEffects(sender, parser.popRemainingInput(), modificationType.allowVirtual);
-                modification = new BeaconModification(modificationType, virtual, true);
+                modification = new BeaconModification(modificationType, virtual, true)::modify;
             }
         }
         Set<Player> failedPlayers = new LinkedHashSet<>();
@@ -696,7 +708,7 @@ public class CommandPortableBeacons implements TabExecutor {
                     sender.sendMessage(ChatColor.YELLOW + "SMITHING recipes are deprecated due to changes to Smithing Tables in 1.20!");
                 }
 
-                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, null, null, List.of(modification), expCost, Set.of());
+                SimpleRecipe recipe = new SimpleRecipe(id, type, stack, null, null, null, List.of(modification), expCost, Set.of());
 
                 // save in YAML
                 var yaml = YamlConfiguration.loadConfiguration(RecipeManager.RECIPES_FILE);
@@ -791,7 +803,7 @@ public class CommandPortableBeacons implements TabExecutor {
                             .append(TextUtils.displayItem(simpleRecipe.input()))
                             .append("\n", NONE);
                     if (simpleRecipe.template() != null) {
-                        builder.append("Smithing Template: ").color(net.md_5.bungee.api.ChatColor.of(new Color(0x1a1e1a)))
+                        builder.append("Smithing Template: ").color(net.md_5.bungee.api.ChatColor.of(new java.awt.Color(0x1a1e1a)))
                                 .append(TextUtils.displayItem(simpleRecipe.template()))
                                 .append("\n", NONE);
                     }

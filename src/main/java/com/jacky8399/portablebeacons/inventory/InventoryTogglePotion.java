@@ -169,7 +169,7 @@ public class InventoryTogglePotion implements InventoryProvider {
     @Override
     public void update(Player player, InventoryAccessor inventory) {
         if (!stack.equals(player.getInventory().getItem(slot))) {
-            Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, player::closeInventory);
+            Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> player.closeInventory());
         }
     }
 

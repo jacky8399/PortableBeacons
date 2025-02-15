@@ -1,8 +1,7 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 plugins {
     java
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    id("com.gradleup.shadow") version "9.0.0-beta8"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.14"
 }
 
 group = "com.jacky8399"
@@ -26,8 +25,9 @@ configurations {
 }
 
 dependencies {
-    compileOnly("org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT")
-    compileOnly("net.md-5:bungeecord-chat:1.16-R0.4")
+    paperweight.paperDevBundle("1.20.1-R0.1-SNAPSHOT")
+//    compileOnly("org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT")
+//    compileOnly("net.md-5:bungeecord-chat:1.16-R0.4")
     compileOnly("org.jetbrains:annotations:23.0.0")
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.6")
     compileOnly("me.clip:placeholderapi:2.11.6")
@@ -43,7 +43,7 @@ dependencies {
 tasks {
     compileJava {
         options.encoding = "UTF-8"
-        options.release.set(17)
+        options.release.set(21)
     }
 
     processResources {
@@ -55,7 +55,7 @@ tasks {
         }
     }
 
-    withType<ShadowJar> {
+    withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
         relocate("org.bstats", "com.jacky8399.portablebeacons.bstats")
         relocate("net.kyori", "com.jacky8399.portablebeacons.adventure")
     }
