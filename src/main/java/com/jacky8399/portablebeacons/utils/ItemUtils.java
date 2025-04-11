@@ -113,26 +113,6 @@ public class ItemUtils {
         return meta;
     }
 
-    /*
-        Spigot stores the display name and lore as JSON strings internally, but there is no API to set them to a JSON text.
-        https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/browse/src/main/java/org/bukkit/craftbukkit/inventory/CraftMetaItem.java?at=64c15270e76475e68b2167d4bfba162a4a827fe0#267
-     */
-    private static final VarHandle ITEM_META_DISPLAY_NAME;
-    private static final VarHandle ITEM_META_LORE;
-    static {
-        Class<? extends ItemMeta> clazz = Objects.requireNonNull(Bukkit.getItemFactory().getItemMeta(Material.STONE)).getClass();
-        VarHandle itemMetaDisplayName = null;
-        VarHandle itemMetaLore = null;
-        try {
-            var privateLookup = MethodHandles.privateLookupIn(clazz, MethodHandles.lookup());
-            itemMetaDisplayName = privateLookup.findVarHandle(clazz, "displayName", String.class);
-            itemMetaLore = privateLookup.findVarHandle(clazz, "lore", List.class);
-        } catch (ReflectiveOperationException ex) {
-            PortableBeacons.INSTANCE.logger.log(Level.WARNING, "Failed to find displayName/lore field in " + clazz.getName(), ex);
-        }
-        ITEM_META_DISPLAY_NAME = itemMetaDisplayName;
-        ITEM_META_LORE = itemMetaLore;
-    }
     public static void setDisplayName(ItemMeta meta, BaseComponent @Nullable... components) {
         if (components == null) {
             meta.setDisplayName(null);

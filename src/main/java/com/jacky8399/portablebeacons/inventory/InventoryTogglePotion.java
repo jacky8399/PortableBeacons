@@ -141,7 +141,7 @@ public class InventoryTogglePotion implements InventoryProvider {
                 inventory.set(0, stack, addPotionEffects(inventory));
             } else if (i == 8 && Config.nerfExpLevelsPerMinute != 0) {
                 inventory.set(8, expStack);
-            } else if (i == 7) {
+            } else if (i == 7 && hasBeaconatorToggle(beaconatorLevel)) {
                 setBeaconatorToggle(inventory);
             } else {
                 inventory.set(i, BORDER);
@@ -175,7 +175,7 @@ public class InventoryTogglePotion implements InventoryProvider {
 
     private void setBeaconatorToggle(InventoryAccessor inventory) {
         int level = beaconatorLevel;
-        if (level == 0 || Config.effectsToggleCanToggleBeaconator == Config.BeaconatorToggleMode.FALSE)
+        if (!hasBeaconatorToggle(level))
             return;
         int selectedLevel = beaconatorSelectedLevel;
         if (selectedLevel == 0)
@@ -227,6 +227,10 @@ public class InventoryTogglePotion implements InventoryProvider {
             updateItem(player);
             inventory.requestRefresh(player);
         });
+    }
+
+    private static boolean hasBeaconatorToggle(int level) {
+        return level != 0 && Config.effectsToggleCanToggleBeaconator != Config.BeaconatorToggleMode.FALSE;
     }
 
     @NotNull

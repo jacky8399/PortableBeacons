@@ -25,16 +25,15 @@ configurations {
 }
 
 dependencies {
-    paperweight.paperDevBundle("1.20.1-R0.1-SNAPSHOT")
-//    compileOnly("org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT")
-//    compileOnly("net.md-5:bungeecord-chat:1.16-R0.4")
+    paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:23.0.0")
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.6")
     compileOnly("me.clip:placeholderapi:2.11.6")
     implementation("org.bstats:bstats-bukkit:2.2.1")
 
-    implementation("net.kyori:adventure-api:4.17.0")
-    implementation("net.kyori:adventure-platform-bukkit:4.3.2")
+    implementation("net.kyori:adventure-api:4.20.0")
+    implementation("net.kyori:adventure-text-serializer-bungeecord:4.3.4")
+//    implementation("net.kyori:adventure-platform-bukkit:4.3.2")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("org.mockito:mockito-core:5.5.0")

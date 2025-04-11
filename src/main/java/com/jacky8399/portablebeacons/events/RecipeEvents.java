@@ -6,13 +6,14 @@ import com.jacky8399.portablebeacons.PortableBeacons;
 import com.jacky8399.portablebeacons.recipes.BeaconRecipe;
 import com.jacky8399.portablebeacons.recipes.RecipeManager;
 import com.jacky8399.portablebeacons.recipes.SimpleRecipe;
+import com.jacky8399.portablebeacons.utils.AdventureCompat;
 import com.jacky8399.portablebeacons.utils.InventoryTypeUtils;
 import com.jacky8399.portablebeacons.utils.ItemUtils;
-import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.md_5.bungee.api.chat.TextComponent;
-import net.md_5.bungee.api.chat.TranslatableComponent;
-import net.md_5.bungee.chat.ComponentSerializer;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TranslatableComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.Style;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.*;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
@@ -20,7 +21,10 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.*;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.inventory.PrepareSmithingEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -32,26 +36,22 @@ import java.util.logging.Logger;
 
 public class RecipeEvents implements Listener {
 
+    public static final TranslatableComponent TOO_EXPENSIVE = Component.translatable()
+            .key("container.repair.expensive")
+            .color(NamedTextColor.RED)
+            .decoration(TextDecoration.ITALIC, false)
+            .build();
+
     public RecipeEvents() {
 
     }
 
     public static final Logger LOGGER = PortableBeacons.INSTANCE.logger;
 
-    private static ItemStack showError(String error) {
+    private static ItemStack showError(Component component) {
         ItemStack stack = new ItemStack(Material.BARRIER);
         ItemMeta meta = stack.getItemMeta();
-        meta.setDisplayName(ChatColor.RED + error);
-        stack.setItemMeta(meta);
-        return stack;
-    }
-    private static ItemStack showLocalizedError(String error) {
-        ItemStack stack = new ItemStack(Material.BARRIER);
-        ItemMeta meta = stack.getItemMeta();
-        var translatable = new TranslatableComponent(error);
-        translatable.setColor(ChatColor.RED);
-        translatable.setItalic(false);
-        ItemUtils.setDisplayName(meta, translatable);
+        AdventureCompat.setDisplayName(meta, component);
         stack.setItemMeta(meta);
         return stack;
     }
@@ -122,7 +122,7 @@ public class RecipeEvents implements Listener {
                 if (inv instanceof AnvilInventory anvilInventory) {
                     Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> anvilInventory.setRepairCost(40));
                 } else {
-                    resultSetter.accept(showLocalizedError("container.repair.expensive"));
+                    resultSetter.accept(showError(TOO_EXPENSIVE));
                     return false;
                 }
             }
@@ -146,31 +146,21 @@ public class RecipeEvents implements Listener {
         if (preview) {
             var result = recipeOutput.output().clone();
             ItemMeta meta = result.getItemMeta();
-            List<String> lore = meta.hasLore() ? new ArrayList<>(ItemUtils.getRawLore(meta)) : new ArrayList<>();
-            int oldSize = lore.size();
+            List<Component> lore = meta.hasLore() ? new ArrayList<>(AdventureCompat.getLore(meta)) : new ArrayList<>();
             if (cost > 0) {
                 if (inv instanceof AnvilInventory anvilInventory &&
                         (cost < anvilInventory.getMaximumRepairCost() || player.getGameMode() == GameMode.CREATIVE)) {
                     Bukkit.getScheduler().runTask(PortableBeacons.INSTANCE, () -> anvilInventory.setRepairCost(cost));
                 } else {
-                    var translatable = new TranslatableComponent("container.repair.cost", Integer.toString(cost));
-                    translatable.setColor(canAfford ? ChatColor.GREEN : ChatColor.RED);
-                    translatable.setItalic(false);
-                    translatable.setBold(true);
-
-                    lore.add(ComponentSerializer.toString(new TextComponent()));
-                    lore.add(ComponentSerializer.toString(translatable));
+                    lore.add(Component.empty());
+                    lore.add(Component.translatable("container.repair.cost", Style.style(NamedTextColor.GREEN, TextDecoration.BOLD), List.of(Component.text(cost))));
                 }
             }
             if (Config.debug) {
-                var recipeComponent = new ComponentBuilder("Recipe: " + recipe.id())
-                        .color(ChatColor.GRAY).italic(false).create();
-                lore.add(ComponentSerializer.toString(recipeComponent));
+                lore.add(Component.text("Recipe: " + recipe.id(), NamedTextColor.GRAY));
             }
-            if (lore.size() != oldSize) {
-                ItemUtils.setRawLore(meta, lore);
-                result.setItemMeta(meta);
-            }
+            AdventureCompat.setLore(meta, lore);
+            result.setItemMeta(meta);
             resultSetter.accept(result);
         } else {
             if (!canAfford) {
@@ -182,19 +172,6 @@ public class RecipeEvents implements Listener {
             if (player.getGameMode() != GameMode.CREATIVE) {
                 player.setLevel(level - cost);
             }
-//            // update input items
-//            if (SmithingUtils.IS_1_20 && inv instanceof SmithingInventory) {
-//                // subtract template
-//                ItemStack stack = inv.getItem(0);
-//                if (stack != null) {
-//                    stack.setAmount(stack.getAmount() - 1);
-//                    inv.setItem(0, stack);
-//                }
-//            }
-//
-//            inv.setItem(slotOffset, null);
-//            inv.setItem(slotOffset + 1, recipeOutput.right());
-//            inv.setItem(slotOffset + 2, null);
             inv.setContents(recipeOutput.slots());
             inv.setItem(InventoryTypeUtils.getBeaconSlot(inv.getType()), null);
             resultSetter.accept(recipeOutput.output());

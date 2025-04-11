@@ -239,11 +239,16 @@ public class CommandPortableBeacons implements TabExecutor {
                 if (!stack.isEmpty()) {
                     ItemMeta meta = stack.getItemMeta();
                     Component name = Component.text("amogus");
-                    TextUtils2.setDisplayName(meta, name);
-                    Component returned = TextUtils2.getDisplayName(meta);
-                    TextUtils2.setDisplayName(meta, returned.append(Component.text(" 2")));
+                    AdventureCompat.setDisplayName(meta, name);
+                    Component returned = AdventureCompat.getDisplayName(meta);
+                    AdventureCompat.setDisplayName(meta, returned.append(Component.text(" 2")));
                     stack.setItemMeta(meta);
                 }
+            }
+            case "locale" -> {
+                if (!(sender instanceof Player player))
+                    return;
+                player.sendMessage("Locale: " + player.getLocale());
             }
             case "reload" -> {
                 if (!checkPermission(sender, "reload"))

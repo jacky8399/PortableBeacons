@@ -1,0 +1,64 @@
+beacon-item:
+  name: '<#5cdbd5>Portable Beacon'
+  lore:
+    - '<gray>Shift + right click to configure potion effects'
+
+  tutorial: '<green>An item in your inventory is resonating with a nearby beacon...'
+
+  custom-enchantments:
+    exp-reduction:
+      name: '<light_purple>Experience Efficiency'
+      format: '<light_purple><name> <level>'
+      extra: "<dark_gray>  (<exp-reduction:'0%'> exp consumption)"
+    soulbound:
+      name: '<#664c33>Soulbound'
+      format: '<#664c33><name> <level>'
+      extra: "<dark_gray>  to <soulbound-owner>"
+    beaconator:
+      name: '<#5cdbd5><shadow:#5cdbd57f>Beaconator'
+      format: '<#5cdbd5><name> <level>'
+
+# Effects Toggle GUI
+effects-toggle:
+  title: '<dark_purple>Toggle Potion Effects'
+  # Format: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/MessageFormat.html]
+  # {usage} to get how long it takes to consume one level
+  # {usage|format} to change the displayed format (Default: "0.#")
+  #   (See: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/DecimalFormat.html)
+  # {player-level} to get the player level
+  # {remaining-time} to get how long the player can sustain the beacon
+  # {remaining-time|format} to change the displayed format (Default: "0")
+  exp-usage-item: '<gold>Consumes 1 level every <yellow><usage></yellow> seconds'
+  exp-usage-message:
+    - '<dark_gray>  Your <gray><player-level></gray> levels can sustain'
+    - '<dark_gray>  this beacon for <gray><remaining-time></gray> seconds'
+    - '<dark_green>Detailed breakdown:'
+
+  beaconator:
+    # Placeholders: {level}, {max-level}
+    name: '<#5cdbd5><name> <max-level>'
+    disabled: '<dark_red>Off'
+    # Placeholders: {level}, {radius}
+    # Note that level I will be shown, unlike other places where {level} is used
+    level: '<red>Level <level>: <radius> blocks'
+    selected: '<yellow>> '
+    not-selected: '<gray>- '
+
+  breakdown:
+    # For effects with exp-cost
+    # Placeholders: {name}, {level}, {cost}
+    effect: '  <effect><gray>: <cost> levels/min'
+    # For other effects
+    # Placeholders: {count}, {cost}
+    effects: '  <gray><count> effects: <cost> levels/min'
+    # The base cost of beaconator
+    # Placeholders: {level}, {cost}
+    beaconator-base: '  <ench:beaconator>: <cost> levels/min'
+    # The in-range cost of beaconator
+    # Placeholders: {count}, {cost}
+    beaconator-in-range: '  <gray>  <count> players: <cost> levels/min'
+    # The multiplier applied by exp-reduction
+    # Placeholders: all exp-reduction placeholders
+    exp-reduction: '  <ench:exp-reduction>: x<exp-reduction:multiplier>'
+    # Placeholder: {cost}
+    sum: '<gray> = <cost> levels/min'
